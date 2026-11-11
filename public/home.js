@@ -317,7 +317,7 @@
         ? [["more_vert", "Tap the <b>⋮</b> menu in Chrome"], ["install_mobile", "Choose <b>Install app</b> or <b>Add to Home screen</b>"], ["check_circle", "Tap <b>Install</b>. DU Meet opens like an app"]]
         : [["install_desktop", "Click the <b>install</b> icon at the right end of the address bar"], ["check_circle", "Click <b>Install</b>. DU Meet opens in its own window"]];
     q("#install-body").innerHTML = `
-      <div class="install-hero"><img src="/icons/icon-192.png" alt="" width="72" height="72"><p>Full screen, no address bar, and it opens from your home screen.</p></div>
+      <div class="install-hero"><img src="/icons/icon-192.png?v=5" alt="" width="72" height="72"><p>Full screen, no address bar, and it opens from your home screen.</p></div>
       <ol class="install-steps">${steps.map(([icon, text]) => `<li><span class="icon">${icon}</span><span>${text}</span></li>`).join("")}</ol>
       ${ios ? `<p class="muted small center">On iPhone this works in Safari.</p>` : ""}`;
     openModal(q("#m-install"));
