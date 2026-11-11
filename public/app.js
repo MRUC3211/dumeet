@@ -86,7 +86,10 @@ function showView(id) {
 function route() {
   const code = new URLSearchParams(location.search).get("room");
   if (code && isValidCode(code)) openLobby(code);
-  else showView("home");
+  else {
+    showView("home");
+    window.DU?.onHome?.();
+  }
 }
 
 function goToMeeting(code) {
@@ -97,6 +100,7 @@ function goToMeeting(code) {
 function goHome() {
   history.pushState(null, "", "/");
   showView("home");
+  window.DU?.onHome?.();
 }
 
 function newMeetingCode() {
@@ -408,6 +412,7 @@ async function joinMeeting() {
     // keep the built-in STUN servers
   }
   pollLoop();
+  window.DU?.onJoin?.();
 }
 
 async function pollLoop() {
@@ -472,6 +477,7 @@ function leaveMeeting() {
   unread = unreadPolls = 0;
   refreshUnread();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  window.DU?.onLeave?.();
   showView("left");
 }
 
@@ -507,7 +513,7 @@ function handleMessage(message) {
       break;
     case "join":
       removePeer(message.peer.id); // same person reconnecting
-      addPeer(message.peer);
+      window.DU?.onPeerJoined?.(addPeer(message.peer));
       toast(`${message.peer.name} joined`);
       note("event", message.peer.name, "joined");
       if (isSyncHost(message.peer.id)) send("sync", syncState(), message.peer.id);
@@ -589,6 +595,9 @@ function handleMessage(message) {
     case "sync":
       if (peer) applySync(data);
       break;
+    default:
+      // couple features (together.js): watch/listen together, sleep, moments…
+      window.DU?.onMessage?.(message, peer);
   }
 }
 
@@ -612,7 +621,21 @@ function addPeer(info) {
     if (candidate) send("ice", candidate, peer.id);
   };
   peer.pc.oniceconnectionstatechange = () => {
-    if (peer.pc.iceConnectionState !== "failed") return;
+    const state = peer.pc.iceConnectionState;
+    clearTimeout(peer.restartTimer);
+    if (state === "connected" || state === "completed") {
+      if (peer.reconnecting) toast(`Back with ${peer.name}`);
+      peer.reconnecting = false;
+      peer.restarts = 0;
+      return;
+    }
+    // Network blip (Wi-Fi ↔ mobile data, a tunnel…): try a fresh route instead of ending the call.
+    if (state === "disconnected" || state === "failed") {
+      if (!peer.reconnecting) toast(`Reconnecting with ${peer.name}…`);
+      peer.reconnecting = true;
+      peer.restartTimer = setTimeout(() => restartPeer(peer), state === "failed" ? 0 : 2500);
+    }
+    if (state !== "failed" || (peer.restarts ?? 0) < 4) return;
     const relay = iceServers.some((server) => [server.urls].flat().some((url) => url.startsWith("turn")));
     toast(relay
       ? `Couldn't connect audio and video with ${peer.name}. Try rejoining.`
@@ -654,6 +677,7 @@ function removePeer(id) {
 
 /** The newcomer calls everyone already in the meeting. */
 async function callPeer(peer) {
+  peer.initiator = true; // the one who called restarts the connection when the network drops
   // Three slots: mic, camera, screen. They exist even while empty, so the
   // camera and presenting can start later with replaceTrack.
   peer.pc.addTransceiver(localTrack(SLOT.audio) ?? "audio", { direction: "sendrecv" });
@@ -661,6 +685,21 @@ async function callPeer(peer) {
   peer.pc.addTransceiver(localTrack(SLOT.screen) ?? "video", { direction: "sendrecv" });
   await peer.pc.setLocalDescription(await peer.pc.createOffer());
   send("offer", peer.pc.localDescription, peer.id);
+}
+
+/** ICE restart: same call, new network path. Only the caller starts it, so the two never collide. */
+async function restartPeer(peer) {
+  if (!peers.has(peer.id) || !peer.initiator || peer.pc.signalingState !== "stable") return;
+  if (["connected", "completed"].includes(peer.pc.iceConnectionState)) return;
+  peer.restarts = (peer.restarts ?? 0) + 1;
+  try {
+    peer.pc.restartIce();
+    await peer.pc.setLocalDescription(await peer.pc.createOffer({ iceRestart: true }));
+    send("offer", peer.pc.localDescription, peer.id);
+  } catch (error) {
+    console.warn("DU Meet: ICE restart failed", error);
+  }
+  if (peer.restarts < 6) peer.restartTimer = setTimeout(() => restartPeer(peer), 8000);
 }
 
 async function answerPeer(peer, offer) {

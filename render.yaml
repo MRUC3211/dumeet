@@ -13,6 +13,11 @@ services:
         value: 0.0.0.0
       - key: DU_MEET_PASSWORD
         sync: false
+      # Permanent storage for memories, letters, calendar… (see supabase.sql)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
       # TURN with a fixed username/password (ExpressTURN free plan), or Cloudflare below
       - key: TURN_URLS
         sync: false

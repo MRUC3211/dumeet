@@ -37,6 +37,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+import storage
+
 # 127.0.0.1 = only this laptop. A cloud host (Render) sets HOST=0.0.0.0 so outside requests reach it.
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
@@ -47,6 +49,9 @@ CONTENT_TYPES = {
     ".js": "text/javascript; charset=utf-8",
     ".svg": "image/svg+xml",
     ".png": "image/png",
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".ico": "image/x-icon",
 }
 POLL_SECONDS = 20     # how long one poll waits for a message
 GONE_SECONDS = 15     # a tab that hasn't polled for this long has left
@@ -168,6 +173,70 @@ button { padding: 14px; border: 0; border-radius: 999px; background: #a9b2f0; co
 </form></body></html>"""
 
 
+# ---- Couple features ("us") -------------------------------------------------------
+# Two people: "a" and "b". Each phone remembers which one it is. Documents live in
+# the store (Supabase on Render, data/ on the laptop).
+STORE = storage.open_store()
+US_ROOM = "us-call"           # the fixed room behind the one-tap call button
+WHO = ("a", "b")
+COLLECTIONS = {"profile", "calendar", "diary", "letters", "scheduled", "answers",
+               "hearts", "calls", "study", "moments"}
+MAX_DOC = 200 * 1024
+MAX_MEDIA = 25 * 1024 * 1024
+MEDIA_TYPES = ("image/", "audio/", "video/")
+call_session = {"start": None, "drop": None}
+
+
+def other(who):
+    return "b" if who == "a" else "a"
+
+
+def visible(collection, doc, who):
+    """What one person may see of a document (None = hidden for now)."""
+    data = doc["data"]
+    now = time.time()
+    if collection == "scheduled" and data.get("to") == who and data.get("at", 0) > now:
+        return None  # arrives at its time
+    if collection == "letters" and data.get("to") == who and data.get("unlock", 0) > now:
+        return {**doc, "data": {**data, "body": None, "locked": True}}
+    if collection == "answers" and not data.get(who):
+        partner = other(who)
+        if data.get(partner):
+            return {**doc, "data": {**data, partner: None, f"{partner}_answered": True}}
+    return doc
+
+
+def track_call(room):
+    """Call stats: a call counts while both people are in the us room. A short drop
+    (network blip, app reload) within CALL_GRACE seconds continues the same call."""
+    if room != US_ROOM:
+        return
+    count = len(members(room))
+    if count >= 2:
+        if call_session["start"] is None:
+            call_session["start"] = time.time()
+        call_session["drop"] = None
+    elif call_session["start"] is not None and not call_session.get("drop"):
+        call_session["drop"] = time.time()
+
+
+CALL_GRACE = 90
+
+
+def finish_call_if_over():
+    drop = call_session.get("drop")
+    if not drop or time.time() - drop < CALL_GRACE:
+        return
+    start = call_session["start"]
+    call_session.update(start=None, drop=None)
+    seconds = int(drop - start)
+    if seconds >= 20:
+        try:
+            STORE.put("calls", storage.new_id(), {"start": start, "end": drop, "secs": seconds})
+        except Exception as error:  # noqa: BLE001 - stats must never break a call
+            print(f"Could not save call stats: {error}")
+
+
 class Peer:
     """One browser tab that is in a meeting."""
 
@@ -228,12 +297,14 @@ def remove(room, peer):
         if not people:
             del rooms[room]
     deliver(room, {"type": "leave", "id": peer.id})
+    track_call(room)
 
 
 def remove_silent_peers():
     """Background loop: drop tabs that were closed without saying goodbye."""
     while True:
         time.sleep(5)
+        finish_call_if_over()
         now = time.monotonic()
         with lock:
             everyone = [(room, peer) for room, people in rooms.items() for peer in people.values()]
@@ -247,11 +318,16 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/healthz":
             return self.send_json({"ok": True})
+        # The phone fetches these without the login cookie when installing the app.
+        if url.path in ("/manifest.webmanifest", "/sw.js") or url.path.startswith("/icons/"):
+            return self.serve_file(unquote(url.path))
         if not self.logged_in():
             if url.path.startswith("/api/"):
                 return self.send_error(401)
             return self.login_page(self.path)
         params = {key: values[0] for key, values in parse_qs(url.query).items()}
+        if url.path.startswith("/api/us/"):
+            return self.us_get(url.path, params)
         if url.path == "/api/poll":
             self.poll(params)
         elif url.path == "/api/room":
@@ -268,6 +344,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.login()
         if not self.logged_in():
             return self.send_error(401)
+        if path.startswith("/api/us/"):
+            return self.us_post(path)
         if path != "/api/send":
             return self.send_error(404)
         length = int(self.headers.get("Content-Length") or 0)
@@ -302,6 +380,111 @@ class Handler(BaseHTTPRequestHandler):
             deliver(room, relay, to=message.get("to"), exclude=peer.id)
         self.send_response(204)
         self.end_headers()
+
+    def do_DELETE(self):
+        url = urlparse(self.path)
+        if not self.logged_in():
+            return self.send_error(401)
+        params = {key: values[0] for key, values in parse_qs(url.query).items()}
+        if url.path == "/api/us/docs" and params.get("c") in COLLECTIONS and params.get("id"):
+            doc = STORE.get(params["c"], params["id"])
+            if doc:
+                for media in doc["data"].get("media", []) if isinstance(doc["data"], dict) else []:
+                    if isinstance(media, dict) and isinstance(media.get("id"), str):
+                        STORE.delete_media(media["id"])
+                STORE.delete(params["c"], params["id"])
+            return self.send_json({"ok": True})
+        self.send_error(404)
+
+    # ---- couple API ----
+
+    def us_get(self, path, params):
+        who = params.get("who", "")
+        try:
+            if path == "/api/us/docs":
+                collection = params.get("c", "")
+                if collection not in COLLECTIONS or who not in WHO:
+                    return self.send_error(400)
+                docs = [visible(collection, doc, who) for doc in STORE.list(collection)]
+                return self.send_json({"docs": [doc for doc in docs if doc]})
+            if path == "/api/us/pulse":
+                if who not in WHO:
+                    return self.send_error(400)
+                since = float(params.get("since") or 0)
+                hearts = [doc["data"] for doc in STORE.list("hearts")[:50]
+                          if doc["data"].get("to") == who and doc["data"].get("at", 0) > since
+                          and not doc["data"].get("live")]
+                delivered = [doc for doc in STORE.list("scheduled")
+                             if doc["data"].get("to") == who and since < doc["data"].get("at", 0) <= time.time()]
+                return self.send_json({
+                    "now": time.time(),
+                    "hearts": hearts,
+                    "messages": delivered,
+                    "inCall": [peer.name for peer in members(US_ROOM)],
+                    "callStart": None if call_session.get("drop") else call_session["start"],
+                })
+            if path.startswith("/api/us/media/"):
+                media_id = path.rsplit("/", 1)[1]
+                if not media_id.replace("-", "").isalnum():
+                    return self.send_error(404)
+                body, kind = STORE.get_media(media_id)
+                if body is None:
+                    return self.send_error(404)
+                self.send_response(200)
+                self.send_header("Content-Type", kind)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "private, max-age=31536000, immutable")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+        except Exception as error:  # noqa: BLE001
+            print(f"Storage error: {error}")
+            return self.send_error(502)
+        self.send_error(404)
+
+    def us_post(self, path):
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            if path == "/api/us/media":
+                kind = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+                if length > MAX_MEDIA:
+                    return self.send_error(413)
+                if not kind.startswith(MEDIA_TYPES):
+                    return self.send_error(415)
+                media_id = storage.new_id()
+                STORE.put_media(media_id, self.rfile.read(length), kind)
+                return self.send_json({"id": media_id, "url": f"/api/us/media/{media_id}", "type": kind})
+            if length > MAX_DOC:
+                return self.send_error(413)
+            message = json.loads(self.rfile.read(length) or b"{}")
+            who = message.get("who")
+            if who not in WHO:
+                return self.send_error(400)
+            if path == "/api/us/heart":
+                # live = sent inside a call and already shown there, so pulse skips it
+                heart = {"from": who, "to": other(who), "at": time.time(), "live": bool(message.get("live"))}
+                STORE.put("hearts", storage.new_id(), heart)
+                return self.send_json(heart)
+            if path == "/api/us/docs":
+                collection, data = message.get("c"), message.get("data")
+                if collection not in COLLECTIONS or not isinstance(data, dict):
+                    return self.send_error(400)
+                doc_id = str(message.get("id") or storage.new_id())[:64]
+                if collection == "answers":
+                    # one document per day; each person only writes their own answer
+                    old = STORE.get("answers", doc_id)
+                    data = {**(old["data"] if old else {}), who: str(data.get("text", ""))[:2000]}
+                elif collection == "profile":
+                    old = STORE.get("profile", doc_id)
+                    data = {**(old["data"] if old else {}), **data}
+                doc = STORE.put(collection, doc_id, data)
+                return self.send_json({"doc": visible(collection, doc, who)})
+        except ValueError:
+            return self.send_error(400)
+        except Exception as error:  # noqa: BLE001
+            print(f"Storage error: {error}")
+            return self.send_error(502)
+        self.send_error(404)
 
     def logged_in(self):
         if not PASSWORD:
@@ -374,6 +557,7 @@ class Handler(BaseHTTPRequestHandler):
                 people[peer_id] = peer
             peer.inbox.put({"type": "welcome", "peers": others})
             deliver(room, {"type": "join", "peer": peer.info()}, exclude=peer_id)
+            track_call(room)
 
         peer.polls += 1
         messages = []
@@ -430,6 +614,7 @@ def main():
         print("TURN relay: key found (Cloudflare). Calls can connect across any two networks.")
     else:
         print("TURN relay: off. Calls between different networks may fail; see README section 1c.")
+    print(f"Storage: {STORE.name}")
     print("Password lock: on." if PASSWORD else "Password lock: off (set DU_MEET_PASSWORD to turn it on).")
     try:
         server.serve_forever()
