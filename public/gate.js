@@ -55,8 +55,12 @@
 
   async function start() {
     let required = true;
+    let length = 0;
     try {
-      required = (await (await nativeFetch("/api/auth-info")).json()).required;
+      const info = await (await nativeFetch("/api/auth-info")).json();
+      required = info.required;
+      length = info.len || 0;
+      window.DU_adminLen = info.adminLen || 0;
     } catch {
       $("#gate-sub").textContent = "Can't reach the server";
       showError("Check the internet and reload.");
@@ -67,8 +71,13 @@
     $("#gate-sub").textContent = "Enter the password to continue";
     $("#gate-field").hidden = false;
     $("#gate-input").focus();
+    // Opens as soon as the last character is typed; no need to press the arrow.
+    $("#gate-input").addEventListener("input", (event) => {
+      if (length && event.target.value.length === length && !$("#gate-form").classList.contains("busy")) $("#gate-form").requestSubmit();
+    });
     $("#gate-form").addEventListener("submit", async (event) => {
       event.preventDefault();
+      if ($("#gate-form").classList.contains("busy")) return;
       const input = $("#gate-input");
       const form = $("#gate-form");
       showError("");
@@ -79,7 +88,8 @@
         if (!response.ok) throw new Error(result.error || "Wrong password");
         token = result.token;
         input.value = "";
-        unlock();
+        $("#gate-form").classList.add("ok");
+        setTimeout(unlock, 380);
       } catch (error) {
         showError(error.message === "Failed to fetch" ? "Can't reach the server" : error.message);
         form.classList.remove("shake");

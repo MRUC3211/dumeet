@@ -80,7 +80,15 @@ function savePrefs() {
 // ---------- Pages ----------
 
 function showView(id) {
-  for (const view of document.querySelectorAll(".view")) view.hidden = view.id !== id;
+  for (const view of document.querySelectorAll(".view")) {
+    const show = view.id === id;
+    if (show && view.hidden) {
+      view.classList.remove("view-in");
+      void view.offsetWidth;
+      view.classList.add("view-in");
+    }
+    view.hidden = !show;
+  }
   document.body.dataset.view = id;
   window.scrollTo(0, 0);
 }
@@ -402,7 +410,13 @@ async function joinMeeting() {
   savePrefs();
   showView("room");
   $("#room-code").textContent = room;
+  $("#meeting-link").textContent = meetingLink().replace(/^https?:\/\//, "");
   joinedAt = Date.now();
+  // The clock and call time show for a moment, then fold into the (i) button.
+  const chip = $(".meet-chip");
+  chip.classList.add("expanded");
+  clearTimeout(chip.foldTimer);
+  chip.foldTimer = setTimeout(() => chip.classList.remove("expanded"), 3800);
   notes.length = 0;
   note("event", me.name, "joined");
   renderAll();
@@ -477,6 +491,7 @@ function leaveMeeting() {
   toggleReactionPicker(false);
   toggleMenu(false);
   if (openPanel) togglePanel(openPanel);
+  toggleInfo(false);
   unread = unreadPolls = 0;
   refreshUnread();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -599,6 +614,9 @@ function handleMessage(message) {
       break;
     case "sync":
       if (peer) applySync(data);
+      break;
+    case "end-call":
+      if (message.from === "admin") { leaveMeeting(); toast("The call was ended"); }
       break;
     default:
       // couple features (together.js): watch/listen together, sleep, moments…
@@ -1697,7 +1715,7 @@ function togglePanel(name) {
   $("#panel").hidden = !openPanel;
   for (const section of document.querySelectorAll("[data-panel]")) section.hidden = section.dataset.panel !== openPanel;
   $("#panel-title").textContent = { info: "Meeting details", people: "People", chat: "In-call messages", polls: "Polls" }[openPanel] ?? "";
-  for (const button of document.querySelectorAll(".ctrl[data-action=chat], .meet-chip")) {
+  for (const button of document.querySelectorAll(".ctrl[data-action=chat]")) {
     button.classList.toggle("active", button.dataset.action === openPanel);
     button.setAttribute("aria-expanded", button.dataset.action === openPanel);
   }
@@ -1715,7 +1733,7 @@ function togglePanel(name) {
     $("[data-action=close-panel]").focus();
   } else if (closing && $("#panel").contains(document.activeElement)) {
     // Keyboard users land back on the button that opened the panel.
-    document.querySelector(`.ctrl[data-action=${closing}], .meet-chip[data-action=${closing}]`)?.focus();
+    document.querySelector(`.ctrl[data-action=${closing}]`)?.focus();
   }
   layoutGrid();
 }
@@ -1975,6 +1993,26 @@ function formatDuration(ms) {
   return h ? `${h}:${pad(m)}:${pad(seconds % 60)}` : `${m}:${pad(seconds % 60)}`;
 }
 
+/** The small meeting-details card under the (i) button. */
+function toggleInfo(show) {
+  const pop = $("#info-pop");
+  const chip = $(".meet-chip");
+  show = show ?? pop.hidden;
+  chip.setAttribute("aria-expanded", String(show));
+  chip.classList.toggle("active", show);
+  if (show) {
+    pop.hidden = false;
+    pop.classList.remove("closing");
+  } else if (!pop.hidden) {
+    pop.classList.add("closing");
+    setTimeout(() => { if (pop.classList.contains("closing")) { pop.hidden = true; pop.classList.remove("closing"); } }, 180);
+  }
+}
+document.addEventListener("pointerdown", (event) => {
+  if (!$("#info-pop").hidden && !event.target.closest("#info-pop, .meet-chip")) toggleInfo(false);
+});
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("#info-pop").hidden) toggleInfo(false); });
+
 function tickClock() {
   const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   for (const clock of document.querySelectorAll(".clock")) clock.textContent = now;
@@ -2021,7 +2059,7 @@ const actions = {
   reactions: () => toggleReactionPicker(),
   more: () => toggleMenu(),
   leave: leaveMeeting,
-  info: () => togglePanel("info"),
+  info: () => toggleInfo(),
   people: () => togglePanel("people"),
   chat: () => togglePanel("chat"),
   polls: () => togglePanel("polls"),

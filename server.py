@@ -165,13 +165,38 @@ def clear_fails(address):
         fails.pop(address, None)
 
 
+def locked_addresses():
+    now = time.monotonic()
+    with fails_lock:
+        return [{"address": a, "tries": len(t), "wait": int(LOCK_SECONDS - (now - t[-1])) + 1}
+                for a, t in fails.items() if t and now - t[-1] < LOCK_SECONDS]
+
+
+def device_name(agent):
+    agent = agent or ""
+    os_name = next((n for k, n in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+                                   ("Mac OS", "Mac"), ("Windows", "Windows"), ("Linux", "Linux")) if k in agent), "Device")
+    browser = next((n for k, n in (("Edg/", "Edge"), ("CriOS", "Chrome"), ("Chrome/", "Chrome"),
+                                   ("FxiOS", "Firefox"), ("Firefox/", "Firefox"), ("Safari/", "Safari")) if k in agent), "")
+    return f"{os_name} · {browser}" if browser else os_name
+
+
+def log_login(kind, ok, address, agent):
+    """Every password attempt, for the admin console's Security tab."""
+    try:
+        STORE.put("logins", storage.new_id(), {"at": time.time(), "kind": kind, "ok": ok,
+                                               "address": address, "device": device_name(agent)})
+    except Exception as error:  # noqa: BLE001 - logging must never block a login
+        print(f"Could not log the login: {error}")
+
+
 # ---- Admin console --------------------------------------------------------------
 # A second password (ADMIN_PASSWORD) opens the admin console: meeting sessions with
 # their chat, call stats and the photos taken with the camera button. Nobody else can
 # read those, even with the site password.
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
-ADMIN_COLLECTIONS = {"meetings", "snaps"}   # readable only with the admin token
-CLIENT_WRITE_BLOCKED = {"meetings"}         # written only by the server
+ADMIN_COLLECTIONS = {"meetings", "snaps", "logins"}   # readable only with the admin token
+CLIENT_WRITE_BLOCKED = {"meetings", "logins"}         # written only by the server
 
 
 def admin_token():
@@ -180,7 +205,7 @@ def admin_token():
 
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
-COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings"}
+COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings", "logins"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MEDIA_TYPES = ("image/", "audio/", "video/", "application/pdf", "text/plain")
@@ -355,7 +380,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz":
             return self.send_json({"ok": True})
         if path == "/api/auth-info":
-            return self.send_json({"required": bool(PASSWORD), "admin": bool(ADMIN_PASSWORD)})
+            # Lengths let the lock screens unlock as soon as the last character is typed.
+            return self.send_json({"required": bool(PASSWORD), "admin": bool(ADMIN_PASSWORD),
+                                   "len": len(PASSWORD), "adminLen": len(ADMIN_PASSWORD)})
         if not path.startswith("/api/"):
             return self.serve_file(unquote(path))  # the app's code is public; data is not
         if not self.logged_in():
@@ -376,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 with meetings_lock:
                     live = [{"room": room, "start": m["start"], "people": [dict(p) for p in m["people"]],
                              "chat": len(m["chat"])} for room, m in meetings.items()]
-                self.send_json({"live": live, "now": time.time()})
+                self.send_json({"live": live, "now": time.time(), "locked": locked_addresses()})
             elif path == "/api/data":
                 if params.get("c") not in COLLECTIONS:
                     return self.send_error(400)
@@ -412,6 +439,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.logged_in():
             return self.send_error(401)
         length = int(self.headers.get("Content-Length") or 0)
+        if path.startswith("/api/admin/"):
+            return self.admin_action(path, length)
         if path == "/api/media":
             return self.upload_media(length)
         if length > (MAX_DOC if path == "/api/data" else MAX_BODY):
@@ -512,6 +541,36 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- password ----
 
+    def admin_action(self, path, length):
+        if not self.is_admin():
+            return self.send_error(403)
+        try:
+            body = json.loads(self.rfile.read(min(length, 4096)) or b"{}")
+        except ValueError:
+            return self.send_error(400)
+        if path == "/api/admin/unlock":          # forgive wrong passwords (all addresses)
+            with fails_lock:
+                fails.clear()
+            return self.send_json({"ok": True})
+        if path == "/api/admin/end":            # end a live call for everyone in it
+            room = str(body.get("room", ""))
+            deliver(room, {"type": "end-call", "from": "admin", "data": {}})
+            return self.send_json({"ok": True})
+        if path == "/api/admin/clear":          # delete a whole collection (photos, sessions, log)
+            collection = body.get("c")
+            if collection not in ADMIN_COLLECTIONS:
+                return self.send_error(400)
+            try:
+                for doc in STORE.list(collection):
+                    STORE.delete(collection, doc["id"])
+                    if collection == "snaps" and str(doc["data"].get("url", "")).startswith("/api/media/"):
+                        STORE.delete_media(doc["data"]["url"].rsplit("/", 1)[1])
+            except Exception as error:  # noqa: BLE001
+                print(f"Storage error: {error}")
+                return self.send_error(502)
+            return self.send_json({"ok": True})
+        return self.send_error(404)
+
     def logged_in(self):
         if not PASSWORD:
             return True
@@ -545,18 +604,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "The admin console is off. Set ADMIN_PASSWORD on the server."}, 403)
             return self.send_json({"token": ""})
         address = ("admin:" if admin else "") + self.client_address_text()
+        kind, agent = ("admin" if admin else "site"), self.headers.get("User-Agent", "")
         wait = lock_left(address)
         if wait:
             return self.send_json({"error": f"Too many wrong tries. Try again in {max(1, round(wait / 60))} min.",
                                    "wait": wait}, 429)
         if not hmac.compare_digest(password.encode(), secret.encode()):
             wait = lock_left(address, add=True)
+            log_login(kind, False, self.client_address_text(), agent)
             time.sleep(1)
             if wait:
                 return self.send_json({"error": "Too many wrong tries. Locked for 30 minutes.", "wait": wait}, 429)
             left = tries_left(address)
             return self.send_json({"error": f"Wrong password. {left} {'try' if left == 1 else 'tries'} left."}, 401)
         clear_fails(address)
+        log_login(kind, True, self.client_address_text(), agent)
         self.send_json({"token": admin_token() if admin else auth_token()})
 
     def poll(self, params):

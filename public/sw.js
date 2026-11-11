@@ -1,7 +1,7 @@
 // DU Meet service worker: makes the app installable and opens instantly.
 // Pages and API calls always go to the network (calls and data must be live);
 // only icons are cached.
-const CACHE = "du-meet-v1";
+const CACHE = "du-meet-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

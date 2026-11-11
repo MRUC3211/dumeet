@@ -45,7 +45,7 @@
   }
 
   // The admin token, like the site token, lives only in this page's memory.
-  const admin = { token: "", tab: "overview", meetings: [], snaps: [], live: [], open: new Set() };
+  const admin = { token: "", tab: "overview", meetings: [], snaps: [], live: [], logins: [], locked: [], open: new Set() };
   const adminBody = () => q("#admin-body");
   const adminFetch = (url, init = {}) => fetch(url, { ...init, headers: { ...(init.headers || {}), "X-Admin": admin.token } });
   const adminUrl = (url) => { const u = window.authUrl(url); return `${u}${u.includes("?") ? "&" : "?"}a=${admin.token}`; };
@@ -60,15 +60,19 @@
       <form class="admin-lock" id="admin-form">
         <span class="admin-lock-ic icon" aria-hidden="true">admin_panel_settings</span>
         <h3>Admin access</h3>
-        <p class="muted">Sessions, chat history, call stats and photos.</p>
         <input class="field" type="password" id="admin-pass" autocomplete="current-password" placeholder="Admin password" required>
         <p class="admin-error" ${error ? "" : "hidden"}>${esc(error)}</p>
         <button class="btn primary wide big">Unlock</button>
       </form>`;
     setTimeout(() => q("#admin-pass")?.focus(), 300);
+    // unlocks as soon as the last character is typed
+    q("#admin-pass").oninput = (event) => {
+      if (window.DU_adminLen && event.target.value.length === window.DU_adminLen) q("#admin-form").requestSubmit();
+    };
     q("#admin-form").onsubmit = async (event) => {
       event.preventDefault();
       const button = q("#admin-form button");
+      if (button.disabled) return;
       button.disabled = true;
       try {
         const response = await fetch("/api/admin/login", { method: "POST", body: JSON.stringify({ password: q("#admin-pass").value }) });
@@ -85,11 +89,14 @@
   async function loadAdmin() {
     adminBody().innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
     try {
-      const [m, sn, live] = await Promise.all(["/api/data?c=meetings", "/api/data?c=snaps", "/api/admin/live"].map((u) => adminFetch(u)));
+      const [m, sn, live, logins] = await Promise.all(["/api/data?c=meetings", "/api/data?c=snaps", "/api/admin/live", "/api/data?c=logins"].map((u) => adminFetch(u)));
       if ([m, sn, live].some((r) => r.status === 403)) { admin.token = ""; return adminLogin("Please unlock again."); }
       admin.meetings = (await m.json()).docs;
       admin.snaps = (await sn.json()).docs;
-      admin.live = (await live.json()).live.filter((x) => x.people.some((p) => !p.left));
+      const liveData = await live.json();
+      admin.live = liveData.live.filter((x) => x.people.some((p) => !p.left));
+      admin.locked = liveData.locked || [];
+      admin.logins = logins.ok ? (await logins.json()).docs.sort((a, b) => b.data.at - a.data.at) : [];
     } catch {
       adminBody().innerHTML = `<p class="empty">Couldn't load. Check the internet.</p>`;
       return;
@@ -121,7 +128,8 @@
     for (const m of docs) for (const p of m.people) perPerson.set(p.name, (perPerson.get(p.name) || 0) + p.secs);
     const live = admin.live.map((m) => `
       <div class="a-live"><span class="live-dot"></span><div><b>Live now · ${esc(m.room)}</b>
-        <small>${m.people.filter((p) => !p.left).map((p) => esc(p.name)).join(", ")} · started ${hm(m.start)} · ${m.chat} message${m.chat === 1 ? "" : "s"}</small></div></div>`).join("");
+        <small>${m.people.filter((p) => !p.left).map((p) => esc(p.name)).join(", ")} · started ${hm(m.start)} · ${m.chat} message${m.chat === 1 ? "" : "s"}</small></div>
+        <button class="btn danger small-btn" data-a-end="${esc(m.room)}">End call</button></div>`).join("");
     return `${live}
       <div class="a-streak"><span class="icon">local_fire_department</span><div><b>${streak} day${streak === 1 ? "" : "s"}</b><span>${streak ? "calling streak" : "No streak right now"}</span></div></div>
       <div class="a-stats">
@@ -164,12 +172,38 @@
   const photosHtml = () => admin.snaps.length ? `<div class="a-grid">${admin.snaps.map(snapHtml).join("")}</div>`
     : `<div class="empty-art"><span class="icon">photo_camera</span><p>Photos taken with the camera button in a call show up here. Only you can see them.</p></div>`;
 
+  function securityHtml() {
+    const fails = admin.logins.filter((l) => !l.data.ok && Date.now() / 1000 - l.data.at < 86400).length;
+    const locked = admin.locked.length
+      ? `<div class="a-alert"><span class="icon">lock_clock</span><div><b>${admin.locked.length} device${admin.locked.length > 1 ? "s" : ""} locked out</b><small>Too many wrong passwords. Locked for up to 30 minutes.</small></div><button class="btn primary small-btn" data-a-unlock>Let in now</button></div>` : "";
+    const rows = admin.logins.slice(0, 120).map(({ data: l }) => `<li class="${l.ok ? "" : "bad"}"><span class="icon">${l.ok ? (l.kind === "admin" ? "admin_panel_settings" : "lock_open") : "block"}</span>
+      <div><b>${l.ok ? (l.kind === "admin" ? "Admin unlocked" : "Opened the app") : (l.kind === "admin" ? "Wrong admin password" : "Wrong password")}</b><small>${esc(l.device)} · ${esc(l.address)}</small></div>
+      <time>${new Date(l.at * 1000).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</time></li>`).join("");
+    return `${locked}
+      <div class="a-stats two"><div><b>${admin.logins.filter((l) => l.data.ok && l.data.kind === "site").length}</b><span>Opens</span></div><div><b class="${fails ? "warn" : ""}">${fails}</b><span>Wrong tries today</span></div></div>
+      <div class="a-row"><p class="a-label">Every password attempt</p>${admin.logins.length ? `<button class="btn ghost small-btn" data-a-clear="logins"><span class="icon">delete_sweep</span>Clear</button>` : ""}</div>
+      ${rows ? `<ul class="a-log">${rows}</ul>` : `<p class="muted small">Nothing yet. Each time someone types the password it shows here.</p>`}`;
+  }
+
+  function settingsHtml() {
+    const photo = (name) => `<div class="a-face"><label class="a-face-pic">${avatars[name] ? `<img src="${esc(window.authUrl(avatars[name]))}" alt="">` : `<span>${name[0]}</span>`}<input type="file" accept="image/*" data-a-face="${name}" hidden><i class="icon">photo_camera</i></label><b>${name}</b><small>${avatars[name] ? "Tap to change" : "Add a photo"}</small></div>`;
+    return `<p class="a-label">Profile photos</p>
+      <p class="muted small">Shown on the home screen and when choosing who's joining.</p>
+      <div class="a-faces">${photo("Diya")}${photo("Uday")}</div>
+      <p class="a-label">Your data</p>
+      <div class="a-actions">
+        <button class="btn outline" data-a-export><span class="icon">download</span>Export everything</button>
+        <button class="btn outline danger-text" data-a-clear="snaps"><span class="icon">hide_image</span>Delete all photos</button>
+        <button class="btn outline danger-text" data-a-clear="meetings"><span class="icon">delete_history</span>Delete all sessions</button>
+      </div>`;
+  }
+
   function renderAdmin() {
-    const tabs = [["overview", "Overview"], ["sessions", "Sessions"], ["photos", `Photos${admin.snaps.length ? ` (${admin.snaps.length})` : ""}`]];
+    const tabs = [["overview", "Overview"], ["sessions", "Sessions"], ["photos", `Photos${admin.snaps.length ? ` (${admin.snaps.length})` : ""}`], ["security", "Security"], ["settings", "Settings"]];
     adminBody().innerHTML = `
       <div class="a-top"><div class="seg">${tabs.map(([id, label]) => `<button data-a-tab="${id}" class="${admin.tab === id ? "on" : ""}">${label}</button>`).join("")}</div>
         <span><button class="icon-btn" data-a-refresh title="Refresh" aria-label="Refresh"><span class="icon">refresh</span></button><button class="icon-btn" data-a-lock title="Lock" aria-label="Lock admin"><span class="icon">lock</span></button></span></div>
-      <div class="a-view">${{ overview: overviewHtml, sessions: sessionsHtml, photos: photosHtml }[admin.tab]()}</div>`;
+      <div class="a-view">${{ overview: overviewHtml, sessions: sessionsHtml, photos: photosHtml, security: securityHtml, settings: settingsHtml }[admin.tab]()}</div>`;
   }
 
   function downloadText(name, text) {
@@ -199,16 +233,65 @@
         ...(m.chat || []).map((c) => `[${hm(c.at)}] ${c.name}: ${c.text}${(c.media || []).map((f) => ` [${f.name || "file"}]`).join("")}`)];
       return downloadText(`DU Meet ${dayKey(new Date(m.start * 1000))}.txt`, lines.join("\n"));
     }
+    const end = t.closest("[data-a-end]");
+    if (end) {
+      if (!(await ask("End this call?", "Everyone in it is taken out of the call.", "End call"))) return;
+      await adminFetch("/api/admin/end", { method: "POST", body: JSON.stringify({ room: end.dataset.aEnd }) });
+      toast("Call ended");
+      return setTimeout(loadAdmin, 1200);
+    }
+    if (t.closest("[data-a-unlock]")) {
+      await adminFetch("/api/admin/unlock", { method: "POST", body: "{}" });
+      toast("Locked devices can try again");
+      return loadAdmin();
+    }
+    const clear = t.closest("[data-a-clear]");
+    if (clear) {
+      const c = clear.dataset.aClear;
+      const what = { snaps: ["Delete all photos?", "Every photo is deleted for good."], meetings: ["Delete all sessions?", "All sessions and their chats are deleted for good."], logins: ["Clear the log?", "The list of password attempts is emptied."] }[c];
+      if (!(await ask(what[0], what[1], "Delete"))) return;
+      const r = await adminFetch("/api/admin/clear", { method: "POST", body: JSON.stringify({ c }) });
+      toast(r.ok ? "Deleted" : "Couldn't delete");
+      return loadAdmin();
+    }
+    if (t.closest("[data-a-export]")) {
+      const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), sessions: admin.meetings, photos: admin.snaps, logins: admin.logins }, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `DU Meet export ${dayKey(new Date())}.json`;
+      link.click();
+      return setTimeout(() => URL.revokeObjectURL(link.href), 2000);
+    }
     const del = t.closest("[data-a-del]");
     if (del) {
       const [c, id] = del.dataset.aDel.split(":");
-      if (!confirm(c === "snaps" ? "Delete this photo?" : "Delete this session and its chat?")) return;
+      if (!(await ask(c === "snaps" ? "Delete this photo?" : "Delete this session?", c === "snaps" ? "It is deleted for good." : "The session and its chat are deleted for good.", "Delete"))) return;
       const r = await adminFetch(`/api/data?c=${c}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) return toast("Couldn't delete");
       if (c === "snaps") admin.snaps = admin.snaps.filter((d) => d.id !== id);
       else admin.meetings = admin.meetings.filter((d) => d.id !== id);
       renderAdmin();
     }
+  });
+
+  const ask = (title, text, ok) => window.DU.kit?.confirmBox({ title, text, ok, cancel: "Cancel" }) ?? Promise.resolve(confirm(title));
+
+  // profile photos for the two of us
+  q("#admin-body").addEventListener("change", async (event) => {
+    const input = event.target.closest("[data-a-face]");
+    if (!input?.files[0]) return;
+    const { upload, shrinkImage, putDoc } = window.DU.kit;
+    input.closest(".a-face").classList.add("busy");
+    try {
+      const { url } = await upload(await shrinkImage(input.files[0], 600));
+      avatars = { ...avatars, [input.dataset.aFace]: url };
+      await putDoc("settings", avatars, "avatars");
+      paintAvatars();
+      toast("Photo saved");
+    } catch {
+      toast("Couldn't save the photo");
+    }
+    renderAdmin();
   });
 
   // ---------- install as an app ----------
@@ -245,7 +328,23 @@
   const OUR_ROOM = "our-room";
   const joinButton = q("[data-home=join]");
 
+  let avatars = {};
+  async function loadAvatars() {
+    try {
+      avatars = (await (await fetch("/api/data?c=settings")).json()).docs.find((d) => d.id === "avatars")?.data || {};
+      paintAvatars();
+    } catch { /* offline: letters stay */ }
+  }
+  function paintAvatars() {
+    for (const el of document.querySelectorAll("[data-face]")) {
+      const url = avatars[el.dataset.face];
+      el.classList.toggle("has-photo", Boolean(url));
+      el.innerHTML = url ? `<img src="${esc(window.authUrl(url))}" alt="">` : esc(el.dataset.face[0]);
+    }
+  }
+
   function paintAs() {
+    for (const tile of document.querySelectorAll(".sc-tile")) tile.classList.toggle("speaking", tile.dataset.name === (prefs.name || "Diya"));
     const line = q("#home-as");
     line.hidden = !prefs.name;
     line.innerHTML = prefs.name ? `Joining as <b>${esc(prefs.name)}</b> · <button type="button" data-home="who">Change</button>` : "";
@@ -323,7 +422,7 @@
 
   window.DU = Object.assign(window.DU || {}, {
     openModal, closeModal,
-    onHome() { paintAs(); refreshPresence(); paintInstall(); },
+    onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); },
   });
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

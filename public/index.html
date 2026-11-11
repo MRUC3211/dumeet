@@ -25,7 +25,7 @@
   <!-- 0. Lock: asked on every visit and every reload -->
   <section id="gate" class="gate">
     <form id="gate-form" class="gate-card" autocomplete="off">
-      <span class="logo-mark big"><span class="icon" aria-hidden="true">videocam</span></span>
+      <span class="logo-mark big brandmark" aria-hidden="true"></span>
       <h1>DU Meet</h1>
       <p class="gate-sub" id="gate-sub">Checking…</p>
       <div class="gate-field" id="gate-field" hidden>
@@ -39,40 +39,43 @@
   <!-- 1. Home -->
   <section id="home" class="view" hidden>
     <header class="nav">
-      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU Meet</span></div>
+      <div class="brand"><span class="logo-mark brandmark" aria-hidden="true"></span><span>DU Meet</span></div>
       <div class="nav-actions">
-        <button class="btn ghost" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span><span>Admin</span></button>
-        <button class="btn ghost" data-home="other" title="Other meeting" aria-label="Other meeting"><span class="icon" aria-hidden="true">add_link</span><span class="hide-sm">Other meeting</span></button>
+        <button class="btn ghost glass" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span><span>Admin</span></button>
+        <button class="btn ghost glass" data-home="other" title="Other meeting" aria-label="Other meeting"><span class="icon" aria-hidden="true">add_link</span><span class="hide-sm">Other meeting</span></button>
       </div>
     </header>
 
+    <div class="aura" aria-hidden="true"><i></i><i></i><i></i></div>
     <main class="hero">
       <p id="home-status" class="eyebrow-pill rise" style="--i:0"><span class="live-dot"></span><span>Your private room</span></p>
-      <h1 class="rise" style="--i:1">Meet face to face,<br><em>from anywhere.</em></h1>
-      <p class="lead rise" style="--i:2">One tap and you're together.</p>
+      <h1 class="rise" style="--i:1">Miles apart.<br><em>One tap together.</em></h1>
+      <p class="lead rise" style="--i:2">A room only Diya and Uday can open.</p>
       <div class="cta rise" style="--i:3">
         <button class="btn primary join-big" data-home="join"><span class="icon" aria-hidden="true">videocam</span><span>Join</span></button>
         <p class="as-line" id="home-as" hidden></p>
-        <button class="install-btn" data-home="install" hidden><span class="icon" aria-hidden="true">install_mobile</span>Install the app</button>
       </div>
 
       <div class="showcase rise" style="--i:4" aria-hidden="true">
         <div class="showcase-window">
           <div class="sc-tiles">
-            <div class="sc-tile a"><span class="sc-avatar">U</span><i class="sc-name">Uday</i><div class="sc-wave"><b></b><b></b><b></b><b></b><b></b></div></div>
-            <div class="sc-tile b"><span class="sc-avatar">D</span><i class="sc-name">Diya</i></div>
+            <div class="sc-tile b" data-name="Diya"><span class="sc-avatar" data-face="Diya">D</span><i class="sc-name">Diya</i><div class="sc-wave"><b></b><b></b><b></b><b></b><b></b></div></div>
+            <div class="sc-tile a" data-name="Uday"><span class="sc-avatar" data-face="Uday">U</span><i class="sc-name">Uday</i><div class="sc-wave"><b></b><b></b><b></b><b></b><b></b></div></div>
           </div>
           <div class="sc-bar"><span class="icon">mic</span><span class="icon">videocam</span><span class="icon">favorite</span><svg class="tools-ic" viewBox="0 0 24 24"><rect x="2.5" y="2.5" width="8" height="8" rx="2.4"/><rect x="2.5" y="13.5" width="8" height="8" rx="2.4"/><rect x="13.5" y="13.5" width="8" height="8" rx="2.4"/><path class="spark" d="M17.5 1.2c.55 3.3 1.8 4.55 5.1 5.1-3.3.55-4.55 1.8-5.1 5.1-.55-3.3-1.8-4.55-5.1-5.1 3.3-.55 4.55-1.8 5.1-5.1z"/></svg><span class="sc-end icon">call_end</span></div>
         </div>
       </div>
     </main>
-    <footer class="foot">DU Meet · Designed by Uday Chhirolya</footer>
+    <footer class="foot">
+      <button class="install-btn glass" data-home="install" hidden><span class="icon" aria-hidden="true">install_mobile</span>Install the app</button>
+      <span>DU Meet · Designed by Uday Chhirolya</span>
+    </footer>
   </section>
 
   <!-- 2. Lobby -->
   <section id="lobby" class="view" hidden>
     <header class="nav">
-      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU Meet</span></div>
+      <div class="brand"><span class="logo-mark brandmark" aria-hidden="true"></span><span>DU Meet</span></div>
       <button class="btn ghost" data-action="home"><span class="icon" aria-hidden="true">arrow_back</span><span class="hide-sm">Home</span></button>
     </header>
     <main class="lobby-main">
@@ -124,7 +127,16 @@
           <button class="icon-btn" data-tg="timer-go" aria-label="Start or pause"><span class="icon">play_arrow</span></button>
           <button class="icon-btn" data-tg="timer-stop" aria-label="Finish"><span class="icon">stop</span></button>
         </div>
-        <button class="meet-chip" data-action="info" aria-label="Meeting details"><span class="icon" aria-hidden="true">info</span><span class="clock"></span><i aria-hidden="true"></i><span id="meet-elapsed">0:00</span></button>
+        <button class="meet-chip" data-action="info" aria-label="Meeting details" aria-expanded="false" aria-controls="info-pop"><span class="icon" aria-hidden="true">info</span><span class="chip-more"><span class="clock"></span><i aria-hidden="true"></i><span id="meet-elapsed">0:00</span></span></button>
+        <div id="info-pop" class="info-pop" role="dialog" aria-label="Meeting details" hidden>
+          <div class="info-grid">
+            <div><span>Meeting time</span><b id="meeting-timer" class="timer">0:00</b></div>
+            <div><span>Time now</span><b class="clock"></b></div>
+            <div><span>Started</span><b id="meet-started">–</b></div>
+            <div><span>Room</span><b id="room-code" class="code"></b></div>
+          </div>
+          <div class="info-link"><span id="meeting-link"></span><button class="icon-btn" data-action="copy-link" title="Copy link" aria-label="Copy meeting link"><span class="icon" aria-hidden="true">content_copy</span></button></div>
+        </div>
         <div id="tg-calw" class="tg-calw float-card" hidden></div>
         <div id="tg-game" class="tg-game float-card" hidden></div>
         <div id="tg-question" class="tg-question" hidden></div>
@@ -137,17 +149,6 @@
         <div class="panel-head">
           <h3 id="panel-title"></h3>
           <button class="icon-btn" data-action="close-panel" title="Close" aria-label="Close panel"><span class="icon" aria-hidden="true">close</span></button>
-        </div>
-        <div data-panel="info" class="panel-body">
-          <p class="panel-label">Joining info</p>
-          <p id="meeting-link" class="link-box"></p>
-          <button class="btn text" data-action="copy-link"><span class="icon" aria-hidden="true">content_copy</span>Copy joining info</button>
-          <div class="info-grid">
-            <div><span>Meeting time</span><b id="meeting-timer" class="timer">0:00</b></div>
-            <div><span>Time now</span><b class="clock"></b></div>
-            <div><span>Started</span><b id="meet-started">–</b></div>
-            <div><span>Room</span><b id="room-code" class="code"></b></div>
-          </div>
         </div>
         <div data-panel="people" class="panel-body">
           <p class="panel-label">In the meeting</p>
@@ -205,10 +206,14 @@
           <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer</b><small>Study or focus</small></span></button>
           <button role="menuitem" data-tg="countdown"><span class="tg-ic count icon">hourglass_top</span><span><b>Countdown</b><small id="tray-count">Till we meet</small></span></button>
           <button role="menuitem" data-tg="questions"><span class="tg-ic ask icon">forum</span><span><b>Questions</b><small>Things to talk about</small></span></button>
-          <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Play a round</small></span></button>
+          <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Best of you two</small></span></button>
+          <button role="menuitem" data-tg="c4"><span class="tg-ic four icon">view_column</span><span><b>4 in a row</b><small>Drop and connect</small></span></button>
+          <button role="menuitem" data-tg="rps"><span class="tg-ic rps icon">front_hand</span><span><b>Rock paper scissors</b><small>Pick in secret</small></span></button>
+          <button role="menuitem" data-tg="wheel"><span class="tg-ic wheel icon">donut_large</span><span><b>Spin to decide</b><small>Let the wheel choose</small></span></button>
+          <button role="menuitem" data-tg="breathe"><span class="tg-ic breathe icon">air</span><span><b>Breathe together</b><small>One calm minute</small></span></button>
           <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
           <button role="menuitem" data-tg="polls"><span class="tg-ic poll icon">ballot</span><span><b>Polls</b><small>Ask and vote</small><i id="polls-dot" class="dot" hidden></i></span></button>
-          <button role="menuitem" data-tg="sleep" class="span-all"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
+          <button role="menuitem" data-tg="sleep"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
         </div>
 
         <div id="more-menu" class="menu" role="menu" aria-label="More options" hidden>
@@ -311,8 +316,8 @@
       <header class="sheet-head"><h2 id="who-title">Who's joining?</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
       <div class="sheet-body">
         <div class="who-pick">
-          <button class="who" data-who="Uday"><span class="who-av u">U</span><b>Uday</b></button>
-          <button class="who" data-who="Diya"><span class="who-av d">D</span><b>Diya</b></button>
+          <button class="who" data-who="Diya"><span class="who-av d" data-face="Diya">D</span><b>Diya</b></button>
+          <button class="who" data-who="Uday"><span class="who-av u" data-face="Uday">U</span><b>Uday</b></button>
         </div>
         <form id="who-form" class="who-other"><input id="who-name" class="field" placeholder="Someone else? Type a name" maxlength="40"><button class="btn outline">Join</button></form>
         <p class="muted small center">This device will remember it.</p>

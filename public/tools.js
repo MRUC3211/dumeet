@@ -532,6 +532,7 @@
     let moved = false;
     if (!handleSelector) el.style.touchAction = "none";
     el.addEventListener("pointerdown", (event) => {
+      moved = false; // a tap after a drag must still count
       if (event.button || (handleSelector && !event.target.closest(handleSelector))) return;
       const box = el.getBoundingClientRect();
       start = { dx: event.clientX - box.left, dy: event.clientY - box.top, x: event.clientX, y: event.clientY };
@@ -545,6 +546,8 @@
       const area = q(".main-area").getBoundingClientRect();
       placeAt(el, event.clientX - area.left - start.dx, event.clientY - area.top - start.dy);
     });
+    // the browser took the touch over (scroll): stop dragging
+    addEventListener("pointercancel", () => { start = null; el.classList.remove("dragging"); });
     addEventListener("pointerup", () => {
       if (!start) return;
       start = null;
