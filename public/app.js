@@ -24,7 +24,7 @@
 // server's /api/ice adds TURN relay servers (see README section 1c).
 let iceServers = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 const VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 } };
-const REACTIONS = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔"];
+const REACTIONS = ["👍", "❤️", "🎉", "👏", "😂", "😮", "😢", "🙏"];
 // Avatar tones live in style.css (--avatar-1 … --avatar-6) so they follow the theme.
 const AVATAR_COLORS = [1, 2, 3, 4, 5, 6].map((n) => `var(--avatar-${n})`);
 const SLOT = { audio: 0, camera: 1, screen: 2 };
@@ -81,6 +81,8 @@ function savePrefs() {
 
 function showView(id) {
   for (const view of document.querySelectorAll(".view")) view.hidden = view.id !== id;
+  document.body.dataset.view = id;
+  window.scrollTo(0, 0);
 }
 
 function route() {
@@ -554,7 +556,9 @@ function handleMessage(message) {
       if (peer) addIce(peer, data);
       break;
     case "chat":
-      if (peer && typeof data?.text === "string") addChatMessage(peer.name, data.text.slice(0, 500), false);
+      if (peer && (typeof data?.text === "string" || Array.isArray(data?.media))) {
+        addChatMessage(peer.name, String(data.text ?? "").slice(0, 500), false, Array.isArray(data.media) ? data.media.slice(0, 10) : []);
+      }
       break;
     case "reaction":
       if (peer && REACTIONS.includes(data?.emoji)) showReaction(data.emoji, peer.name);
@@ -1787,7 +1791,39 @@ function icon(name, extra = "") {
   return span;
 }
 
-function addChatMessage(name, text, mine) {
+/** Photos, videos, audio and files shared in the chat. */
+function chatMedia(list) {
+  const box = document.createElement("div");
+  box.className = "chat-media";
+  for (const item of list) {
+    if (typeof item?.url !== "string" || !item.url.startsWith("/api/media/")) continue;
+    const src = window.authUrl ? window.authUrl(item.url) : item.url;
+    const type = String(item.type || "");
+    let element;
+    if (type.startsWith("image/")) {
+      element = document.createElement("img");
+      element.src = src; element.alt = item.name || "Photo"; element.loading = "lazy";
+      element.addEventListener("click", () => window.DU?.lightbox?.(src));
+    } else if (type.startsWith("video/")) {
+      element = document.createElement("video");
+      element.src = src; element.controls = true; element.playsInline = true; element.preload = "metadata";
+    } else if (type.startsWith("audio/")) {
+      element = document.createElement("audio");
+      element.src = src; element.controls = true; element.preload = "none";
+    } else {
+      element = document.createElement("a");
+      element.className = "file-card";
+      element.href = src; element.target = "_blank"; element.rel = "noopener"; element.download = item.name || "file";
+      const icon = document.createElement("span"); icon.className = "icon"; icon.textContent = "description";
+      const label = document.createElement("span"); label.textContent = item.name || "File";
+      element.append(icon, label);
+    }
+    box.append(element);
+  }
+  return box;
+}
+
+function addChatMessage(name, text, mine, media = []) {
   const item = document.createElement("li");
   const head = document.createElement("div");
   head.className = "msg-head";
@@ -1796,17 +1832,21 @@ function addChatMessage(name, text, mine) {
   const time = document.createElement("span");
   time.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   head.append(who, time);
-  const body = document.createElement("p");
-  linkify(body, text);
-  item.append(head, body);
+  item.append(head);
+  if (text) {
+    const body = document.createElement("p");
+    linkify(body, text);
+    item.append(body);
+  }
+  if (media.length) item.append(chatMedia(media));
   $("#chat-messages").append(item);
   scrollChat();
-  note("chat", name, text);
+  note("chat", name, text || `[${media.map((m) => m.name || m.type).join(", ")}]`);
 
   if (openPanel !== "chat" && !mine) {
     unread++;
     refreshUnread();
-    toast(`${name}: ${text}`);
+    toast(`${name}: ${text || "sent a file"}`);
   }
 }
 

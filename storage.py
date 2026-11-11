@@ -96,7 +96,7 @@ class FileStore:
 
 
 class SupabaseStore:
-    """Table "docs" (see supabase.sql) and a private Storage bucket "media"."""
+    """Table "dumeet_docs" (see supabase.sql) and a private Storage bucket "dumeet-media"."""
 
     name = "Supabase"
 
@@ -122,16 +122,16 @@ class SupabaseStore:
 
     def list(self, collection):
         query = urllib.parse.urlencode({"collection": f"eq.{collection}", "order": "id.desc", "limit": "2000"})
-        return [self._doc(row) for row in self._request("GET", f"/rest/v1/docs?{query}")]
+        return [self._doc(row) for row in self._request("GET", f"/rest/v1/dumeet_docs?{query}")]
 
     def get(self, collection, doc_id):
         query = urllib.parse.urlencode({"collection": f"eq.{collection}", "id": f"eq.{doc_id}"})
-        rows = self._request("GET", f"/rest/v1/docs?{query}")
+        rows = self._request("GET", f"/rest/v1/dumeet_docs?{query}")
         return self._doc(rows[0]) if rows else None
 
     def put(self, collection, doc_id, data):
         body = json.dumps({"collection": collection, "id": doc_id, "data": data}).encode()
-        rows = self._request("POST", "/rest/v1/docs?on_conflict=collection,id", body, {
+        rows = self._request("POST", "/rest/v1/dumeet_docs?on_conflict=collection,id", body, {
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates,return=representation",
         })
@@ -139,22 +139,22 @@ class SupabaseStore:
 
     def delete(self, collection, doc_id):
         query = urllib.parse.urlencode({"collection": f"eq.{collection}", "id": f"eq.{doc_id}"})
-        self._request("DELETE", f"/rest/v1/docs?{query}")
+        self._request("DELETE", f"/rest/v1/dumeet_docs?{query}")
 
     def put_media(self, media_id, body, content_type):
-        self._request("POST", f"/storage/v1/object/media/{media_id}", body, {
+        self._request("POST", f"/storage/v1/object/dumeet-media/{media_id}", body, {
             "Content-Type": content_type, "x-upsert": "true",
         })
 
     def get_media(self, media_id):
         try:
-            return self._request("GET", f"/storage/v1/object/media/{media_id}", raw=True)
+            return self._request("GET", f"/storage/v1/object/dumeet-media/{media_id}", raw=True)
         except urllib.error.HTTPError:
             return None, None
 
     def delete_media(self, media_id):
         try:
-            self._request("DELETE", f"/storage/v1/object/media/{media_id}")
+            self._request("DELETE", f"/storage/v1/object/dumeet-media/{media_id}")
         except urllib.error.HTTPError:
             pass
 

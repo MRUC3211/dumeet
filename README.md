@@ -1,33 +1,23 @@
 # DU Meet
 
-**Hamara apna chhota sa ghar:** do logon ke liye video call app, long distance ke liye.
+**Private video meetings** (do log ya dost, sab ke liye). Simple home: New meeting ya code se join.
 
-## Couple features (naya)
+## Features
 
-| Feature | Kahan |
+| Kahan | Kya |
 |---|---|
-| Ek-tap call (video ya sirf voice), "wo call mein hai, join karo" | Home ka bada gol button |
-| Thinking of you 💗: dusre ke phone par dil + vibration (Android) | Home aur call ke andar |
-| Dono ka time + mausam, "days together", milne ka countdown | Home |
-| Question of the day: jawab tabhi dikhta hai jab dono ne diya ho | Home |
-| Calendar: date par note, rang wali dates, anniversary / milne ka din | Home → Calendar |
-| Memories: photos, videos, voice notes, notes ki timeline + call moments | Home → Memories |
-| Open-when letters (lock date ke saath) | Home → Open-when |
-| Surprise messages: kisi bhi time par deliver (jaise raat 12 baje) | Home → Surprises |
-| Focus: stopwatch / timer, aaj kisne kitna padha | Home → Focus |
-| Stats: kitne ghante baat, sabse lamba call, streak, kaun zyada dil bhejta hai | Home → Our stats |
-| Watch together (YouTube sync), Listen together | Call → ✨ Together |
-| Sleep call (kaali screen, sirf awaaz, screen on rehti hai) | Call → ✨ Together |
-| Capture moment: dono ki ek saath photo, memories mein save | Call → ✨ Together |
-| Study together: ek timer dono ke liye | Call → ✨ Together |
-| Net kamzor ho to apne aap sirf voice, net jaane par khud reconnect | Automatic |
-| Recording tabhi jab dusra "Allow" kare | Call → ⋮ → Record |
-| Phone par app ki tarah install (PWA) | Safari → Share → Add to Home Screen / Chrome → Install |
+| Lock | Har baar page khulne ya refresh par password poochta hai (password sirf page ki memory mein rehta hai) |
+| Home | New meeting, code/link se join, **Meeting history** (kab kaun aaya, kitni der, meeting kitni chali, Rejoin) |
+| Call | HD video/audio, chat + **photos/videos/files bhejna**, reactions, screen share, whiteboard, polls, layouts, recording (sab ki permission se) |
+| Call → ❤ | Thinking of you: dusre ki screen par dil, heartbeat awaaz, vibration |
+| Call → Apps | **Watch / Listen together** (YouTube sync, Our songs playlist, queue, search), **Calendar** (date par notes, rangeen dates), **Timer / Stopwatch** (dono ke liye ek), **Photo** (Both / Just me / Just them, timer setting), **Sleep call** |
+| Automatic | Net kamzor ho to sirf voice, net jaane par khud reconnect, aaj ke calendar notes ka reminder |
 
-Data kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` set hon to Supabase mein (permanent),
-warna `data/` folder mein (laptop par theek; Render par har restart par mit jaata hai).
-Supabase setup: naya project → SQL Editor mein `supabase.sql` chalao → Project Settings → API se
-URL aur `service_role` key Render ki Environment mein daalo.
+Data (calendar, saved songs, meeting history, chat files) kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
+set hon to Supabase mein (permanent), warna `data/` folder mein (laptop par theek; Render par har restart par mit jaata hai).
+Supabase setup: SQL Editor mein `supabase.sql` chalao, phir Project Settings → API se URL aur `service_role` key Render ki Environment mein daalo.
+
+Song search chahiye to `YOUTUBE_API_KEY` set karo (Google Cloud → YouTube Data API v3, free). Bina key ke link paste + saved songs chalte hain.
 
 ---
 

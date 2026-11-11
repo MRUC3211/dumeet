@@ -4,109 +4,86 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DU Meet</title>
-  <meta name="description" content="DU Meet: our own little place for calls, memories and letters.">
-  <meta name="theme-color" content="#140f1f">
-  <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
+  <meta name="description" content="DU Meet: private video meetings with chat, shared music, calendar and more.">
+  <meta name="theme-color" content="#f5f5f7">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="DU Meet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,500&family=Wix+Madefor+Display:wght@400;500;600&family=Wix+Madefor+Text:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0&display=block">
   <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/us.css">
+  <link rel="stylesheet" href="/theme.css">
 </head>
-<body>
+<body data-view="gate">
 
-  <!-- 1. Home: our space -->
-  <section id="home" class="view us-home" hidden>
-    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div class="floaties" aria-hidden="true"></div>
-
-    <header class="us-top">
-      <div class="brand"><span class="logo-mark heart-mark"><span class="icon" aria-hidden="true">favorite</span></span><span>DU <b>Meet</b></span></div>
-      <button class="icon-btn glass-btn" data-us="settings" aria-label="Settings"><span class="icon" aria-hidden="true">tune</span></button>
-    </header>
-
-    <main class="us-main">
-      <section class="us-hero reveal">
-        <p class="us-greet" id="us-greet">Hello</p>
-        <div class="pair">
-          <div class="pair-person" id="pair-me"><span class="pair-avatar"></span><b></b><small class="pair-clock"></small><small class="pair-weather"></small></div>
-          <div class="pair-line" aria-hidden="true"><span class="pair-beat icon">favorite</span></div>
-          <div class="pair-person" id="pair-you"><span class="pair-avatar"></span><b></b><small class="pair-clock"></small><small class="pair-weather"></small></div>
-        </div>
-        <p class="us-since" id="us-since"></p>
-      </section>
-
-      <section class="call-zone reveal">
-        <button class="call-orb" data-us="call" id="call-orb">
-          <span class="orb-ring" aria-hidden="true"></span><span class="orb-ring r2" aria-hidden="true"></span>
-          <span class="icon" aria-hidden="true">videocam</span>
-          <span class="orb-label" id="orb-label">Call</span>
-        </button>
-        <p class="call-hint" id="call-hint">One tap and you're together</p>
-        <div class="call-quick">
-          <button class="chip-btn" data-us="call-audio"><span class="icon" aria-hidden="true">call</span>Voice only</button>
-          <button class="chip-btn heart-tap" data-us="heart" id="heart-tap"><span class="icon" aria-hidden="true">favorite</span><span>Thinking of you</span></button>
-        </div>
-      </section>
-
-      <section class="us-cards">
-        <article class="card countdown reveal" id="countdown-card" hidden></article>
-        <article class="card inbox-card reveal" id="inbox-card" hidden></article>
-        <article class="card question reveal" id="question-card"></article>
-        <nav class="tiles reveal" aria-label="Our things">
-          <button class="tile-link" data-sheet="calendar"><span class="icon">calendar_month</span><b>Calendar</b><small>Plans &amp; special days</small></button>
-          <button class="tile-link" data-sheet="memories"><span class="icon">photo_library</span><b>Memories</b><small>Photos, voice, notes</small></button>
-          <button class="tile-link" data-sheet="letters"><span class="icon">mail</span><b>Open-when</b><small>Letters for later</small></button>
-          <button class="tile-link" data-sheet="messages"><span class="icon">schedule_send</span><b>Surprises</b><small>Messages on a date</small></button>
-          <button class="tile-link" data-sheet="timer"><span class="icon">timer</span><b>Focus</b><small>Timer &amp; stopwatch</small></button>
-          <button class="tile-link" data-sheet="stats"><span class="icon">insights</span><b>Our stats</b><small>Hours, streaks</small></button>
-        </nav>
-      </section>
-
-      <details class="other-meeting">
-        <summary><span class="icon" aria-hidden="true">groups</span>Meeting with someone else</summary>
-        <div class="home-actions">
-          <button class="btn primary" data-action="new-meeting"><span class="icon" aria-hidden="true">video_call</span>New meeting</button>
-          <form id="join-form" class="join-pill">
-            <label class="code-input">
-              <span class="icon" aria-hidden="true">keyboard</span>
-              <span class="visually-hidden">Meeting code or link</span>
-              <input id="join-code" placeholder="Enter a code or link" autocomplete="off" spellcheck="false">
-            </label>
-            <button id="join-submit" class="join-btn" disabled>Join</button>
-          </form>
-        </div>
-      </details>
-    </main>
-
-    <!-- feature screens slide up here -->
-    <div id="sheet" class="sheet" hidden>
-      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-        <header class="sheet-head">
-          <button class="icon-btn" data-us="sheet-back" aria-label="Back"><span class="icon" aria-hidden="true">arrow_back</span></button>
-          <h2 id="sheet-title"></h2>
-          <span class="sheet-action" id="sheet-action"></span>
-        </header>
-        <div class="sheet-body" id="sheet-body"></div>
+  <!-- 0. Lock: asked on every visit and every reload -->
+  <section id="gate" class="gate">
+    <form id="gate-form" class="gate-card" autocomplete="off">
+      <span class="logo-mark big"><span class="icon" aria-hidden="true">videocam</span></span>
+      <h1>DU Meet</h1>
+      <p class="gate-sub" id="gate-sub">Checking…</p>
+      <div class="gate-field" id="gate-field" hidden>
+        <input id="gate-input" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="gate-go" aria-label="Unlock"><span class="icon" aria-hidden="true">arrow_forward</span></button>
       </div>
-    </div>
-
-    <!-- first launch: who is who -->
-    <div id="onboard" class="onboard" hidden></div>
+      <p class="gate-error" id="gate-error" role="alert" hidden></p>
+    </form>
   </section>
 
-  <!-- 2. Lobby: check camera/mic and enter a name -->
+  <!-- 1. Home -->
+  <section id="home" class="view" hidden>
+    <header class="nav">
+      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU Meet</span></div>
+      <button class="btn ghost" data-home="history"><span class="icon" aria-hidden="true">history</span><span class="hide-sm">Meeting history</span></button>
+    </header>
+
+    <main class="hero">
+      <p class="eyebrow-pill rise" style="--i:0"><span class="live-dot"></span>Private video meetings</p>
+      <h1 class="rise" style="--i:1">Meet face to face,<br><em>from anywhere.</em></h1>
+      <p class="lead rise" style="--i:2">Crystal clear calls with shared music, a calendar, chat and more. No sign-up, just a code.</p>
+      <div class="cta rise" style="--i:3">
+        <button class="btn primary big" data-action="new-meeting"><span class="icon" aria-hidden="true">video_call</span>New meeting</button>
+        <form id="join-form" class="join-pill">
+          <label class="code-input">
+            <span class="icon" aria-hidden="true">keyboard</span>
+            <span class="visually-hidden">Meeting code or link</span>
+            <input id="join-code" placeholder="Enter a code or link" autocomplete="off" spellcheck="false">
+          </label>
+          <button id="join-submit" class="join-btn" disabled>Join</button>
+        </form>
+      </div>
+
+      <div class="showcase rise" style="--i:4" aria-hidden="true">
+        <div class="showcase-window">
+          <div class="sc-tiles">
+            <div class="sc-tile a"><span class="sc-avatar">A</span><i class="sc-name">Aanya</i><div class="sc-wave"><b></b><b></b><b></b><b></b><b></b></div></div>
+            <div class="sc-tile b"><span class="sc-avatar">R</span><i class="sc-name">Rohan</i></div>
+          </div>
+          <div class="sc-bar"><span class="icon">mic</span><span class="icon">videocam</span><span class="icon">favorite</span><span class="icon">apps</span><span class="sc-end icon">call_end</span></div>
+        </div>
+      </div>
+
+      <ul class="features rise" style="--i:5">
+        <li><span class="ficon icon">hd</span><b>HD video &amp; audio</b><p>Direct, encrypted connection between you.</p></li>
+        <li><span class="ficon icon">music_note</span><b>Watch &amp; listen together</b><p>Videos and songs play in sync for everyone.</p></li>
+        <li><span class="ficon icon">calendar_month</span><b>Shared calendar</b><p>Plans and notes, saved for the next call.</p></li>
+        <li><span class="ficon icon">lock</span><b>Password protected</b><p>Only people with the password get in.</p></li>
+      </ul>
+    </main>
+    <footer class="foot">DU Meet · Private by design</footer>
+  </section>
+
+  <!-- 2. Lobby -->
   <section id="lobby" class="view" hidden>
-    <header class="topbar">
-      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU <b>Meet</b></span></div>
-      <span class="clock"></span>
+    <header class="nav">
+      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU Meet</span></div>
+      <button class="btn ghost" data-action="home"><span class="icon" aria-hidden="true">arrow_back</span><span class="hide-sm">Home</span></button>
     </header>
     <main class="lobby-main">
       <div id="preview-box" class="preview-box">
@@ -124,20 +101,42 @@
         <p id="lobby-count" class="muted" aria-live="polite">&nbsp;</p>
         <label class="field-label" for="name-input">Your name</label>
         <input id="name-input" placeholder="How others will see you" maxlength="40" autocomplete="name">
-        <button class="btn primary wide" data-action="join">Join now</button>
-        <p class="muted small">Meeting code <span id="lobby-code" class="code"></span></p>
+        <button class="btn primary wide big" data-action="join">Join now</button>
+        <p class="muted small code-line">Meeting code <span id="lobby-code" class="code"></span></p>
       </div>
     </main>
   </section>
 
-  <!-- 3. Room: the meeting itself -->
+  <!-- 3. Room -->
   <section id="room" class="view" hidden>
     <div class="stage">
       <div class="main-area">
         <div id="rec-badge" class="rec-badge" hidden><span class="rec-dot" aria-hidden="true"></span>Recording</div>
         <div id="grid" class="grid"></div>
-        <div id="captions" class="captions" aria-live="off" hidden></div>
+        <div id="captions" class="captions" hidden></div>
+
+        <!-- watching / listening together -->
+        <div id="tg-stage" class="tg-stage" hidden>
+          <div class="tg-player-wrap"><div id="tg-player"></div><button class="tg-tap" hidden>Tap to play</button></div>
+          <div class="tg-bar">
+            <div class="tg-art" id="tg-art"></div>
+            <div class="tg-meta"><span class="tg-title">Playing together</span><small class="tg-sub"></small></div>
+            <button class="icon-btn" data-tg="media-toggle" aria-label="Play or pause"><span class="icon">pause</span></button>
+            <button class="icon-btn" data-tg="media-next" aria-label="Next" hidden><span class="icon">skip_next</span></button>
+            <button class="icon-btn" data-tg="media-save" aria-label="Save to our songs"><span class="icon">bookmark_add</span></button>
+            <button class="icon-btn" data-tg="media-open" aria-label="Choose another"><span class="icon">queue_music</span></button>
+            <button class="icon-btn" data-tg="media-close" aria-label="Stop"><span class="icon">close</span></button>
+          </div>
+        </div>
+
+        <div id="tg-timer" class="tg-timer" hidden>
+          <button class="tg-timer-open" data-tg="timer-open" aria-label="Open timer"><span class="icon">timer</span><b class="tg-timer-time">00:00</b><span class="tg-timer-label"></span></button>
+          <button class="icon-btn" data-tg="timer-go" aria-label="Start or pause"><span class="icon">play_arrow</span></button>
+          <button class="icon-btn" data-tg="timer-stop" aria-label="Finish"><span class="icon">stop</span></button>
+        </div>
+        <div id="tg-net" class="tg-net" hidden><span class="icon">signal_cellular_alt_1_bar</span><span>Weak network · voice only for now</span></div>
       </div>
+
       <aside id="panel" aria-labelledby="panel-title" hidden>
         <div class="panel-head">
           <h3 id="panel-title"></h3>
@@ -156,12 +155,16 @@
           <ul id="people-list" class="people"></ul>
         </div>
         <div data-panel="chat" class="panel-body">
-          <p class="chat-note">Messages can only be seen by people in the call and are deleted when the call ends.</p>
+          <p class="chat-note">Messages and files are visible only to people in the call.</p>
           <ul id="chat-messages" aria-live="polite"></ul>
           <form id="chat-form">
+            <label class="icon-btn attach" title="Share photos, videos or files" aria-label="Share a file">
+              <span class="icon" aria-hidden="true">add_circle</span>
+              <input id="chat-file" type="file" accept="image/*,video/*,audio/*,application/pdf,text/plain" multiple hidden>
+            </label>
             <label class="visually-hidden" for="chat-input">Message</label>
-            <input id="chat-input" placeholder="Send a message" maxlength="500" autocomplete="off">
-            <button class="icon-btn send" title="Send" aria-label="Send message"><span class="icon" aria-hidden="true">send</span></button>
+            <input id="chat-input" placeholder="Message" maxlength="500" autocomplete="off">
+            <button class="icon-btn send" title="Send" aria-label="Send message"><span class="icon" aria-hidden="true">arrow_upward</span></button>
           </form>
         </div>
         <div data-panel="polls" class="panel-body">
@@ -188,19 +191,29 @@
         <button class="ctrl" data-action="mic" aria-label="Microphone" aria-keyshortcuts="Meta+D"><span class="icon" aria-hidden="true">mic</span></button>
         <button class="ctrl" data-action="cam" aria-label="Camera" aria-keyshortcuts="Meta+E"><span class="icon" aria-hidden="true">videocam</span></button>
         <button class="ctrl flip-btn" data-action="flip" title="Switch camera" aria-label="Switch camera" hidden><span class="icon" aria-hidden="true">flip_camera_android</span></button>
-        <button class="ctrl wide-only" data-action="captions" title="Turn on captions" aria-label="Turn on captions" aria-pressed="false"><span class="icon" aria-hidden="true">closed_caption</span></button>
-        <button class="ctrl wide-only" data-action="hand" title="Raise hand (Ctrl + Alt + H)" aria-label="Raise hand" aria-pressed="false"><span class="icon" aria-hidden="true">back_hand</span></button>
-        <button class="ctrl" data-action="reactions" title="Send a reaction" aria-label="Send a reaction" aria-expanded="false" aria-controls="reaction-picker"><span class="icon" aria-hidden="true">mood</span></button>
+        <button class="ctrl wide-only" data-action="reactions" title="Send a reaction" aria-label="Send a reaction" aria-expanded="false" aria-controls="reaction-picker"><span class="icon" aria-hidden="true">mood</span></button>
         <button class="ctrl wide-only share-btn" data-action="share" title="Present now" aria-label="Present now" aria-pressed="false"><span class="icon" aria-hidden="true">present_to_all</span></button>
-        <button class="ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_vert</span></button>
+        <button class="ctrl heart-ctrl" data-tg="heart" title="Thinking of you" aria-label="Send a heart"><span class="icon" aria-hidden="true">favorite</span></button>
+        <button class="ctrl together-ctrl" data-tg="tray" title="Do things together" aria-label="Together" aria-expanded="false" aria-controls="tg-tray"><span class="icon" aria-hidden="true">apps</span></button>
+        <button class="ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_horiz</span></button>
         <button class="ctrl leave" data-action="leave" title="Leave call" aria-label="Leave call"><span class="icon" aria-hidden="true">call_end</span></button>
+
         <div id="reaction-picker" role="group" aria-label="Reactions" hidden></div>
+
+        <div id="tg-tray" class="tg-tray" role="menu" hidden>
+          <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch together</b><small>YouTube videos, in sync</small></span></button>
+          <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen together</b><small>Music, saved playlist</small></span></button>
+          <button role="menuitem" data-tg="calendar"><span class="tg-ic cal icon">calendar_month</span><span><b>Calendar</b><small>Plans, notes, reminders</small></span></button>
+          <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer &amp; stopwatch</b><small>Shared, for study or focus</small></span></button>
+          <button role="menuitem" data-tg="capture"><span class="tg-ic moment icon">photo_camera</span><span><b>Take a photo</b><small>Me, them or both</small></span></button>
+          <button role="menuitem" data-tg="sleep"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
+        </div>
+
         <div id="more-menu" class="menu" role="menu" aria-label="More options" hidden>
-          <button role="menuitem" class="narrow-only" data-action="hand"><span class="icon" aria-hidden="true">back_hand</span><span class="label">Raise hand</span></button>
-          <button role="menuitem" class="narrow-only" data-action="captions"><span class="icon" aria-hidden="true">closed_caption</span><span class="label">Turn on captions</span></button>
+          <button role="menuitem" class="narrow-only" data-action="reactions"><span class="icon" aria-hidden="true">mood</span><span class="label">Reactions</span></button>
           <button role="menuitem" class="narrow-only share-btn" data-action="share"><span class="icon" aria-hidden="true">present_to_all</span><span class="label">Present now</span></button>
           <button role="menuitem" data-action="layout"><span class="icon" aria-hidden="true">dashboard</span><span class="label">Change layout</span></button>
-          <button role="menuitem" data-action="pip"><span class="icon" aria-hidden="true">picture_in_picture_alt</span><span class="label">Open picture-in-picture</span></button>
+          <button role="menuitem" data-action="pip"><span class="icon" aria-hidden="true">picture_in_picture_alt</span><span class="label">Picture-in-picture</span></button>
           <button role="menuitem" data-action="whiteboard"><span class="icon" aria-hidden="true">draw</span><span class="label">Open whiteboard</span></button>
           <button role="menuitem" data-action="record"><span class="icon" aria-hidden="true">radio_button_checked</span><span class="label">Record meeting</span></button>
           <button role="menuitem" data-action="hide-self"><span class="icon" aria-hidden="true">hide_image</span><span class="label">Hide self view</span></button>
@@ -211,8 +224,8 @@
       </div>
       <div class="right">
         <button class="ctrl flat" data-action="info" title="Meeting details" aria-label="Meeting details" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">info</span></button>
-        <button class="ctrl flat" data-action="people" title="Show everyone (Ctrl + Alt + P)" aria-label="Show everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">group</span><span id="people-count" class="badge">1</span></button>
-        <button class="ctrl flat" data-action="chat" title="Chat with everyone (Ctrl + Alt + C)" aria-label="Chat with everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat</span><span id="chat-dot" class="dot" hidden></span></button>
+        <button class="ctrl flat" data-action="people" title="People" aria-label="Show everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">group</span><span id="people-count" class="badge">1</span></button>
+        <button class="ctrl flat" data-action="chat" title="Chat" aria-label="Chat with everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat_bubble</span><span id="chat-dot" class="dot" hidden></span></button>
         <button class="ctrl flat" data-action="polls" title="Polls" aria-label="Polls" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">ballot</span><span id="polls-dot" class="dot" hidden></span></button>
       </div>
     </footer>
@@ -224,20 +237,74 @@
   <!-- 4. After leaving -->
   <section id="left" class="view" hidden>
     <div class="left-card">
-      <span class="left-heart icon" aria-hidden="true">favorite</span>
+      <span class="logo-mark big"><span class="icon" aria-hidden="true">check</span></span>
       <h1 id="left-title">You left the meeting</h1>
       <p id="left-sub" class="muted"></p>
       <div class="left-actions">
         <button class="btn outline" data-action="rejoin">Rejoin</button>
-        <button class="btn primary" data-action="home">Return to home screen</button>
+        <button class="btn primary" data-action="home">Back to home</button>
       </div>
     </div>
   </section>
 
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <!-- a heart, a letter or a surprise arriving (above every screen) -->
-  <div id="love-layer" class="love-layer" aria-hidden="true"></div>
-  <div id="gift" class="gift" hidden></div>
+
+  <!-- Thinking of you -->
+  <div id="heart-fx" class="heart-fx" aria-hidden="true" hidden>
+    <div class="heart-stage">
+      <span class="ripple"></span><span class="ripple r2"></span><span class="ripple r3"></span>
+      <svg class="big-heart" viewBox="0 0 24 24"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient></defs><path fill="url(#hg)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    </div>
+    <p class="heart-text"></p>
+  </div>
+
+  <!-- Sleep call -->
+  <div id="tg-sleep" class="tg-sleep" hidden>
+    <span class="icon sleep-moon">bedtime</span>
+    <b class="sleep-clock"></b>
+    <p class="sleep-who"></p>
+    <p class="sleep-hint">Double-tap anywhere to wake up</p>
+    <div class="sleep-actions"><button class="ctrl" data-tg="sleep-mic" aria-label="Microphone"><span class="icon">mic</span></button><button class="ctrl leave" data-action="leave" aria-label="End call"><span class="icon">call_end</span></button></div>
+  </div>
+  <div id="tg-countdown" class="tg-countdown" hidden></div>
+
+  <!-- Modals -->
+  <div id="m-history" class="modal" hidden>
+    <div class="sheet light" role="dialog" aria-modal="true" aria-labelledby="h-title">
+      <header class="sheet-head"><h2 id="h-title">Meeting history</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body" id="history-body"></div>
+    </div>
+  </div>
+
+  <div id="m-cal" class="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="c-title">
+      <header class="sheet-head"><h2 id="c-title">Calendar</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body" id="cal-body"></div>
+    </div>
+  </div>
+
+  <div id="m-timer" class="modal" hidden>
+    <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="t-title">
+      <header class="sheet-head"><h2 id="t-title">Timer</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body" id="timer-body"></div>
+    </div>
+  </div>
+
+  <div id="m-play" class="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="p-title">
+      <header class="sheet-head"><h2 id="p-title">Play together</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body" id="play-body"></div>
+    </div>
+  </div>
+
+  <div id="m-capture" class="modal" hidden>
+    <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="k-title">
+      <header class="sheet-head"><h2 id="k-title">Take a photo</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body" id="capture-body"></div>
+    </div>
+  </div>
+
+  <div id="m-lightbox" class="modal lightbox" hidden><img id="lightbox-img" alt=""><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></div>
 
   <!-- Audio and video settings -->
   <dialog id="settings-dialog" class="dialog" aria-labelledby="settings-title">
@@ -253,18 +320,13 @@
       <label class="field-label" for="cam-select">Camera</label>
       <select id="cam-select" class="field"></select>
       <label class="check"><input type="checkbox" id="noise-toggle" checked> Noise cancellation</label>
-      <label class="field-label" for="caption-lang">Caption language</label>
-      <select id="caption-lang" class="field">
-        <option value="en-IN">English (India)</option>
-        <option value="en-US">English (US)</option>
-        <option value="hi-IN">हिन्दी (Hindi)</option>
-        <option value="bn-IN">বাংলা (Bengali)</option>
-        <option value="ta-IN">தமிழ் (Tamil)</option>
-        <option value="te-IN">తెలుగు (Telugu)</option>
-        <option value="mr-IN">मराठी (Marathi)</option>
-        <option value="gu-IN">ગુજરાતી (Gujarati)</option>
-        <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+      <label class="field-label" for="photo-timer">Photo timer</label>
+      <select id="photo-timer" class="field">
+        <option value="0">Instant</option>
+        <option value="3">3 seconds</option>
+        <option value="5">5 seconds</option>
       </select>
+      <select id="caption-lang" hidden></select>
     </form>
   </dialog>
 
@@ -303,8 +365,6 @@
     </div>
   </template>
 
-  <script src="/app.js"></script>
-  <script src="/us.js"></script>
-  <script src="/together.js"></script>
+  <script src="/gate.js"></script>
 </body>
 </html>
