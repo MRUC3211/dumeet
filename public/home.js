@@ -1,4 +1,4 @@
-// DU Meet · home screen: meeting history (who joined when, and for how long).
+// DU Meet · home screen: one-tap join to our room, other meetings, and stats (meeting history).
 
 (() => {
   "use strict";
@@ -10,7 +10,7 @@
   const openModals = [];
   function openModal(element) {
     element.hidden = false;
-    requestAnimationFrame(() => element.classList.add("open"));
+    requestAnimationFrame(() => { if (openModals.includes(element)) element.classList.add("open"); });
     if (!openModals.includes(element)) openModals.push(element);
   }
   function closeModal(element) {
@@ -83,16 +83,93 @@
     }
   }
 
+  // ---------- one-tap join to our room ----------
+
+  const OUR_ROOM = "our-room";
+  const joinButton = q("[data-home=join]");
+
+  function paintAs() {
+    const line = q("#home-as");
+    line.hidden = !prefs.name;
+    line.innerHTML = prefs.name ? `Joining as <b>${esc(prefs.name)}</b> · <button type="button" data-home="who">Change</button>` : "";
+  }
+
+  let joinAfterWho = false;
+  function askWho(thenJoin = false) {
+    joinAfterWho = thenJoin === true;
+    q("#who-name").value = "";
+    openModal(q("#m-who"));
+  }
+  function setWho(name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    prefs.name = name;
+    savePrefs();
+    paintAs();
+    closeModal(q("#m-who"));
+    refreshPresence();
+    if (joinAfterWho) quickJoin();
+  }
+
+  let joining = false;
+  async function quickJoin() {
+    if (!prefs.name) return askWho(true);
+    if (joining) return;
+    joining = true;
+    joinButton.classList.add("busy");
+    try {
+      room = OUR_ROOM;
+      history.pushState(null, "", `/?room=${OUR_ROOM}`);
+      q("#name-input").value = prefs.name;
+      if (!me.stream) await startMedia();
+      refreshLocal();
+      await joinMeeting();
+    } finally {
+      joining = false;
+      joinButton.classList.remove("busy");
+    }
+  }
+
+  // who is already in our room, shown on the home screen
+  let presenceTimer = 0;
+  async function refreshPresence() {
+    clearTimeout(presenceTimer);
+    if (document.body.dataset.view !== "home") return;
+    const pill = q("#home-status");
+    try {
+      const { names } = await (await fetch(`/api/room?room=${OUR_ROOM}`)).json();
+      const others = names.filter((n) => n !== prefs.name);
+      pill.classList.toggle("waiting", others.length > 0);
+      q("span:last-child", pill).textContent = others.length ? `${others.join(" & ")} ${others.length > 1 ? "are" : "is"} waiting for you` : "Your private room";
+      joinButton.classList.toggle("pulse", others.length > 0);
+    } catch { /* offline: leave as is */ }
+    presenceTimer = setTimeout(refreshPresence, 8000);
+  }
+
   document.addEventListener("click", (event) => {
-    if (event.target.closest("[data-home=history]")) showHistory();
+    const button = event.target.closest("[data-home]");
+    if (button) {
+      ({
+        history: showHistory,
+        join: quickJoin,
+        who: () => askWho(false),
+        other: () => openModal(q("#m-other")),
+      })[button.dataset.home]?.();
+    }
+    const who = event.target.closest("[data-who]");
+    if (who) setWho(who.dataset.who);
+    if (event.target.closest("#m-other [data-action=new-meeting]")) closeModal(q("#m-other"));
   });
+  q("#who-form").addEventListener("submit", (event) => { event.preventDefault(); setWho(q("#who-name").value); });
+  q("#join-form").addEventListener("submit", () => closeModal(q("#m-other")));
 
   window.DU = Object.assign(window.DU || {}, {
-    openModal, closeModal,
-    onHome() { /* nothing to refresh: the home page is static */ },
+    openModal, closeModal, span,
+    onHome() { paintAs(); refreshPresence(); },
   });
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   // Scripts load after the page, so show the right screen now.
-  if (typeof route === "function" && document.body.dataset.view === "gate") route();
+  if (document.body.dataset.view === "home") window.DU.onHome();
+  else if (typeof route === "function" && document.body.dataset.view === "gate") route();
 })();

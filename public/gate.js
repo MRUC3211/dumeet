@@ -6,7 +6,7 @@
 (() => {
   "use strict";
   const $ = (selector) => document.querySelector(selector);
-  const SCRIPTS = ["/app.js", "/home.js", "/tools.js"];
+  const SCRIPTS = ["/app.js", "/home.js", "/tools.js", "/couple.js"];
   let token = "";
 
   // Every call to the server carries the token; links that can't send headers (images,

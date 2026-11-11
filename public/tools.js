@@ -1,5 +1,5 @@
 // DU Meet · things to do together during a call:
-// thinking-of-you heart, watch/listen together, calendar, timer & stopwatch, photos,
+// thinking-of-you heart, watch/listen together, calendar, timer & stopwatch, one-tap photos,
 // sleep call, files in chat, weak-network voice-only and "record only if everyone agrees".
 // Uses globals from app.js (send, peers, me, toast, polling, setMic, setOutgoing …).
 
@@ -499,7 +499,56 @@
     q(".tg-timer-label", pill).textContent = timer.label;
     q("[data-tg=timer-go] .icon", pill).textContent = timer.running ? "pause" : "play_arrow";
     pill.classList.toggle("running", timer.running);
+    placeSaved(pill, "du-timer-pos");
   }
+
+  // ---------- drag floating things (the timer pill) anywhere on the stage ----------
+
+  function placeAt(el, x, y) {
+    const area = q(".main-area").getBoundingClientRect();
+    x = Math.min(Math.max(8, x), area.width - el.offsetWidth - 8);
+    y = Math.min(Math.max(8, y), area.height - el.offsetHeight - 8);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.classList.add("placed");
+  }
+  function placeSaved(el, key) {
+    const pos = store.get(key, null);
+    if (!pos || el.hidden) return;
+    const area = q(".main-area").getBoundingClientRect();
+    placeAt(el, pos.x * area.width, pos.y * area.height);
+  }
+  function makeDraggable(el, key) {
+    let start = null;
+    let moved = false;
+    el.style.touchAction = "none";
+    el.addEventListener("pointerdown", (event) => {
+      if (event.button) return;
+      const box = el.getBoundingClientRect();
+      start = { dx: event.clientX - box.left, dy: event.clientY - box.top, x: event.clientX, y: event.clientY };
+      moved = false;
+    });
+    addEventListener("pointermove", (event) => {
+      if (!start) return;
+      if (!moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return;
+      moved = true;
+      el.classList.add("dragging");
+      const area = q(".main-area").getBoundingClientRect();
+      placeAt(el, event.clientX - area.left - start.dx, event.clientY - area.top - start.dy);
+    });
+    addEventListener("pointerup", () => {
+      if (!start) return;
+      start = null;
+      el.classList.remove("dragging");
+      if (!moved) return;
+      const area = q(".main-area").getBoundingClientRect();
+      store.set(key, { x: parseFloat(el.style.left) / area.width, y: parseFloat(el.style.top) / area.height });
+    });
+    // a drag is not a click
+    el.addEventListener("click", (event) => { if (moved) { event.stopPropagation(); event.preventDefault(); moved = false; } }, true);
+    addEventListener("resize", () => placeSaved(el, key));
+  }
+  makeDraggable(q("#tg-timer"), "du-timer-pos");
 
   function paintTimerSheet() {
     const sheet = q("#timer-body");
@@ -643,46 +692,6 @@
 
   // ---------- photos ----------
 
-  const photoTimer = () => Number(store.get("du-photo-timer", 0)) || 0;
-  let captureBusy = false;
-
-  function openCapture() {
-    toggleTray(false);
-    const others = [...peers.values()];
-    const options = [];
-    if (others.length) options.push({ id: "all", icon: "group", title: others.length === 1 ? "Both of us" : "Everyone", sub: "One photo with everyone" });
-    options.push({ id: "me", icon: "person", title: "Just me", sub: me.name || "Your camera" });
-    for (const person of others) options.push({ id: person.id, icon: "person", title: `Just ${person.name}`, sub: "Their camera" });
-    q("#capture-body").innerHTML = `
-      <p class="muted center">Who should be in the photo?</p>
-      <div class="cap-options">${options.map((o) => `<button class="cap-opt" data-cap="${esc(o.id)}"><span class="cap-ic icon">${o.icon}</span><span><b>${esc(o.title)}</b><small>${esc(o.sub)}</small></span><span class="icon chev">chevron_right</span></button>`).join("")}</div>
-      <div class="cap-timer"><span>Timer</span><div class="seg small">${[0, 3, 5].map((n) => `<button data-cap-timer="${n}" class="${photoTimer() === n ? "on" : ""}">${n ? `${n}s` : "Instant"}</button>`).join("")}</div></div>`;
-    openModal(q("#m-capture"));
-  }
-
-  q("#capture-body").addEventListener("click", (event) => {
-    const timerBtn = event.target.closest("[data-cap-timer]");
-    if (timerBtn) {
-      store.set("du-photo-timer", Number(timerBtn.dataset.capTimer));
-      qa("[data-cap-timer]").forEach((b) => b.classList.toggle("on", b === timerBtn));
-      q("#photo-timer").value = timerBtn.dataset.capTimer;
-      return;
-    }
-    const option = event.target.closest("[data-cap]");
-    if (option) takePhoto(option.dataset.cap);
-  });
-
-  async function countdown(secs) {
-    const box = q("#tg-countdown");
-    box.hidden = false;
-    for (let n = secs; n > 0; n--) {
-      box.innerHTML = `<span>${n}</span>`;
-      await sleep(1000);
-    }
-    box.classList.add("flash");
-    setTimeout(() => { box.hidden = true; box.classList.remove("flash"); box.innerHTML = ""; }, 400);
-  }
-
   function frameOf(id) {
     const tile = tileOf(id);
     const video = tile?.querySelector("video");
@@ -772,24 +781,60 @@
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
   }
 
-  async function takePhoto(choice) {
-    if (captureBusy) return;
-    captureBusy = true;
-    const everyone = [me.id, ...peers.keys()];
-    const ids = choice === "all" ? everyone : choice === "me" ? [me.id] : [choice];
-    closeModal(q("#m-capture"));
+  // One tap: a photo of the whole call, saved to Memories for both of you.
+  const snapState = { busy: false, blob: null, hide: 0 };
+
+  function shutterSound() {
     try {
-      const secs = photoTimer();
-      if (secs && ids.some((id) => id !== me.id)) send("photo-count", { secs });
-      if (secs) await countdown(secs);
+      const ctx = heart.audio ||= new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
+      const source = ctx.createBufferSource();
+      const amp = ctx.createGain();
+      amp.gain.value = 0.25;
+      source.buffer = buffer;
+      source.connect(amp).connect(ctx.destination);
+      source.start();
+    } catch { /* no sound */ }
+  }
+
+  function flash() {
+    const box = q("#tg-flash");
+    box.hidden = false;
+    box.classList.remove("go");
+    void box.offsetWidth;
+    box.classList.add("go");
+    setTimeout(() => { box.hidden = true; }, 600);
+  }
+
+  async function snap() {
+    if (snapState.busy || !polling) return;
+    snapState.busy = true;
+    try {
+      flash();
+      shutterSound();
       navigator.vibrate?.(25);
-      const blob = await composePhoto(ids);
-      showPhoto(blob);
+      const blob = await composePhoto([me.id, ...peers.keys()]);
+      snapState.blob = blob;
+      const thumb = q("#tg-snap");
+      thumb.style.backgroundImage = `url(${URL.createObjectURL(blob)})`;
+      thumb.hidden = false;
+      thumb.classList.remove("in");
+      void thumb.offsetWidth;
+      thumb.classList.add("in");
+      clearTimeout(snapState.hide);
+      snapState.hide = setTimeout(() => { thumb.hidden = true; }, 6000);
+      send("snap", {});
+      const uploaded = await upload(blob);
+      await putDoc("memories", { url: uploaded.url, type: uploaded.type, by: me.name, at: Date.now() });
+      send("couple-sync", { c: "memories" });
     } catch (error) {
       console.warn(error);
-      toast("Couldn't take the photo");
+      toast("Photo taken, but it couldn't be saved to Memories");
     } finally {
-      captureBusy = false;
+      snapState.busy = false;
     }
   }
 
@@ -801,7 +846,7 @@
       <div class="photo-actions">
         <button class="btn primary" data-photo="save"><span class="icon">download</span>Save</button>
         <button class="btn outline" data-photo="chat"><span class="icon">chat_bubble</span>Send in chat</button>
-        <button class="btn ghost" data-photo="again"><span class="icon">refresh</span>Retake</button>
+        <button class="btn ghost" data-photo="memories"><span class="icon">photo_library</span>Memories</button>
       </div>`;
     openModal(q("#m-capture"));
     const file = new File([blob], `DU Meet ${dayKey()}.jpg`, { type: "image/jpeg" });
@@ -821,10 +866,9 @@
           toast("Sent in chat");
           closeModal(q("#m-capture"));
         } catch { toast("Couldn't send the photo"); }
-      } else if (action === "again") {
-        q("#k-title").textContent = "Take a photo";
-        q("#capture-body").onclick = null;
-        openCapture();
+      } else if (action === "memories") {
+        closeModal(q("#m-capture"));
+        window.DU.openMemories?.();
       }
     };
   }
@@ -892,6 +936,8 @@
       net.paused = false; net.bad = 0;
       setOutgoing(SLOT.camera, cameraTrack());
       q("#tg-net").hidden = true;
+      q("#tg-snap").hidden = true;
+      window.DU.onCoupleLeave?.();
       send("net", { weak: false });
       toast("Network is better · video is back");
     }
@@ -915,6 +961,8 @@
 
   // ---------- messages from the other side ----------
 
+  window.DU.kit = { q, qa, esc, pad, store, dayKey, parseDay, getDocs, putDoc, delDoc, upload, confirmBox, toggleTray, shrinkImage, partnerName };
+
   window.DU = Object.assign(window.DU || {}, {
     lightbox(src) { q("#lightbox-img").src = src; openModal(q("#m-lightbox")); },
     onMessage(message, peer) {
@@ -927,7 +975,7 @@
           tileOf(peer.id)?.classList.toggle("sleeping", Boolean(data.on));
           toast(data.on ? `${peer.name} is in sleep mode` : `${peer.name} is back`);
           break;
-        case "photo-count": if (Number(data.secs) > 0 && Number(data.secs) <= 10) countdown(Number(data.secs)); break;
+        case "snap": flash(); toast(`${peer.name} took a photo · saved in Memories`); break;
         case "timer": receiveTimer(data, peer); break;
         case "cal":
           if (!q("#m-cal").hidden) getDocs("calendar").then((docs) => { cal.notes = docs; renderCal(); }).catch(() => {});
@@ -942,10 +990,10 @@
             .then((yes) => send("rec-answer", { yes }, peer.id));
           break;
         case "rec-answer": recWait.resolve?.(Boolean(data.yes)); break;
-        default:
+        default: window.DU.onCouple?.(message, peer);
       }
     },
-    onJoin() { setTimeout(todaysReminder, 2500); },
+    onJoin() { setTimeout(todaysReminder, 2500); window.DU.onCoupleJoin?.(); },
     onPeerJoined() {
       // someone joining late gets what is already running
       if (media.vid && media.leader) {
@@ -965,6 +1013,8 @@
       if (sleepState.on) setSleep(false);
       for (const modal of qa(".modal")) if (!modal.hidden && modal.id !== "m-history") closeModal(modal);
       q("#tg-net").hidden = true;
+      q("#tg-snap").hidden = true;
+      window.DU.onCoupleLeave?.();
       net.paused = false;
       const secs = joinedAt ? (Date.now() - joinedAt) / 1000 : 0;
       q("#left-sub").textContent = secs > 20 ? `You were in the meeting for ${clock(secs)}.` : "";
@@ -977,7 +1027,7 @@
     if (!event.target.closest("#tg-tray, [data-tg=tray]")) toggleTray(false);
     const button = event.target.closest("[data-tg]");
     if (!button) return;
-    ({
+    const handler = ({
       tray: () => toggleTray(),
       heart: () => sendHeart(button),
       watch: () => openPlay("watch"),
@@ -986,7 +1036,7 @@
       "timer-open": openTimer,
       "timer-go": timerToggle,
       "timer-stop": () => timerStop(true),
-      capture: openCapture,
+      snap,
       sleep: () => setSleep(true),
       "sleep-mic": () => { setMic(!me.mic); paintSleepMic(); },
       "media-toggle": () => {
@@ -998,13 +1048,10 @@
       "media-save": saveCurrent,
       "media-open": () => openPlay(media.mode || "listen"),
       "media-close": () => closeMedia(true),
-    })[button.dataset.tg]?.();
+    })[button.dataset.tg];
+    if (handler) handler(); else window.DU.onCoupleClick?.(button);
   });
-
-  // settings: photo timer
-  const select = q("#photo-timer");
-  select.value = String(photoTimer());
-  select.addEventListener("change", () => store.set("du-photo-timer", Number(select.value)));
+  q("#tg-snap").addEventListener("click", () => { q("#tg-snap").hidden = true; if (snapState.blob) showPhoto(snapState.blob); });
 
   // the heart shape reused by the floating hearts
   document.body.insertAdjacentHTML("beforeend", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="hg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient><symbol id="hg-path" viewBox="0 0 24 24"><path fill="url(#hg2)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></defs></svg>`);

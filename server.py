@@ -11,7 +11,7 @@ people in a meeting. Only the Python standard library is used:
   GET  /healthz                  "I'm alive" for the cloud host (no password needed)
   POST /api/login                password -> access token (kept in the page's memory only,
                                  so every page load asks for the password again)
-  GET/POST/DELETE /api/data      shared documents: calendar notes, saved songs, meeting history
+  GET/POST/DELETE /api/data      shared documents: calendar, songs, history, memories, notes, bucket list
   POST /api/media, GET /api/media/<id>   files shared in chat
   GET  /api/title, /api/search   YouTube titles and (with YOUTUBE_API_KEY) song search
 
@@ -153,7 +153,7 @@ def too_many_fails(address, add=False):
 
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
-COLLECTIONS = {"calendar", "songs", "meetings"}
+COLLECTIONS = {"calendar", "songs", "meetings", "memories", "letters", "bucket", "settings"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MEDIA_TYPES = ("image/", "audio/", "video/", "application/pdf", "text/plain")

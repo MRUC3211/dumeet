@@ -1,19 +1,20 @@
 # DU Meet
 
-**Private video meetings** (do log ya dost, sab ke liye). Simple home: New meeting ya code se join.
+**Uday aur Diya ka private video call app.** Home par ek hi bada **Join** button: ek tap mein apne room ("our-room") mein.
 
 ## Features
 
 | Kahan | Kya |
 |---|---|
 | Lock | Har baar page khulne ya refresh par password poochta hai (password sirf page ki memory mein rehta hai) |
-| Home | New meeting, code/link se join, **Meeting history** (kab kaun aaya, kitni der, meeting kitni chali, Rejoin) |
-| Call | HD video/audio, chat + **photos/videos/files bhejna**, reactions, screen share, whiteboard, polls, layouts, recording (sab ki permission se) |
+| Home | **Join** (pehli baar "Who's joining? Uday / Diya" poochta hai, phir yaad rakhta hai), dusra andar ho to "Diya is waiting for you" dikhata hai. Upar right: **Stats** (meeting history) aur **Other meeting** (naya link ya code se join) |
+| Call | HD video/audio, chat + photos/videos/files, reactions, screen share, whiteboard, polls, layouts, recording (sab ki permission se) |
 | Call → ❤ | Thinking of you: dusre ki screen par dil, heartbeat awaaz, vibration |
-| Call → Apps | **Watch / Listen together** (YouTube sync, Our songs playlist, queue, search), **Calendar** (date par notes, rangeen dates), **Timer / Stopwatch** (dono ke liye ek), **Photo** (Both / Just me / Just them, timer setting), **Sleep call** |
-| Automatic | Net kamzor ho to sirf voice, net jaane par khud reconnect, aaj ke calendar notes ka reminder |
+| Call → 📷 | Ek tap: poori call ki photo, apne aap **Memories** mein save (dono ke liye) |
+| Call → ✨ | Watch / Listen together, **Love notes**, **Memories**, **Countdown** (milne tak ke din, together since), **Questions** (5 decks, dono ko dikhta hai), **Bucket list**, Calendar, Timer (drag karke kahin bhi rakho), **Our stats** (streak, total time, is hafte ka chart), Sleep call |
+| Automatic | Net kamzor ho to sirf voice, reconnect, aaj ke calendar notes ka reminder, nayi love note ka alert |
 
-Data (calendar, saved songs, meeting history, chat files) kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
+Data (calendar, songs, history, memories, love notes, bucket list, countdown, chat files) kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
 set hon to Supabase mein (permanent), warna `data/` folder mein (laptop par theek; Render par har restart par mit jaata hai).
 Supabase setup: SQL Editor mein `supabase.sql` chalao, phir Project Settings → API se URL aur `service_role` key Render ki Environment mein daalo.
 
