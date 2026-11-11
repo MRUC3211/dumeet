@@ -11,7 +11,8 @@ people in a meeting. Only the Python standard library is used:
   GET  /healthz                  "I'm alive" for the cloud host (no password needed)
   POST /api/login                password -> access token (kept in the page's memory only,
                                  so every page load asks for the password again)
-  GET/POST/DELETE /api/data      shared documents: calendar, songs, history, memories, notes, bucket list
+  GET/POST/DELETE /api/data      shared documents: calendar, songs, countdown; admin only: sessions, photos
+  POST /api/admin/login, GET /api/admin/live   admin console (needs ADMIN_PASSWORD)
   POST /api/media, GET /api/media/<id>   files shared in chat
   GET  /api/title, /api/search   YouTube titles and (with YOUTUBE_API_KEY) song search
 
@@ -131,8 +132,8 @@ def ice_servers():
 # out by /api/login and lives only in the page's memory, so reloading the page (or
 # opening it again) asks for the password again. Static files (the app's code) are
 # public; they hold nothing private.
-MAX_FAILS = 8            # wrong passwords allowed per address ...
-FAIL_WINDOW = 15 * 60    # ... in this many seconds
+MAX_FAILS = 4            # wrong passwords in a row from one address ...
+LOCK_SECONDS = 30 * 60   # ... locks that address out for half an hour
 fails = {}               # address -> times of recent wrong passwords
 fails_lock = threading.Lock()
 
@@ -141,19 +142,45 @@ def auth_token():
     return hmac.new(PASSWORD.encode(), b"du-meet-login", hashlib.sha256).hexdigest()
 
 
-def too_many_fails(address, add=False):
+def lock_left(address, add=False):
+    """Seconds this address is still locked out for (0 = may try). add=True records a wrong try."""
     now = time.monotonic()
     with fails_lock:
-        recent = [t for t in fails.get(address, []) if now - t < FAIL_WINDOW]
+        recent = [t for t in fails.get(address, []) if now - t < LOCK_SECONDS]
         if add:
             recent.append(now)
         fails[address] = recent
-        return len(recent) >= MAX_FAILS
+        if len(recent) >= MAX_FAILS:
+            return int(LOCK_SECONDS - (now - recent[-1])) + 1
+        return 0
+
+
+def tries_left(address):
+    with fails_lock:
+        return max(0, MAX_FAILS - len(fails.get(address, [])))
+
+
+def clear_fails(address):
+    with fails_lock:
+        fails.pop(address, None)
+
+
+# ---- Admin console --------------------------------------------------------------
+# A second password (ADMIN_PASSWORD) opens the admin console: meeting sessions with
+# their chat, call stats and the photos taken with the camera button. Nobody else can
+# read those, even with the site password.
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_COLLECTIONS = {"meetings", "snaps"}   # readable only with the admin token
+CLIENT_WRITE_BLOCKED = {"meetings"}         # written only by the server
+
+
+def admin_token():
+    return hmac.new(ADMIN_PASSWORD.encode(), b"du-meet-admin", hashlib.sha256).hexdigest()
 
 
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
-COLLECTIONS = {"calendar", "songs", "meetings", "memories", "letters", "bucket", "settings"}
+COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MEDIA_TYPES = ("image/", "audio/", "video/", "application/pdf", "text/plain")
@@ -170,7 +197,7 @@ meetings_lock = threading.Lock()
 def meeting_join(room, peer):
     now = time.time()
     with meetings_lock:
-        meeting = meetings.setdefault(room, {"start": now, "empty": None, "people": []})
+        meeting = meetings.setdefault(room, {"start": now, "empty": None, "people": [], "chat": []})
         meeting["empty"] = None
         meeting["people"].append({"id": peer.id, "name": peer.name, "joined": now, "left": None})
 
@@ -189,6 +216,21 @@ def meeting_leave(room, peer):
             meeting["empty"] = now
 
 
+def meeting_chat(room, peer, data):
+    """Keeps the session's chat so the admin console can show it after the call."""
+    if not isinstance(data, dict):
+        return
+    text = str(data.get("text") or "")[:2000]
+    media = [{"url": str(m.get("url", ""))[:200], "type": str(m.get("type", ""))[:80], "name": str(m.get("name", ""))[:120]}
+             for m in (data.get("media") or [])[:10] if isinstance(m, dict)]
+    if not text and not media:
+        return
+    with meetings_lock:
+        meeting = meetings.get(room)
+        if meeting and len(meeting["chat"]) < 3000:
+            meeting["chat"].append({"name": peer.name, "text": text, "media": media, "at": time.time()})
+
+
 def finish_meetings():
     now = time.time()
     done = []
@@ -205,7 +247,8 @@ def finish_meetings():
                    "secs": int((p["left"] or end) - p["joined"])} for p in meeting["people"]]
         try:
             STORE.put("meetings", storage.new_id(), {"room": room, "start": meeting["start"], "end": end,
-                                                      "secs": secs, "people": people})
+                                                      "secs": secs, "people": people,
+                                                      "chat": meeting.get("chat", [])})
         except Exception as error:  # noqa: BLE001 - history must never break a call
             print(f"Could not save meeting history: {error}")
 
@@ -312,7 +355,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz":
             return self.send_json({"ok": True})
         if path == "/api/auth-info":
-            return self.send_json({"required": bool(PASSWORD)})
+            return self.send_json({"required": bool(PASSWORD), "admin": bool(ADMIN_PASSWORD)})
         if not path.startswith("/api/"):
             return self.serve_file(unquote(path))  # the app's code is public; data is not
         if not self.logged_in():
@@ -327,9 +370,18 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/features":
                 self.send_json({"search": bool(YOUTUBE_API_KEY), "storage": STORE.name,
                                 "persistent": STORE.name == "Supabase"})
+            elif path == "/api/admin/live":
+                if not self.is_admin():
+                    return self.send_error(403)
+                with meetings_lock:
+                    live = [{"room": room, "start": m["start"], "people": [dict(p) for p in m["people"]],
+                             "chat": len(m["chat"])} for room, m in meetings.items()]
+                self.send_json({"live": live, "now": time.time()})
             elif path == "/api/data":
                 if params.get("c") not in COLLECTIONS:
                     return self.send_error(400)
+                if params["c"] in ADMIN_COLLECTIONS and not self.is_admin():
+                    return self.send_error(403)
                 self.send_json({"docs": STORE.list(params["c"])[:300]})
             elif path == "/api/title":
                 video_id = params.get("v", "")
@@ -341,7 +393,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"enabled": False, "items": []})
                 self.send_json({"enabled": True, "items": youtube_search(params.get("q", "")[:100])})
             elif path.startswith("/api/media/"):
-                self.send_media(path.rsplit("/", 1)[1])
+                media_id = path.rsplit("/", 1)[1]
+                if media_id.startswith("p") and not self.is_admin():
+                    return self.send_error(403)
+                self.send_media(media_id)
             else:
                 self.send_error(404)
         except (urllib.error.URLError, OSError, ValueError) as error:
@@ -352,6 +407,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/login":
             return self.login()
+        if path == "/api/admin/login":
+            return self.login(admin=True) if self.logged_in() else self.send_error(401)
         if not self.logged_in():
             return self.send_error(401)
         length = int(self.headers.get("Content-Length") or 0)
@@ -367,6 +424,9 @@ class Handler(BaseHTTPRequestHandler):
             collection, data = message.get("c"), message.get("data")
             if collection not in COLLECTIONS or not isinstance(data, dict):
                 return self.send_error(400)
+            if collection in CLIENT_WRITE_BLOCKED or (collection in ADMIN_COLLECTIONS and message.get("id")
+                                                      and not self.is_admin()):
+                return self.send_error(403)
             doc_id = str(message.get("id") or storage.new_id())[:64]
             try:
                 return self.send_json({"doc": STORE.put(collection, doc_id, data)})
@@ -396,6 +456,8 @@ class Handler(BaseHTTPRequestHandler):
         else:
             # offer / answer / ice / chat / reaction / whiteboard / poll / sync /
             # heart / music / timer ...: passed on unchanged
+            if kind == "chat":
+                meeting_chat(room, peer, data)
             relay = {"type": kind, "from": peer.id, "data": data}
             deliver(room, relay, to=message.get("to"), exclude=peer.id)
         self.send_response(204)
@@ -407,6 +469,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.logged_in():
             return self.send_error(401)
         if url.path == "/api/data" and params.get("c") in COLLECTIONS and params.get("id"):
+            if params["c"] in ADMIN_COLLECTIONS and not self.is_admin():
+                return self.send_error(403)
             try:
                 STORE.delete(params["c"], params["id"])
             except Exception as error:  # noqa: BLE001
@@ -423,7 +487,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error(413)
         if not kind.startswith(MEDIA_TYPES):
             return self.send_error(415)
-        media_id = storage.new_id()
+        # Photos from the camera button are private: only the admin can open them.
+        media_id = ("p" if self.headers.get("X-Private") == "1" else "") + storage.new_id()
         try:
             STORE.put_media(media_id, self.rfile.read(length), kind)
         except Exception as error:  # noqa: BLE001
@@ -454,12 +519,19 @@ class Handler(BaseHTTPRequestHandler):
         token = self.headers.get("X-Auth") or query.get("k", "")
         return hmac.compare_digest(token.encode(), auth_token().encode())
 
+    def is_admin(self):
+        if not ADMIN_PASSWORD:
+            return False
+        query = {key: values[0] for key, values in parse_qs(urlparse(self.path).query).items()}
+        token = self.headers.get("X-Admin") or query.get("a", "")
+        return hmac.compare_digest(token.encode(), admin_token().encode())
+
     def client_address_text(self):
         # Behind Render's proxy the real address is the first X-Forwarded-For entry.
         forwarded = self.headers.get("X-Forwarded-For", "")
         return forwarded.split(",")[0].strip() or self.client_address[0]
 
-    def login(self):
+    def login(self, admin=False):
         length = int(self.headers.get("Content-Length") or 0)
         if length > 4096:
             return self.send_error(413)
@@ -467,16 +539,25 @@ class Handler(BaseHTTPRequestHandler):
             password = str(json.loads(self.rfile.read(length) or b"{}").get("password", ""))
         except ValueError:
             return self.send_error(400)
-        if not PASSWORD:
+        secret = ADMIN_PASSWORD if admin else PASSWORD
+        if not secret:
+            if admin:
+                return self.send_json({"error": "The admin console is off. Set ADMIN_PASSWORD on the server."}, 403)
             return self.send_json({"token": ""})
-        address = self.client_address_text()
-        if too_many_fails(address):
-            return self.send_json({"error": "Too many wrong tries. Wait 15 minutes and try again."}, 429)
-        if not hmac.compare_digest(password.encode(), PASSWORD.encode()):
-            too_many_fails(address, add=True)
+        address = ("admin:" if admin else "") + self.client_address_text()
+        wait = lock_left(address)
+        if wait:
+            return self.send_json({"error": f"Too many wrong tries. Try again in {max(1, round(wait / 60))} min.",
+                                   "wait": wait}, 429)
+        if not hmac.compare_digest(password.encode(), secret.encode()):
+            wait = lock_left(address, add=True)
             time.sleep(1)
-            return self.send_json({"error": "Wrong password. Try again."}, 401)
-        self.send_json({"token": auth_token()})
+            if wait:
+                return self.send_json({"error": "Too many wrong tries. Locked for 30 minutes.", "wait": wait}, 429)
+            left = tries_left(address)
+            return self.send_json({"error": f"Wrong password. {left} {'try' if left == 1 else 'tries'} left."}, 401)
+        clear_fails(address)
+        self.send_json({"token": admin_token() if admin else auth_token()})
 
     def poll(self, params):
         room, peer_id = params.get("room", ""), params.get("id", "")

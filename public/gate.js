@@ -6,6 +6,10 @@
 (() => {
   "use strict";
   const $ = (selector) => document.querySelector(selector);
+  // Android Chrome offers "install app" once; keep the offer for the Install button.
+  window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); window.DU_installPrompt = event; });
+  window.addEventListener("appinstalled", () => { window.DU_installPrompt = null; });
+
   const SCRIPTS = ["/app.js", "/home.js", "/tools.js", "/couple.js"];
   let token = "";
 

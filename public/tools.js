@@ -28,7 +28,7 @@
   const getDocs = (collection) => fetch(`/api/data?c=${collection}`).then(json).then((r) => r.docs);
   const putDoc = (collection, data, id) => fetch("/api/data", { method: "POST", body: JSON.stringify({ c: collection, data, id }) }).then(json).then((r) => r.doc);
   const delDoc = (collection, id) => fetch(`/api/data?c=${collection}&id=${encodeURIComponent(id)}`, { method: "DELETE" }).then(json);
-  const upload = (blob) => fetch("/api/media", { method: "POST", headers: { "Content-Type": blob.type || "application/octet-stream" }, body: blob }).then(json);
+  const upload = (blob, { secret = false } = {}) => fetch("/api/media", { method: "POST", headers: { "Content-Type": blob.type || "application/octet-stream", ...(secret ? { "X-Private": "1" } : {}) }, body: blob }).then(json);
 
   /** A small yes/no sheet (used for "may we record?"). */
   function confirmBox({ title, text, ok = "OK", cancel = "Not now" }) {
@@ -382,18 +382,33 @@
 
   // ---------- calendar ----------
 
-  const NOTE_COLORS = ["blue", "pink", "green", "orange"];
   const cal = { month: new Date(), selected: dayKey(), notes: [] };
 
-  async function openCalendar() {
+  // A small floating calendar on the call screen. Opening or closing it does the same
+  // for everyone, and it can be dragged anywhere by its top bar.
+  const calBox = () => q("#tg-calw");
+  const NOTE_COLOR = { Uday: "blue", Diya: "pink" };
+
+  async function openCalendar(tell = true) {
     toggleTray(false);
-    q("#cal-body").innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
-    openModal(q("#m-cal"));
-    try { cal.notes = await getDocs("calendar"); } catch { q("#cal-body").innerHTML = `<p class="empty">Couldn't load the calendar. Check the internet.</p>`; return; }
+    const box = calBox();
+    if (!box.hidden) return closeCalendar(tell);
+    box.hidden = false;
+    box.innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
+    placeSaved(box, "du-cal-pos");
+    if (tell) send("cal-open", { open: true });
+    try { cal.notes = await getDocs("calendar"); } catch { box.innerHTML = `<p class="empty">Couldn't load the calendar.</p>`; return; }
     renderCal();
   }
 
+  function closeCalendar(tell = true) {
+    calBox().hidden = true;
+    if (tell) send("cal-open", { open: false });
+  }
+
   function renderCal() {
+    const box = calBox();
+    if (box.hidden) return;
     const byDay = new Map();
     for (const doc of cal.notes) {
       if (!byDay.has(doc.data.date)) byDay.set(doc.data.date, []);
@@ -401,72 +416,66 @@
     }
     const y = cal.month.getFullYear();
     const m = cal.month.getMonth();
-    const first = new Date(y, m, 1);
-    const lead = (first.getDay() + 6) % 7; // Monday first
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday first
     const days = new Date(y, m + 1, 0).getDate();
     const today = dayKey();
     let cells = "";
-    for (let i = 0; i < lead; i++) cells += `<span class="cal-cell blank"></span>`;
+    for (let i = 0; i < lead; i++) cells += `<span></span>`;
     for (let d = 1; d <= days; d++) {
       const key = `${y}-${pad(m + 1)}-${pad(d)}`;
       const list = byDay.get(key) || [];
-      cells += `<button class="cal-cell ${key === today ? "today" : ""} ${key === cal.selected ? "selected" : ""} ${list.length ? `has c-${list[0].data.color}` : ""}" data-day="${key}" aria-label="${key}${list.length ? `, ${list.length} notes` : ""}">
-        <span>${d}</span>${list.length ? `<i class="cal-dots">${list.slice(0, 3).map((n) => `<b class="d-${n.data.color}"></b>`).join("")}</i>` : ""}</button>`;
+      cells += `<button class="${key === today ? "today" : ""} ${key === cal.selected ? "sel" : ""} ${list.length ? "has" : ""}" data-day="${key}" aria-label="${key}${list.length ? `, ${list.length} notes` : ""}">${d}${list.length ? `<i>${list.slice(0, 3).map((n) => `<b class="d-${esc(n.data.color)}"></b>`).join("")}</i>` : ""}</button>`;
     }
-    const selected = (byDay.get(cal.selected) || []).sort((a, b) => (a.data.time || "99").localeCompare(b.data.time || "99"));
-    const upcoming = cal.notes.filter((n) => n.data.date >= today).sort((a, b) => (a.data.date + (a.data.time || "")).localeCompare(b.data.date + (b.data.time || ""))).slice(0, 5);
-    q("#cal-body").innerHTML = `
-      <div class="cal-layout">
-        <section class="cal-left">
-          <div class="cal-head">
-            <button class="icon-btn" data-cal="-1" aria-label="Previous month"><span class="icon">chevron_left</span></button>
-            <h3>${first.toLocaleDateString([], { month: "long", year: "numeric" })}</h3>
-            <button class="icon-btn" data-cal="1" aria-label="Next month"><span class="icon">chevron_right</span></button>
-          </div>
-          <div class="cal-week">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span>${d}</span>`).join("")}</div>
-          <div class="cal-grid">${cells}</div>
-          <button class="btn ghost small-btn cal-today" data-cal-today>Today</button>
-        </section>
-        <section class="cal-right">
-          <h3>${parseDay(cal.selected).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</h3>
-          <ul class="day-notes">${selected.map((n) => `
-            <li class="day-note c-${n.data.color}"><div><p>${esc(n.data.text)}</p><small>${n.data.time ? `${esc(n.data.time)} · ` : ""}${esc(n.data.by)}</small></div>
-              <button class="icon-btn" data-del-note="${esc(n.id)}" aria-label="Delete note"><span class="icon">delete</span></button></li>`).join("")
-            || `<li class="empty-note">Nothing planned. Add a note, a plan or a reminder.</li>`}</ul>
-          <form class="note-form">
-            <input class="field" maxlength="200" placeholder="Add a note…" required>
-            <div class="note-row">
-              <input class="field time" type="time" aria-label="Time (optional)">
-              <div class="color-pick">${NOTE_COLORS.map((c, i) => `<label><input type="radio" name="color" value="${c}" ${i === 0 ? "checked" : ""}><b class="d-${c}"></b></label>`).join("")}</div>
-              <button class="btn primary small-btn">Add</button>
-            </div>
-          </form>
-          ${upcoming.length ? `<h4 class="list-title">Coming up</h4><ul class="upcoming">${upcoming.map((n) => `
-            <li><button data-jump="${esc(n.data.date)}"><i class="d-${n.data.color}"></i><span><b>${esc(n.data.text)}</b><small>${parseDay(n.data.date).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}${n.data.time ? ` · ${esc(n.data.time)}` : ""}</small></span></button></li>`).join("")}</ul>` : ""}
-        </section>
+    const notes = (byDay.get(cal.selected) || []).sort((a, b) => (a.data.time || "99").localeCompare(b.data.time || "99"));
+    const label = cal.selected === today ? "Today" : parseDay(cal.selected).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    const next = cal.notes.filter((n) => n.data.date > today).sort((a, b) => a.data.date.localeCompare(b.data.date))[0];
+    box.innerHTML = `
+      <header class="cw-head">
+        <span class="cw-grip" aria-hidden="true"></span>
+        <button class="icon-btn" data-cal="-1" aria-label="Previous month"><span class="icon">chevron_left</span></button>
+        <b>${new Date(y, m, 1).toLocaleDateString([], { month: "long", year: "numeric" })}</b>
+        <button class="icon-btn" data-cal="1" aria-label="Next month"><span class="icon">chevron_right</span></button>
+        <button class="icon-btn cw-close" data-cw-close aria-label="Close calendar"><span class="icon">close</span></button>
+      </header>
+      <div class="cw-week">${["M", "T", "W", "T", "F", "S", "S"].map((d) => `<span>${d}</span>`).join("")}</div>
+      <div class="cw-grid">${cells}</div>
+      <div class="cw-day">
+        <p class="cw-title">${esc(label)}${cal.selected !== today ? `<button class="cw-link" data-cal-today>Today</button>` : ""}</p>
+        <ul class="cw-notes">${notes.map((n) => `<li><i class="d-${esc(n.data.color)}"></i><span>${esc(n.data.text)}<small>${n.data.time ? `${esc(n.data.time)} · ` : ""}${esc(n.data.by)}</small></span><button class="icon-btn" data-del-note="${esc(n.id)}" aria-label="Delete note"><span class="icon">close</span></button></li>`).join("")
+          || `<li class="cw-empty">Nothing yet${next ? ` · next: ${esc(next.data.text)}, ${esc(parseDay(next.data.date).toLocaleDateString([], { day: "numeric", month: "short" }))}` : ""}</li>`}</ul>
+        <form class="cw-add"><input name="text" maxlength="200" placeholder="Add a note or plan…" autocomplete="off" required><button class="icon-btn" aria-label="Add"><span class="icon">add</span></button></form>
       </div>`;
-    for (const b of qa("[data-cal]")) b.onclick = () => { cal.month = new Date(y, m + Number(b.dataset.cal), 1); renderCal(); };
-    q("[data-cal-today]").onclick = () => { cal.month = new Date(); cal.selected = today; renderCal(); };
-    for (const b of qa("[data-day]")) b.onclick = () => { cal.selected = b.dataset.day; renderCal(); };
-    for (const b of qa("[data-jump]")) b.onclick = () => { cal.selected = b.dataset.jump; cal.month = parseDay(b.dataset.jump); renderCal(); };
-    for (const b of qa("[data-del-note]")) {
-      b.onclick = async () => {
-        try { await delDoc("calendar", b.dataset.delNote); } catch { return toast("Couldn't delete. Try again"); }
-        cal.notes = cal.notes.filter((n) => n.id !== b.dataset.delNote);
-        send("cal", { date: cal.selected, by: me.name });
-        renderCal();
-      };
-    }
-    q(".note-form").onsubmit = async (event) => {
-      event.preventDefault();
-      const text = q(".note-form input.field").value.trim();
-      if (!text) return;
-      const data = { date: cal.selected, text, time: q(".note-form .time").value, color: q(".note-form input[name=color]:checked").value, by: me.name || "Guest", at: Date.now() / 1000 };
-      try { cal.notes.push(await putDoc("calendar", data)); } catch { return toast("Couldn't save. Try again"); }
-      send("cal", { date: cal.selected, by: data.by });
-      renderCal();
-    };
   }
+
+  q("#tg-calw").addEventListener("click", async (event) => {
+    const t = event.target;
+    const y = cal.month.getFullYear();
+    const m = cal.month.getMonth();
+    if (t.closest("[data-cw-close]")) return closeCalendar(true);
+    const step = t.closest("[data-cal]");
+    if (step) { cal.month = new Date(y, m + Number(step.dataset.cal), 1); return renderCal(); }
+    if (t.closest("[data-cal-today]")) { cal.month = new Date(); cal.selected = dayKey(); return renderCal(); }
+    const day = t.closest("[data-day]");
+    if (day) { cal.selected = day.dataset.day; return renderCal(); }
+    const del = t.closest("[data-del-note]");
+    if (del) {
+      try { await delDoc("calendar", del.dataset.delNote); } catch { return toast("Couldn't delete. Try again"); }
+      cal.notes = cal.notes.filter((n) => n.id !== del.dataset.delNote);
+      send("cal", { date: cal.selected, by: me.name });
+      renderCal();
+    }
+  });
+  q("#tg-calw").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const text = form.text.value.trim();
+    if (!text) return;
+    const data = { date: cal.selected, text, time: "", color: NOTE_COLOR[me.name] || "green", by: me.name || "Guest", at: Date.now() / 1000 };
+    try { cal.notes.push(await putDoc("calendar", data)); } catch { return toast("Couldn't save. Try again"); }
+    send("cal", { date: cal.selected, by: data.by });
+    renderCal();
+    calBox().querySelector(".cw-add input")?.focus();
+  });
 
   async function todaysReminder() {
     try {
@@ -518,12 +527,12 @@
     const area = q(".main-area").getBoundingClientRect();
     placeAt(el, pos.x * area.width, pos.y * area.height);
   }
-  function makeDraggable(el, key) {
+  function makeDraggable(el, key, handleSelector = "") {
     let start = null;
     let moved = false;
-    el.style.touchAction = "none";
+    if (!handleSelector) el.style.touchAction = "none";
     el.addEventListener("pointerdown", (event) => {
-      if (event.button) return;
+      if (event.button || (handleSelector && !event.target.closest(handleSelector))) return;
       const box = el.getBoundingClientRect();
       start = { dx: event.clientX - box.left, dy: event.clientY - box.top, x: event.clientX, y: event.clientY };
       moved = false;
@@ -549,6 +558,8 @@
     addEventListener("resize", () => placeSaved(el, key));
   }
   makeDraggable(q("#tg-timer"), "du-timer-pos");
+  makeDraggable(q("#tg-calw"), "du-cal-pos", ".cw-head");
+  makeDraggable(q("#tg-game"), "du-game-pos", ".g-head");
 
   function paintTimerSheet() {
     const sheet = q("#timer-body");
@@ -781,24 +792,9 @@
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
   }
 
-  // One tap: a photo of the whole call, saved to Memories for both of you.
+  // One tap: a photo of the whole call. Nobody else is told; it is saved privately
+  // for the admin console.
   const snapState = { busy: false, blob: null, hide: 0 };
-
-  function shutterSound() {
-    try {
-      const ctx = heart.audio ||= new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === "suspended") ctx.resume();
-      const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
-      const source = ctx.createBufferSource();
-      const amp = ctx.createGain();
-      amp.gain.value = 0.25;
-      source.buffer = buffer;
-      source.connect(amp).connect(ctx.destination);
-      source.start();
-    } catch { /* no sound */ }
-  }
 
   function flash() {
     const box = q("#tg-flash");
@@ -814,8 +810,6 @@
     snapState.busy = true;
     try {
       flash();
-      shutterSound();
-      navigator.vibrate?.(25);
       const blob = await composePhoto([me.id, ...peers.keys()]);
       snapState.blob = blob;
       const thumb = q("#tg-snap");
@@ -826,13 +820,11 @@
       thumb.classList.add("in");
       clearTimeout(snapState.hide);
       snapState.hide = setTimeout(() => { thumb.hidden = true; }, 6000);
-      send("snap", {});
-      const uploaded = await upload(blob);
-      await putDoc("memories", { url: uploaded.url, type: uploaded.type, by: me.name, at: Date.now() });
-      send("couple-sync", { c: "memories" });
+      const uploaded = await upload(blob, { secret: true });
+      await putDoc("snaps", { url: uploaded.url, by: me.name, room, people: [me.name, ...[...peers.values()].map((p) => p.name)], at: Date.now() });
     } catch (error) {
       console.warn(error);
-      toast("Photo taken, but it couldn't be saved to Memories");
+      toast("Photo taken, but it couldn't be saved");
     } finally {
       snapState.busy = false;
     }
@@ -846,7 +838,7 @@
       <div class="photo-actions">
         <button class="btn primary" data-photo="save"><span class="icon">download</span>Save</button>
         <button class="btn outline" data-photo="chat"><span class="icon">chat_bubble</span>Send in chat</button>
-        <button class="btn ghost" data-photo="memories"><span class="icon">photo_library</span>Memories</button>
+
       </div>`;
     openModal(q("#m-capture"));
     const file = new File([blob], `DU Meet ${dayKey()}.jpg`, { type: "image/jpeg" });
@@ -866,9 +858,6 @@
           toast("Sent in chat");
           closeModal(q("#m-capture"));
         } catch { toast("Couldn't send the photo"); }
-      } else if (action === "memories") {
-        closeModal(q("#m-capture"));
-        window.DU.openMemories?.();
       }
     };
   }
@@ -937,6 +926,7 @@
       setOutgoing(SLOT.camera, cameraTrack());
       q("#tg-net").hidden = true;
       q("#tg-snap").hidden = true;
+      q("#tg-calw").hidden = true;
       window.DU.onCoupleLeave?.();
       send("net", { weak: false });
       toast("Network is better · video is back");
@@ -964,6 +954,7 @@
   window.DU.kit = { q, qa, esc, pad, store, dayKey, parseDay, getDocs, putDoc, delDoc, upload, confirmBox, toggleTray, shrinkImage, partnerName };
 
   window.DU = Object.assign(window.DU || {}, {
+    place: placeSaved,
     lightbox(src) { q("#lightbox-img").src = src; openModal(q("#m-lightbox")); },
     onMessage(message, peer) {
       if (!peer) return;
@@ -975,11 +966,13 @@
           tileOf(peer.id)?.classList.toggle("sleeping", Boolean(data.on));
           toast(data.on ? `${peer.name} is in sleep mode` : `${peer.name} is back`);
           break;
-        case "snap": flash(); toast(`${peer.name} took a photo · saved in Memories`); break;
         case "timer": receiveTimer(data, peer); break;
         case "cal":
-          if (!q("#m-cal").hidden) getDocs("calendar").then((docs) => { cal.notes = docs; renderCal(); }).catch(() => {});
-          toast(`${peer.name} updated the calendar`);
+          if (!calBox().hidden) getDocs("calendar").then((docs) => { cal.notes = docs; renderCal(); }).catch(() => {});
+          else toast(`${peer.name} added to the calendar`);
+          break;
+        case "cal-open":
+          if (Boolean(data.open) === calBox().hidden) data.open ? openCalendar(false) : closeCalendar(false);
           break;
         case "net":
           tileOf(peer.id)?.classList.toggle("weak-net", Boolean(data.weak));
@@ -1005,15 +998,18 @@
       }
       if (timer.on) setTimeout(shareTimer, 1500);
       if (sleepState.on) setTimeout(() => send("sleep", { on: true }), 1500);
+      if (!calBox().hidden) setTimeout(() => send("cal-open", { open: true }), 1500);
+      window.DU.onCouplePeer?.();
     },
     onLeave() {
       Object.assign(timer, { on: false, running: false, elapsed: 0, done: false });
       paintTimerPill();
       if (media.player || media.mode) closeMedia(false);
       if (sleepState.on) setSleep(false);
-      for (const modal of qa(".modal")) if (!modal.hidden && modal.id !== "m-history") closeModal(modal);
+      for (const modal of qa(".modal")) if (!modal.hidden && modal.id !== "m-admin") closeModal(modal);
       q("#tg-net").hidden = true;
       q("#tg-snap").hidden = true;
+      q("#tg-calw").hidden = true;
       window.DU.onCoupleLeave?.();
       net.paused = false;
       const secs = joinedAt ? (Date.now() - joinedAt) / 1000 : 0;
@@ -1037,6 +1033,8 @@
       "timer-go": timerToggle,
       "timer-stop": () => timerStop(true),
       snap,
+      polls: () => { toggleTray(false); togglePanel("polls"); },
+      draw: () => { toggleTray(false); setWhiteboardOpen(!wb.open, true); },
       sleep: () => setSleep(true),
       "sleep-mic": () => { setMic(!me.mic); paintSleepMic(); },
       "media-toggle": () => {
@@ -1054,5 +1052,5 @@
   q("#tg-snap").addEventListener("click", () => { q("#tg-snap").hidden = true; if (snapState.blob) showPhoto(snapState.blob); });
 
   // the heart shape reused by the floating hearts
-  document.body.insertAdjacentHTML("beforeend", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="hg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient><symbol id="hg-path" viewBox="0 0 24 24"><path fill="url(#hg2)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></defs></svg>`);
+  document.body.insertAdjacentHTML("beforeend", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="tools-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#64d2ff"/><stop offset=".55" stop-color="#bf5af2"/><stop offset="1" stop-color="#ff375f"/></linearGradient><linearGradient id="hg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient><symbol id="hg-path" viewBox="0 0 24 24"><path fill="url(#hg2)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></defs></svg>`);
 })();

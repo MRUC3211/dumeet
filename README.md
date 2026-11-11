@@ -6,15 +6,15 @@
 
 | Kahan | Kya |
 |---|---|
-| Lock | Har baar page khulne ya refresh par password poochta hai (password sirf page ki memory mein rehta hai) |
-| Home | **Join** (pehli baar "Who's joining? Uday / Diya" poochta hai, phir yaad rakhta hai), dusra andar ho to "Diya is waiting for you" dikhata hai. Upar right: **Stats** (meeting history) aur **Other meeting** (naya link ya code se join) |
-| Call | HD video/audio, chat + photos/videos/files, reactions, screen share, whiteboard, polls, layouts, recording (sab ki permission se) |
-| Call → ❤ | Thinking of you: dusre ki screen par dil, heartbeat awaaz, vibration |
-| Call → 📷 | Ek tap: poori call ki photo, apne aap **Memories** mein save (dono ke liye) |
-| Call → ✨ | Watch / Listen together, **Love notes**, **Memories**, **Countdown** (milne tak ke din, together since), **Questions** (5 decks, dono ko dikhta hai), **Bucket list**, Calendar, Timer (drag karke kahin bhi rakho), **Our stats** (streak, total time, is hafte ka chart), Sleep call |
-| Automatic | Net kamzor ho to sirf voice, reconnect, aaj ke calendar notes ka reminder, nayi love note ka alert |
+| Lock | Har baar page khulne ya refresh par password. 4 galat try = 30 minute ka lock |
+| Home | Bada **Join** (ek tap, "Uday / Diya" ek baar poochta hai), "Diya is waiting for you", **Install the app** (home screen par app jaisa, bina address bar), upar right: **Admin** aur **Other meeting** (naya link / code) |
+| Admin | Alag password (`ADMIN_PASSWORD`): Overview (streak, total time, 7 din ka chart), **Sessions** (kaun kab aaya/gaya + poori chat + us session ki photos, .txt download), **Photos** (camera button wali photos, sirf admin dekh sakta hai) |
+| Call bar | Mic, camera, ❤, 📷 (chupchap photo, sirf Admin mein save), Tools, Chat, ⋯ (People, reactions, present, layout, record, settings), Leave |
+| Video par | Apne video par switch-camera button; upar left ⓘ chip: abhi ka time + meeting kitni der se chal rahi |
+| Tools | Watch, Listen, **Calendar** (chhota, khiskane wala, dono ki screen par khulta hai), Timer (khiskane wala), Countdown, Questions, Tic-tac-toe, Draw, Polls, Sleep call |
+| Session | Jab sab call chhod dete hain tab session band (90 sec grace); chat usi session ke saath save |
 
-Data (calendar, songs, history, memories, love notes, bucket list, countdown, chat files) kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
+Data (calendar, songs, sessions with chat, photos, countdown, chat files) kahan rehta hai: `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
 set hon to Supabase mein (permanent), warna `data/` folder mein (laptop par theek; Render par har restart par mit jaata hai).
 Supabase setup: SQL Editor mein `supabase.sql` chalao, phir Project Settings → API se URL aur `service_role` key Render ki Environment mein daalo.
 

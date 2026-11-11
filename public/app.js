@@ -335,6 +335,7 @@ async function refreshDevices() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   const cameras = devices.filter((d) => d.kind === "videoinput");
   for (const button of document.querySelectorAll(".flip-btn")) button.hidden = cameras.length < 2;
+  document.body.classList.toggle("can-flip", cameras.length > 1);
   fillSelect($("#mic-select"), devices.filter((d) => d.kind === "audioinput"), micTrack()?.getSettings().deviceId ?? prefs.micId, "Microphone");
   fillSelect($("#cam-select"), cameras, cameraTrack()?.getSettings().deviceId ?? prefs.camId, "Camera");
   const canPickSpeaker = "setSinkId" in HTMLMediaElement.prototype;
@@ -780,6 +781,7 @@ function renderAll() {
     if (!tile) {
       tile = spec.kind === "whiteboard" ? whiteboardTile() : $("#tile-template").content.firstElementChild.cloneNode(true);
       tile.dataset.id = spec.id;
+      tile.classList.toggle("self", spec.id === me.id);
       grid.append(tile);
     }
     tile.style.order = index;
@@ -1695,7 +1697,7 @@ function togglePanel(name) {
   $("#panel").hidden = !openPanel;
   for (const section of document.querySelectorAll("[data-panel]")) section.hidden = section.dataset.panel !== openPanel;
   $("#panel-title").textContent = { info: "Meeting details", people: "People", chat: "In-call messages", polls: "Polls" }[openPanel] ?? "";
-  for (const button of document.querySelectorAll(".ctrl.flat")) {
+  for (const button of document.querySelectorAll(".ctrl[data-action=chat], .meet-chip")) {
     button.classList.toggle("active", button.dataset.action === openPanel);
     button.setAttribute("aria-expanded", button.dataset.action === openPanel);
   }
@@ -1713,7 +1715,7 @@ function togglePanel(name) {
     $("[data-action=close-panel]").focus();
   } else if (closing && $("#panel").contains(document.activeElement)) {
     // Keyboard users land back on the button that opened the panel.
-    $(`.ctrl.flat[data-action=${closing}]`).focus();
+    document.querySelector(`.ctrl[data-action=${closing}], .meet-chip[data-action=${closing}]`)?.focus();
   }
   layoutGrid();
 }
@@ -1976,7 +1978,12 @@ function formatDuration(ms) {
 function tickClock() {
   const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   for (const clock of document.querySelectorAll(".clock")) clock.textContent = now;
-  if (polling) $("#meeting-timer").textContent = formatDuration(Date.now() - joinedAt);
+  if (polling) {
+    const elapsed = formatDuration(Date.now() - joinedAt);
+    $("#meeting-timer").textContent = elapsed;
+    $("#meet-elapsed").textContent = elapsed;
+    $("#meet-started").textContent = new Date(joinedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
 }
 
 function toggleFullscreen() {
