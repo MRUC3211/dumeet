@@ -1,0 +1,21 @@
+{
+  // Cmd+Shift+B runs the default task. Others: Terminal → Run Task…
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DU Meet: Start + share link",
+      "type": "shell",
+      "command": "./start.sh",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "DU Meet: Start (only this laptop)",
+      "type": "shell",
+      "command": "./start.sh --local",
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

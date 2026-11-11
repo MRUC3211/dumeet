@@ -1,0 +1,19 @@
+# Render Blueprint: runs DU Meet in the cloud so it works when the laptop is off.
+# Render asks for the three secret values (sync: false) when the Blueprint is created.
+services:
+  - type: web
+    name: du-meet
+    runtime: python
+    plan: free
+    buildCommand: echo "No build step: DU Meet uses only the Python standard library"
+    startCommand: python3 -u server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DU_MEET_PASSWORD
+        sync: false
+      - key: CLOUDFLARE_TURN_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false

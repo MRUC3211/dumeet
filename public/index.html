@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DU Meet</title>
+  <meta name="description" content="DU Meet: start or join a video call in your browser, with chat, screen sharing and reactions.">
+  <meta name="theme-color" content="#16181f">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;500;600&family=Wix+Madefor+Text:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0&display=block">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <!-- 1. Home: start or join a meeting -->
+  <section id="home" class="view" hidden>
+    <div class="hour" aria-hidden="true">
+      <img class="hour__photo"
+        src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Vallee-brouillard.jpg/1920px-Vallee-brouillard.jpg"
+        srcset="https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Vallee-brouillard.jpg/960px-Vallee-brouillard.jpg 960w, https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Vallee-brouillard.jpg/1280px-Vallee-brouillard.jpg 1280w, https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Vallee-brouillard.jpg/1920px-Vallee-brouillard.jpg 1920w"
+        sizes="100vw" width="4210" height="2750" alt="" fetchpriority="high" decoding="async">
+      <div class="hour__scrim"></div>
+    </div>
+
+    <header class="topbar on-photo">
+      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU <b>Meet</b></span></div>
+      <span class="clock"></span>
+    </header>
+
+    <main class="home-main">
+      <h1>Video calls and meetings for everyone</h1>
+      <p class="lead">Connect, collaborate and learn from anywhere with DU Meet.</p>
+      <div class="home-actions">
+        <button class="btn primary" data-action="new-meeting"><span class="icon" aria-hidden="true">video_call</span>New meeting</button>
+        <form id="join-form" class="join-pill">
+          <label class="code-input">
+            <span class="icon" aria-hidden="true">keyboard</span>
+            <span class="visually-hidden">Meeting code or link</span>
+            <input id="join-code" placeholder="Enter a code or link" autocomplete="off" spellcheck="false">
+          </label>
+          <button id="join-submit" class="join-btn" disabled>Join</button>
+        </form>
+      </div>
+      <p class="home-note">Share the meeting link with others. Everyone opens it in their browser, no installs needed.</p>
+    </main>
+
+    <p class="credit">Photograph: <a href="https://commons.wikimedia.org/wiki/File:Vallee-brouillard.jpg">Thomas Bresson</a> (CC BY 3.0, Wikimedia Commons)</p>
+  </section>
+
+  <!-- 2. Lobby: check camera/mic and enter a name -->
+  <section id="lobby" class="view" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="logo-mark"><span class="icon" aria-hidden="true">videocam</span></span><span>DU <b>Meet</b></span></div>
+      <span class="clock"></span>
+    </header>
+    <main class="lobby-main">
+      <div id="preview-box" class="preview-box">
+        <video id="preview" autoplay playsinline muted></video>
+        <div class="placeholder"><span class="icon" aria-hidden="true">videocam_off</span>Camera is off</div>
+        <div class="preview-controls">
+          <button class="round" data-action="mic" aria-label="Microphone"><span class="icon" aria-hidden="true">mic</span></button>
+          <button class="round" data-action="cam" aria-label="Camera"><span class="icon" aria-hidden="true">videocam</span></button>
+          <button class="round flip-btn" data-action="flip" title="Switch camera" aria-label="Switch camera" hidden><span class="icon" aria-hidden="true">flip_camera_android</span></button>
+          <button class="round" data-action="settings" title="Settings" aria-label="Audio and video settings"><span class="icon" aria-hidden="true">settings</span></button>
+        </div>
+      </div>
+      <div class="lobby-side">
+        <h2>Ready to join?</h2>
+        <p id="lobby-count" class="muted" aria-live="polite">&nbsp;</p>
+        <label class="field-label" for="name-input">Your name</label>
+        <input id="name-input" placeholder="How others will see you" maxlength="40" autocomplete="name">
+        <button class="btn primary wide" data-action="join">Join now</button>
+        <p class="muted small">Meeting code <span id="lobby-code" class="code"></span></p>
+      </div>
+    </main>
+  </section>
+
+  <!-- 3. Room: the meeting itself -->
+  <section id="room" class="view" hidden>
+    <div class="stage">
+      <div class="main-area">
+        <div id="rec-badge" class="rec-badge" hidden><span class="rec-dot" aria-hidden="true"></span>Recording</div>
+        <div id="grid" class="grid"></div>
+        <div id="captions" class="captions" aria-live="off" hidden></div>
+      </div>
+      <aside id="panel" aria-labelledby="panel-title" hidden>
+        <div class="panel-head">
+          <h3 id="panel-title"></h3>
+          <button class="icon-btn" data-action="close-panel" title="Close" aria-label="Close panel"><span class="icon" aria-hidden="true">close</span></button>
+        </div>
+        <div data-panel="info" class="panel-body">
+          <p class="panel-label">Joining info</p>
+          <p id="meeting-link" class="link-box"></p>
+          <button class="btn text" data-action="copy-link"><span class="icon" aria-hidden="true">content_copy</span>Copy joining info</button>
+          <p class="panel-label">Meeting time</p>
+          <p id="meeting-timer" class="timer">0:00</p>
+          <button class="btn text" data-action="notes"><span class="icon" aria-hidden="true">download</span>Download meeting notes</button>
+        </div>
+        <div data-panel="people" class="panel-body">
+          <p class="panel-label">In the meeting</p>
+          <ul id="people-list" class="people"></ul>
+        </div>
+        <div data-panel="chat" class="panel-body">
+          <p class="chat-note">Messages can only be seen by people in the call and are deleted when the call ends.</p>
+          <ul id="chat-messages" aria-live="polite"></ul>
+          <form id="chat-form">
+            <label class="visually-hidden" for="chat-input">Message</label>
+            <input id="chat-input" placeholder="Send a message" maxlength="500" autocomplete="off">
+            <button class="icon-btn send" title="Send" aria-label="Send message"><span class="icon" aria-hidden="true">send</span></button>
+          </form>
+        </div>
+        <div data-panel="polls" class="panel-body">
+          <form id="poll-form" class="poll-form">
+            <label class="panel-label" for="poll-question">Ask a question</label>
+            <input id="poll-question" class="field" placeholder="Question" maxlength="200" required>
+            <div id="poll-options">
+              <input class="field poll-option" placeholder="Option 1" maxlength="80" required>
+              <input class="field poll-option" placeholder="Option 2" maxlength="80" required>
+            </div>
+            <div class="poll-form-actions">
+              <button type="button" class="btn text" data-action="poll-add-option"><span class="icon" aria-hidden="true">add</span>Add option</button>
+              <button class="btn primary small-btn">Launch</button>
+            </div>
+          </form>
+          <ul id="poll-list" class="poll-list"></ul>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="controls">
+      <div class="left"><span class="clock"></span><span class="divider" aria-hidden="true"></span><span id="room-code" class="code"></span></div>
+      <div class="center">
+        <button class="ctrl" data-action="mic" aria-label="Microphone" aria-keyshortcuts="Meta+D"><span class="icon" aria-hidden="true">mic</span></button>
+        <button class="ctrl" data-action="cam" aria-label="Camera" aria-keyshortcuts="Meta+E"><span class="icon" aria-hidden="true">videocam</span></button>
+        <button class="ctrl flip-btn" data-action="flip" title="Switch camera" aria-label="Switch camera" hidden><span class="icon" aria-hidden="true">flip_camera_android</span></button>
+        <button class="ctrl wide-only" data-action="captions" title="Turn on captions" aria-label="Turn on captions" aria-pressed="false"><span class="icon" aria-hidden="true">closed_caption</span></button>
+        <button class="ctrl wide-only" data-action="hand" title="Raise hand (Ctrl + Alt + H)" aria-label="Raise hand" aria-pressed="false"><span class="icon" aria-hidden="true">back_hand</span></button>
+        <button class="ctrl" data-action="reactions" title="Send a reaction" aria-label="Send a reaction" aria-expanded="false" aria-controls="reaction-picker"><span class="icon" aria-hidden="true">mood</span></button>
+        <button class="ctrl wide-only share-btn" data-action="share" title="Present now" aria-label="Present now" aria-pressed="false"><span class="icon" aria-hidden="true">present_to_all</span></button>
+        <button class="ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_vert</span></button>
+        <button class="ctrl leave" data-action="leave" title="Leave call" aria-label="Leave call"><span class="icon" aria-hidden="true">call_end</span></button>
+        <div id="reaction-picker" role="group" aria-label="Reactions" hidden></div>
+        <div id="more-menu" class="menu" role="menu" aria-label="More options" hidden>
+          <button role="menuitem" class="narrow-only" data-action="hand"><span class="icon" aria-hidden="true">back_hand</span><span class="label">Raise hand</span></button>
+          <button role="menuitem" class="narrow-only" data-action="captions"><span class="icon" aria-hidden="true">closed_caption</span><span class="label">Turn on captions</span></button>
+          <button role="menuitem" class="narrow-only share-btn" data-action="share"><span class="icon" aria-hidden="true">present_to_all</span><span class="label">Present now</span></button>
+          <button role="menuitem" data-action="layout"><span class="icon" aria-hidden="true">dashboard</span><span class="label">Change layout</span></button>
+          <button role="menuitem" data-action="pip"><span class="icon" aria-hidden="true">picture_in_picture_alt</span><span class="label">Open picture-in-picture</span></button>
+          <button role="menuitem" data-action="whiteboard"><span class="icon" aria-hidden="true">draw</span><span class="label">Open whiteboard</span></button>
+          <button role="menuitem" data-action="record"><span class="icon" aria-hidden="true">radio_button_checked</span><span class="label">Record meeting</span></button>
+          <button role="menuitem" data-action="hide-self"><span class="icon" aria-hidden="true">hide_image</span><span class="label">Hide self view</span></button>
+          <button role="menuitem" data-action="fullscreen"><span class="icon" aria-hidden="true">fullscreen</span><span class="label">Full screen</span></button>
+          <button role="menuitem" data-action="notes"><span class="icon" aria-hidden="true">download</span><span class="label">Download meeting notes</span></button>
+          <button role="menuitem" data-action="settings"><span class="icon" aria-hidden="true">settings</span><span class="label">Settings</span></button>
+        </div>
+      </div>
+      <div class="right">
+        <button class="ctrl flat" data-action="info" title="Meeting details" aria-label="Meeting details" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">info</span></button>
+        <button class="ctrl flat" data-action="people" title="Show everyone (Ctrl + Alt + P)" aria-label="Show everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">group</span><span id="people-count" class="badge">1</span></button>
+        <button class="ctrl flat" data-action="chat" title="Chat with everyone (Ctrl + Alt + C)" aria-label="Chat with everyone" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat</span><span id="chat-dot" class="dot" hidden></span></button>
+        <button class="ctrl flat" data-action="polls" title="Polls" aria-label="Polls" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">ballot</span><span id="polls-dot" class="dot" hidden></span></button>
+      </div>
+    </footer>
+    <div id="reactions" aria-hidden="true"></div>
+    <div id="audio-sinks" hidden></div>
+    <video id="pip-video" class="pip-video" autoplay playsinline muted aria-hidden="true"></video>
+  </section>
+
+  <!-- 4. After leaving -->
+  <section id="left" class="view" hidden>
+    <div class="left-card">
+      <h1>You left the meeting</h1>
+      <div class="left-actions">
+        <button class="btn outline" data-action="rejoin">Rejoin</button>
+        <button class="btn primary" data-action="home">Return to home screen</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Audio and video settings -->
+  <dialog id="settings-dialog" class="dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-btn" value="close" aria-label="Close settings"><span class="icon" aria-hidden="true">close</span></button>
+      </div>
+      <label class="field-label" for="mic-select">Microphone</label>
+      <select id="mic-select" class="field"></select>
+      <label class="field-label speaker-row" for="speaker-select">Speakers</label>
+      <select id="speaker-select" class="field speaker-row"></select>
+      <label class="field-label" for="cam-select">Camera</label>
+      <select id="cam-select" class="field"></select>
+      <label class="check"><input type="checkbox" id="noise-toggle" checked> Noise cancellation</label>
+      <label class="field-label" for="caption-lang">Caption language</label>
+      <select id="caption-lang" class="field">
+        <option value="en-IN">English (India)</option>
+        <option value="en-US">English (US)</option>
+        <option value="hi-IN">हिन्दी (Hindi)</option>
+        <option value="bn-IN">বাংলা (Bengali)</option>
+        <option value="ta-IN">தமிழ் (Tamil)</option>
+        <option value="te-IN">తెలుగు (Telugu)</option>
+        <option value="mr-IN">मराठी (Marathi)</option>
+        <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+        <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+      </select>
+    </form>
+  </dialog>
+
+  <!-- Change layout -->
+  <dialog id="layout-dialog" class="dialog" aria-labelledby="layout-title">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2 id="layout-title">Change layout</h2>
+        <button class="icon-btn" value="close" aria-label="Close"><span class="icon" aria-hidden="true">close</span></button>
+      </div>
+      <fieldset class="layout-options">
+        <legend class="visually-hidden">Layout</legend>
+        <label><input type="radio" name="layout" value="auto"><span class="icon" aria-hidden="true">auto_awesome_mosaic</span><span><b>Auto</b><small>Tiles, or the pinned / presented screen large</small></span></label>
+        <label><input type="radio" name="layout" value="tiled"><span class="icon" aria-hidden="true">grid_view</span><span><b>Tiled</b><small>Everyone the same size</small></span></label>
+        <label><input type="radio" name="layout" value="spotlight"><span class="icon" aria-hidden="true">crop_free</span><span><b>Spotlight</b><small>Only the speaker or pinned tile</small></span></label>
+        <label><input type="radio" name="layout" value="sidebar"><span class="icon" aria-hidden="true">view_sidebar</span><span><b>Sidebar</b><small>Speaker large, others on the side</small></span></label>
+      </fieldset>
+    </form>
+  </dialog>
+
+  <template id="tile-template">
+    <div class="tile">
+      <video autoplay playsinline muted></video>
+      <div class="avatar"><span></span></div>
+      <div class="present-card">
+        <span class="icon" aria-hidden="true">present_to_all</span>
+        <p>You are presenting to everyone</p>
+        <button class="btn outline" data-action="share">Stop presenting</button>
+      </div>
+      <div class="hand-badge"><span class="icon" aria-hidden="true">back_hand</span></div>
+      <div class="mic-off"><span class="icon" aria-hidden="true">mic_off</span></div>
+      <div class="tile-actions">
+        <button class="tile-btn" data-tile-action="pin" title="Pin" aria-label="Pin"><span class="icon" aria-hidden="true">keep</span></button>
+      </div>
+      <div class="tile-name"><span class="icon pin-mark" aria-hidden="true">keep</span><span class="name"></span></div>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

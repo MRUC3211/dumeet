@@ -1,0 +1,9 @@
+# Secrets: never commit
+turn.env
+.env
+
+# Local working files
+.backup-before-features/
+.hallmark/
+__pycache__/
+.DS_Store
