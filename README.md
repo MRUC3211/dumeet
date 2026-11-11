@@ -95,6 +95,24 @@ hotspot doosra use kare.
 
 ---
 
+### Bina card wala TURN: ExpressTURN
+
+Cloudflare card maangta hai. ExpressTURN ka free plan (1 TB/mahina, Bengaluru server) card ke bina milta hai:
+
+1. https://www.expressturn.com par free account banao.
+2. Dashboard mein TURN server URL, username aur password milenge.
+3. `turn.env` (ya Render ki Environment settings) mein daalo:
+
+   ```
+   TURN_URLS=turn:SERVER:3478,turns:SERVER:443
+   TURN_USERNAME=yahan-username
+   TURN_CREDENTIAL=yahan-password
+   ```
+
+Ye username/password browsers ko milta hai (TURN ka yahi tarika hai), isliye password lock zaroor on rakho.
+
+---
+
 ## 1d. Laptop ke bina: Render par (hamesha chalu, pakka link)
 
 `render.yaml` sab settings rakhta hai. Ek baar setup:

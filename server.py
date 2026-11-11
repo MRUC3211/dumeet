@@ -68,6 +68,11 @@ def load_turn_env():
 
 load_turn_env()
 PASSWORD = os.environ.get("DU_MEET_PASSWORD", "")
+# Any TURN provider with a fixed username/password (e.g. ExpressTURN's free plan).
+# TURN_URLS may hold several URLs separated by commas or spaces.
+TURN_URLS = os.environ.get("TURN_URLS", "").replace(",", " ").split()
+TURN_USERNAME = os.environ.get("TURN_USERNAME", "")
+TURN_CREDENTIAL = os.environ.get("TURN_CREDENTIAL", "")
 TURN_KEY_ID = os.environ.get("CLOUDFLARE_TURN_KEY_ID", "")
 TURN_API_TOKEN = os.environ.get("CLOUDFLARE_TURN_API_TOKEN", "")
 ice_cache = {"servers": None, "expires": 0.0}
@@ -81,7 +86,9 @@ ice_lock = threading.Lock()
 
 
 def ice_servers():
-    """STUN, plus Cloudflare TURN when a key is configured. Credentials are cached for half their life."""
+    """STUN, plus TURN: a fixed username/password provider, or Cloudflare (credentials cached for half their life)."""
+    if TURN_URLS and TURN_USERNAME and TURN_CREDENTIAL:
+        return STUN_ONLY + [{"urls": TURN_URLS, "username": TURN_USERNAME, "credential": TURN_CREDENTIAL}]
     if not (TURN_KEY_ID and TURN_API_TOKEN):
         return STUN_ONLY
     with ice_lock:
@@ -417,7 +424,9 @@ def main():
     threading.Thread(target=remove_silent_peers, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"DU Meet is running at http://localhost:{PORT}  (press Ctrl+C to stop)")
-    if TURN_KEY_ID and TURN_API_TOKEN:
+    if TURN_URLS and TURN_USERNAME and TURN_CREDENTIAL:
+        print(f"TURN relay: {', '.join(TURN_URLS)}. Calls can connect across any two networks.")
+    elif TURN_KEY_ID and TURN_API_TOKEN:
         print("TURN relay: key found (Cloudflare). Calls can connect across any two networks.")
     else:
         print("TURN relay: off. Calls between different networks may fail; see README section 1c.")
