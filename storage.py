@@ -107,7 +107,8 @@ class SupabaseStore:
     def _request(self, method, path, body=None, headers=None, raw=False):
         request = urllib.request.Request(self.url + path, data=body, method=method)
         request.add_header("apikey", self.key)
-        request.add_header("Authorization", f"Bearer {self.key}")
+        if self.key.startswith("eyJ"):  # legacy JWT key; new sb_secret_ keys go in apikey only
+            request.add_header("Authorization", f"Bearer {self.key}")
         for name, value in (headers or {}).items():
             request.add_header(name, value)
         with urllib.request.urlopen(request, timeout=20, context=TLS) as response:
