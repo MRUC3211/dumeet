@@ -6,16 +6,19 @@ Two ways of talking to Gemini, both with the key kept here on the server:
   talks to Gemini directly over a WebSocket, so audio never passes through this server.
   The system instruction (who you are, what Saathi remembers, both sides of a Faisla)
   is built here and handed over with the token.
-* Text (generateContent): verdict cards, softening a message, and the short note
-  Saathi keeps after every conversation.
+* Text (generateContent): verdict cards, softening a message, the short note Saathi
+  keeps after every conversation, today's question, diary pages and study-break quizzes.
 
 Saathi's memory lives in the server-only collection "ai" (the browser can't read it
 through /api/data): "about" (what you told it), "consent", notes "n-…", Faisla cases
-"c-…" and promises "p-…". Everything can be wiped with one call (forget()).
+"c-…", promises "p-…", today's question "q-YYYY-MM-DD" and diary pages "d-YYYY-MM-DD"
+(days are India time). Everything can be wiped with one call (forget()).
 """
 
+import hashlib
 import json
 import os
+import random
 import threading
 import time
 import urllib.error
@@ -27,6 +30,50 @@ LIVE_MODEL = os.environ.get("GEMINI_LIVE_MODEL", "gemini-3.8-live")
 TEXT_MODEL = os.environ.get("GEMINI_TEXT_MODEL", "gemini-3.8-flash")
 VOICES = ("Aoede", "Kore", "Puck", "Charon", "Leda", "Fenrir")
 C = "ai"
+IST = timezone(timedelta(hours=5, minutes=30))
+MOODS = ("😍", "😊", "😌", "😴", "😢", "😤")
+
+# used when Gemini is off or busy
+QUESTIONS = (
+    "Bachpan ka sabse ajeeb dar kya tha?",
+    "Agar kal poora din free ho, toh kaise bitaoge?",
+    "Hum dono ki kaunsi photo tumhe sabse zyada pasand hai, aur kyun?",
+    "Ek gaana jo tumhe hamesha mujhe yaad dilata hai?",
+    "Aaj ka sabse chhota par achha moment kya tha?",
+    "Agar hum ek din ke liye kisi bhi sheher mein teleport ho sakein, toh kahan?",
+    "Meri kaunsi aadat tumhe secretly cute lagti hai?",
+    "5 saal baad ek normal Sunday kaisa dikhta hai tumhare hisaab se?",
+    "Tumhara comfort food kya hai jab mood kharab ho?",
+    "Kaunsi movie hum dono ko saath mein dobara dekhni chahiye?",
+    "Pehli baar baat karte waqt tumne mere baare mein kya socha tha?",
+    "Ek cheez jo tum is mahine seekhna chahte ho?",
+    "Agar hum dono ka ek pet ho, toh uska naam kya rakhoge?",
+    "Kaunsi baat pe tum sabse zyada hasti/haste ho, bina rukke?",
+    "Hum agli baar milein toh pehla kaam kya karenge?",
+    "Ek chhota sa promise jo tum mujhse is hafte chahte ho?",
+    "Tumhara ideal date: ghar pe ya bahar? Detail mein batao.",
+    "Aisi kaunsi cheez hai jo tumne kabhi kisi ko nahi batayi, par mujhe bata sakte ho?",
+    "Kaunsa emoji tumhari aaj ki vibe hai, aur kyun?",
+    "Long distance mein sabse zyada kya miss karte ho?",
+    "Agar tumhe ek superpower mile sirf ek din ke liye, toh kya karoge?",
+    "Mera kaunsa message tumne screenshot karke rakha hai?",
+    "Kisi trip pe jaana ho toh: pahaad ya beach?",
+    "Ek cheez jo main better kar sakta/sakti hoon tumhare liye?",
+    "Tumhari life ki ab tak ki best birthday kaunsi thi?",
+    "Kaunsa khana hum dono saath mein banana try karein?",
+    "Agar hamari love story ek movie ho, toh title kya hoga?",
+    "Tumhe kis cheez pe sabse zyada proud feel hota hai apne baare mein?",
+    "Raat ko neend na aaye toh kya karte ho?",
+    "Ek aadat jo tum chhodna chahte ho?",
+)
+
+
+def day_of(ts=None):
+    return datetime.fromtimestamp(ts if ts is not None else time.time(), IST).strftime("%Y-%m-%d")
+
+
+def days_back(n):
+    return (datetime.now(IST) - timedelta(days=n)).strftime("%Y-%m-%d")
 
 MODES = {
     "talk": "Just talk",
@@ -66,6 +113,8 @@ class Saathi:
         self.store, self.tls = store, tls
         self._health = ("checking", 0.0)
         self._checking = False
+        self.lock = threading.Lock()
+        self._mcache = ([], 0.0)
 
     def health(self):
         """Short status for /healthz: is the key accepted and do both models exist?
@@ -118,10 +167,11 @@ class Saathi:
             raise ValueError("Gemini gave no token")
         return data["name"]
 
-    def ask(self, system, prompt, as_json=True, temperature=0.6):
+    def ask(self, system, prompt, as_json=True, temperature=0.6, image=None):
+        parts = [{"inlineData": {"mimeType": "image/jpeg", "data": image}}] if image else []
         body = {
             "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents": [{"role": "user", "parts": parts + [{"text": prompt}]}],
             "generationConfig": {"temperature": temperature},
         }
         if as_json:
@@ -234,6 +284,266 @@ class Saathi:
             card["sides"] = sides
         return card
 
+    def consented(self, names):
+        consent = self.consent()
+        return bool(names) and all(n in consent for n in names)
+
+    # ---------- today's question ----------
+
+    def _qdocs(self):
+        return {d["id"][2:]: d["data"] for d in self._docs("q-")}
+
+    def _new_question(self, names):
+        recent = [q.get("question", "") for _, q in sorted(self._qdocs().items())[-40:]]
+        if key() and TEXTS.ok():
+            kinds = ("fun and a bit silly", "deep but light", "about a sweet memory of theirs", "about their future dreams",
+                     "a would-you-rather", "about their everyday life", "romantic and cute")
+            kind = kinds[datetime.now(IST).weekday()]
+            try:
+                result = self.ask(
+                    "You write the 'question of the day' for a couple's private app. Both answer it separately and see "
+                    "each other's answer only after both have answered. Return JSON {\"question\": string}. The question "
+                    f"should be {kind}: casual Hinglish in Latin letters, at most 20 words, answerable in a line or two, "
+                    "warm and specific to them when the notes allow, never heavy, never about money, exams results or "
+                    "family problems, and different from the recent ones.\n\n" + self._memory_text(names),
+                    "Recent questions (don't repeat these):\n" + "\n".join(recent[-20:]), temperature=1.0)
+                question = str(result.get("question", "")).strip() if isinstance(result, dict) else ""
+                if 8 < len(question) < 220:
+                    return question
+            except (ValueError, OSError):
+                pass
+        pool = [q for q in QUESTIONS if q not in recent] or list(QUESTIONS)
+        return random.choice(pool)
+
+    def _q_card(self, day, doc, name):
+        answers = doc.get("answers") or {}
+        mine = answers.get(name)
+        return {
+            "day": day, "question": doc.get("question", ""), "answered": sorted(answers),
+            "mine": (mine or {}).get("text"),
+            # the other answers only show once you have answered yourself
+            "answers": {n: a.get("text", "") for n, a in answers.items()} if mine else {},
+            "react": doc.get("react", "") if mine else "",
+        }
+
+    @staticmethod
+    def _streak(qdocs):
+        both = lambda d: len((qdocs.get(d) or {}).get("answers") or {}) >= 2  # noqa: E731
+        i = 0 if both(days_back(0)) else 1
+        count = 0
+        while both(days_back(i)):
+            count += 1
+            i += 1
+        return count
+
+    def daily(self, name, names):
+        day = day_of()
+        with self.lock:
+            doc = self._get(f"q-{day}")
+            if not doc.get("question"):
+                doc = {"question": self._new_question(names), "answers": {}, "at": int(time.time())}
+                self.store.put(C, f"q-{day}", doc)
+        qdocs = self._qdocs()
+        qdocs[day] = doc
+        return {"today": self._q_card(day, doc, name), "streak": self._streak(qdocs)}
+
+    def answer(self, name, names, text):
+        day = day_of()
+        with self.lock:
+            doc = self._get(f"q-{day}")
+            if not doc.get("question"):
+                raise ValueError("Today's question isn't ready yet, open it again")
+            doc.setdefault("answers", {})[name] = {"text": text[:600], "at": int(time.time())}
+            doc.pop("react", None)
+            self.store.put(C, f"q-{day}", doc)
+        answers = doc["answers"]
+        if len(answers) >= 2 and key() and self.consented(list(answers)) and TEXTS.ok():
+            try:
+                react = self.ask(
+                    self.persona(list(answers)) + "\nRIGHT NOW: both of them just answered today's question. React in ONE "
+                    "or two short Hinglish sentences, like a friend reading both answers: notice something sweet, funny or "
+                    "surprising in how they compare, tease both equally if it fits. Plain text, no quotes, no emojis spam.",
+                    f"Question: {doc['question']}\n" + "\n".join(f"{n}: {a['text']}" for n, a in answers.items()),
+                    as_json=False, temperature=0.9)
+                if react:
+                    doc["react"] = react[:400]
+                    self.store.put(C, f"q-{day}", doc)
+            except (ValueError, OSError):
+                pass
+        return self.daily(name, names)
+
+    # ---------- our diary: one page per day ----------
+
+    def _meetings(self):
+        if time.time() - self._mcache[1] > 60:
+            try:
+                self._mcache = ([d.get("data") or {} for d in self.store.list("meetings")], time.time())
+            except Exception:  # noqa: BLE001
+                pass
+        return self._mcache[0]
+
+    def _days(self, since):
+        """Everything that happened per day since `since` (a YYYY-MM-DD string)."""
+        days = {}
+        get = lambda d: days.setdefault(d, {"calls": [], "notes": [], "promises": [], "q": None, "page": {}})  # noqa: E731
+        for m in self._meetings():
+            if m.get("start") and len({p.get("name") for p in m.get("people", [])}) >= 2 and day_of(m["start"]) >= since:
+                get(day_of(m["start"]))["calls"].append(m)
+        for n in self.notes(limit=400):
+            if day_of(n.get("at", 0)) >= since:
+                get(day_of(n["at"]))["notes"].append(n.get("text", ""))
+        for p in self.promises():
+            if day_of(p.get("at", 0)) >= since:
+                get(day_of(p["at"]))["promises"].append(p)
+        for d, q in self._qdocs().items():
+            if d >= since and q.get("answers"):
+                get(d)["q"] = q
+        for doc in self._docs("d-"):
+            if doc["id"][2:] >= since:
+                get(doc["id"][2:])["page"] = doc["data"]
+        return days
+
+    @staticmethod
+    def _sig(m):
+        page = m["page"]
+        parts = [len(m["calls"]), sum(int(c.get("secs", 0)) for c in m["calls"]) // 600,
+                 sum(len(c.get("chat", [])) for c in m["calls"]) // 10, len(m["notes"]), len(m["promises"]),
+                 sorted(((m["q"] or {}).get("answers") or {})), page.get("lines"), page.get("study")]
+        return hashlib.sha1(json.dumps(parts, sort_keys=True, default=str).encode()).hexdigest()[:12]
+
+    def _page(self, day, m, name):
+        page = m["page"]
+        secs = sum(int(c.get("secs", 0)) for c in m["calls"])
+        return {
+            "day": day, "calls": len(m["calls"]), "secs": secs,
+            "lines": page.get("lines") or {}, "study": page.get("study") or {},
+            "promises": [p.get("what", "") for p in m["promises"]][:5],
+            "question": self._q_card(day, m["q"], name) if m["q"] else None,
+            "entry": page.get("entry"),
+            "stale": bool(key()) and day >= days_back(3) and page.get("sig") != self._sig(m),
+        }
+
+    def diary(self, name):
+        days = self._days(days_back(60))
+        pages = []
+        for day in sorted(days, reverse=True):
+            m = days[day]
+            if m["page"].get("hidden"):
+                continue
+            if not (m["calls"] or m["page"].get("lines") or m["q"] or m["page"].get("study")):
+                continue
+            pages.append(self._page(day, m, name))
+        return {"pages": pages[:40]}
+
+    def diary_write(self, day, name):
+        if not (days_back(3) <= day <= day_of()):
+            raise ValueError("Only the last few days can be written")
+        m = self._days(day).get(day)
+        if not m:
+            raise ValueError("Nothing happened that day yet")
+        chat = [c for call in m["calls"] for c in call.get("chat", []) if c.get("text")]
+        people = sorted({p.get("name") for c in m["calls"] for p in c.get("people", [])}
+                        | set(m["page"].get("lines") or {}) | set(((m["q"] or {}).get("answers") or {})))
+        people = [p for p in people if p]
+        if not self.consented(people):
+            raise ValueError(f"{' and '.join(people)} need to agree to Saathi first (open Saathi in a call)")
+        secs = sum(int(c.get("secs", 0)) for c in m["calls"])
+        when = datetime.strptime(day, "%Y-%m-%d").strftime("%A, %d %B")
+        facts = [f"Date: {when}", f"People: {', '.join(people)}"]
+        if m["calls"]:
+            facts.append(f"Video calls: {len(m['calls'])}, together {secs // 60} minutes in all.")
+        for who, line in (m["page"].get("lines") or {}).items():
+            facts.append(f"{who} wrote about the day (mood {line.get('mood', '')}): {line.get('text', '')}")
+        if chat:
+            facts.append("Chat messages during the calls (oldest first):")
+            facts += [f"{c.get('name', '')}: {str(c['text'])[:200]}" for c in chat[-60:]]
+        if m["notes"]:
+            facts.append("What Saathi noted from conversations: " + " | ".join(m["notes"]))
+        if m["promises"]:
+            facts.append("Promises: " + "; ".join(f"{p.get('who', '')}: {p.get('what', '')}" for p in m["promises"]))
+        if m["q"]:
+            facts.append(f"Question of the day: {m['q'].get('question', '')}")
+            facts += [f"{n} answered: {a.get('text', '')}" for n, a in (m["q"].get("answers") or {}).items()]
+        for who, st in (m["page"].get("study") or {}).items():
+            facts.append(f"{who} studied {st.get('mins', 0)} minutes" + (f" on {st['topic']}" if st.get("topic") else "")
+                         + (f", quiz {st.get('right', 0)}/{st.get('total', 0)}" if st.get("total") else ""))
+        ai = self.about()["aiName"]
+        entry = self.ask(
+            f"You are {ai}, the warm, funny best friend of {' and '.join(people)}, writing today's page in their shared "
+            "diary. Write 3 to 5 sentences in natural Hinglish (Latin letters), past tense, like a friend fondly "
+            "summing up their day together: specific details, a little gentle humour, no lecture. Use ONLY the facts "
+            "given; never invent events. If there was a fight, mention it softly and end hopeful. Keep anything "
+            "intimate out. Return JSON {\"title\": a catchy title of at most 6 words, \"text\": the page, "
+            "\"quote\": one short sweet or funny line someone actually wrote in the chat, copied exactly, or \"\", "
+            "\"quoteBy\": who wrote it, or \"\"}.",
+            "\n".join(facts)[-9000:], temperature=0.9)
+        if not isinstance(entry, dict) or not entry.get("text"):
+            raise ValueError("Saathi couldn't write the page, try again")
+        page = self._get(f"d-{day}")
+        page["entry"] = {k: str(entry.get(k, ""))[:1500] for k in ("title", "text", "quote", "quoteBy")}
+        page["sig"] = self._sig(m)
+        self.store.put(C, f"d-{day}", page)
+        m["page"] = page
+        return {"page": self._page(day, m, name)}
+
+    def diary_line(self, name, mood, text):
+        day = day_of()
+        with self.lock:
+            page = self._get(f"d-{day}")
+            page.setdefault("lines", {})[name] = {"text": text[:300], "mood": mood if mood in MOODS else "",
+                                                  "at": int(time.time())}
+            page.pop("hidden", None)
+            self.store.put(C, f"d-{day}", page)
+        return {"ok": True}
+
+    def diary_hide(self, day):
+        with self.lock:
+            page = self._get(f"d-{day}")
+            page["hidden"] = True
+            self.store.put(C, f"d-{day}", page)
+        return {"ok": True}
+
+    def study_log(self, name, mins, rounds, right, total, topic):
+        day = day_of()
+        with self.lock:
+            page = self._get(f"d-{day}")
+            st = page.setdefault("study", {}).setdefault(name, {"mins": 0, "rounds": 0, "right": 0, "total": 0})
+            st["mins"] += max(0, min(600, int(mins)))
+            st["rounds"] += max(0, min(20, int(rounds)))
+            st["right"] += max(0, min(60, int(right)))
+            st["total"] += max(0, min(60, int(total)))
+            if topic:
+                st["topic"] = topic[:80]
+            self.store.put(C, f"d-{day}", page)
+        return {"ok": True}
+
+    # ---------- study-break quiz ----------
+
+    def quiz(self, topic, image, avoid):
+        result = self.ask(
+            "You are a friendly study buddy making a quick revision quiz for a student's 5-minute study break. "
+            "If a photo of notes or a book page is given, it is the source: ask only about what is on it. Otherwise "
+            "use the topic. Make 3 multiple-choice questions that test understanding (not page numbers or trivia), "
+            "medium difficulty, each with 4 short options and exactly one correct. Write questions in the language "
+            "of the notes (English if the notes are English). Return JSON {\"questions\": [{\"q\": string, "
+            "\"options\": [4 strings], \"answer\": index 0-3, \"why\": one short line explaining}], \"cheer\": one "
+            "short funny Hinglish line to motivate them}.",
+            f"Topic: {topic or 'see the photo'}\nDon't repeat these questions: " + " | ".join(avoid[-12:]),
+            temperature=0.7, image=image)
+        questions = []
+        for item in (result.get("questions") or []) if isinstance(result, dict) else []:
+            options = item.get("options") if isinstance(item, dict) else None
+            try:
+                answer = int(item.get("answer"))
+            except (TypeError, ValueError):
+                continue
+            if item.get("q") and isinstance(options, list) and len(options) == 4 and 0 <= answer < 4:
+                questions.append({"q": str(item["q"])[:300], "options": [str(o)[:160] for o in options],
+                                  "answer": answer, "why": str(item.get("why", ""))[:300]})
+        if not questions:
+            raise ValueError("Couldn't make a quiz from that, try a clearer photo or topic")
+        return {"questions": questions[:3], "cheer": str(result.get("cheer", ""))[:200]}
+
     # ---------- prompts ----------
 
     def _memory_text(self, names):
@@ -252,6 +562,12 @@ class Saathi:
         if open_promises:
             lines.append("Promises they made that are still open:")
             lines += [f"- {p.get('who', '')}: {p.get('what', '')}" for p in open_promises[-8:]]
+        answered = [(d, q) for d, q in sorted(self._qdocs().items()) if len(q.get("answers") or {}) >= 2][-3:]
+        if answered:
+            lines.append("Their recent answers to the question of the day:")
+            for d, q in answered:
+                said = "; ".join(f"{n}: {a.get('text', '')}" for n, a in q["answers"].items())
+                lines.append(f"- {q.get('question', '')} ({said})")
         past = [c for c in self.cases() if c.get("verdict")][-4:]
         if past:
             lines.append("Earlier Faislas (disagreements you judged):")
@@ -364,30 +680,6 @@ RIGHT NOW: you are just hanging out with them. Chat, joke, ask about their day, 
 ask, and keep both of them included.
 """
 
-    def chat(self, name, names, history, text):
-        """'Ask Saathi privately': a text chat only `name` sees. Not stored."""
-        system = self.persona(names) + f"""
-RIGHT NOW: {name} is texting you PRIVATELY. The other person cannot see this chat, and you don't tell
-them about it. Help {name} like a wise best friend: understand first, then give honest, practical
-help (what to say, how to say it, what to do next). If {name} is wrong, say so kindly. Encourage honesty
-with the partner; never help with lying, spying, guilt-tripping or manipulation.
-Reply like a text message: short paragraphs, Hinglish, at most a few lines, a little humour when it fits.
-Plain text only, no markdown, no headings."""
-        turns = []
-        for item in history[-16:]:
-            role = "model" if item.get("role") == "ai" else "user"
-            if str(item.get("text", "")).strip():
-                turns.append({"role": role, "parts": [{"text": str(item["text"])[:1500]}]})
-        turns.append({"role": "user", "parts": [{"text": text[:1500]}]})
-        body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": turns,
-                "generationConfig": {"temperature": 0.85}}
-        data = self._post(f"{API}/models/{TEXT_MODEL}:generateContent", body)
-        parts = (data.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
-        reply = "".join(p.get("text", "") for p in parts).strip()
-        if not reply:
-            raise ValueError("Saathi had nothing to say, try again")
-        return reply
-
     # ---------- text tasks ----------
 
     def soften(self, text, name):
@@ -475,6 +767,30 @@ def handle(saathi, path, body, name_ok):
         if case:
             saathi.store.delete(C, case["id"])
         return {"ok": True}
+    if action == "daily":      # today's question
+        return saathi.daily(name, names)
+    if action == "answer":
+        text = str(body.get("text", "")).strip()
+        if not name_ok(name) or not text:
+            raise ValueError("Write your answer first")
+        return saathi.answer(name, names, text)
+    if action == "diary":
+        return saathi.diary(name)
+    if action == "diary-line":
+        text = str(body.get("text", "")).strip()
+        if not name_ok(name) or not (text or body.get("mood")):
+            raise ValueError("Pick a mood or write a line")
+        return saathi.diary_line(name, str(body.get("mood", "")), text)
+    if action == "diary-hide":
+        return saathi.diary_hide(str(body.get("day", ""))[:10])
+    if action == "study-log":
+        if not name_ok(name):
+            raise ValueError("Pick who you are first")
+        try:
+            return saathi.study_log(name, body.get("mins", 0), body.get("rounds", 0), body.get("right", 0),
+                                    body.get("total", 0), str(body.get("topic", "")).strip())
+        except (TypeError, ValueError) as error:
+            raise ValueError("Bad study numbers") from error
     if action == "follow":     # peace deal check-in
         case = saathi.case(body.get("id"))
         if case:
@@ -495,12 +811,19 @@ def handle(saathi, path, body, name_ok):
                 "system": saathi.system(mode, names, case)}
     if not TEXTS.ok():
         raise ValueError("Saathi needs a short break, try again in a while")
-    if action == "chat":
-        text = str(body.get("text", "")).strip()
-        if not text or not name:
-            raise ValueError("Write something first")
-        history = [h for h in (body.get("history") or []) if isinstance(h, dict)]
-        return {"reply": saathi.chat(name, names, history, text)}
+    if action == "diary-write":
+        return saathi.diary_write(str(body.get("day", ""))[:10], name)
+    if action == "quiz":
+        image = body.get("image") or None
+        if image and (not isinstance(image, str) or len(image) > 3_000_000):
+            raise ValueError("That photo is too big")
+        topic = str(body.get("topic", "")).strip()[:200]
+        if not topic and not image:
+            raise ValueError("Add a topic or a notes photo for the quiz")
+        if not saathi.consented([name]):
+            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
+        avoid = [str(a)[:200] for a in (body.get("avoid") or [])][:20]
+        return saathi.quiz(topic, image, avoid)
     if action == "soften":
         return saathi.soften(str(body.get("text", "")), name)
     if action == "verdict":

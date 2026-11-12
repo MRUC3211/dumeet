@@ -51,7 +51,6 @@
     cap: "", speaking: false,
     turn: null,          // { who, ends }
     verdictCase: null,
-    chat: [],            // private chat (this device only, not saved)
     seeing: false,
   };
 
@@ -103,11 +102,10 @@
   function paint() {
     if (panel.hidden) return;
     const info = S.info;
-    q("#sa-title", panel).textContent = S.view === "home" ? aiName() : ({ faisla: "Faisla", soft: "Say it softly", about: "About us", history: "Past faislas", promises: "Promises", ask: "Ask privately" })[S.view] || aiName();
+    q("#sa-title", panel).textContent = S.view === "home" ? aiName() : ({ faisla: "Faisla", soft: "Say it softly", about: "About us", history: "Past faislas", promises: "Promises", diary: "Our diary" })[S.view] || aiName();
     q(".sa-back", panel).hidden = S.view === "home";
     if (!info) { body.innerHTML = `<div class="sa-loading"><span class="sa-orb"><i></i></span></div>`; return; }
-    body.innerHTML = ({ home: homeView, faisla: faislaView, soft: softView, about: aboutView, history: historyView, promises: promisesView, ask: askView })[S.view]?.() ?? "";
-    if (S.view === "ask") { const list = q(".sa-chat", body); if (list) list.scrollTop = list.scrollHeight; }
+    body.innerHTML = ({ home: homeView, faisla: faislaView, soft: softView, about: aboutView, history: historyView, promises: promisesView })[S.view]?.() ?? "";
   }
 
   function homeView() {
@@ -127,7 +125,7 @@
       const consent = info.consent || {};
       html += `<div class="sa-consent"><b>Before ${esc(aiName())} can listen</b>
         <p>${esc(aiName())} runs on Google Gemini, so what you say during a ${esc(aiName())} conversation is sent to Google to get answers.
-        If you turn on "Let ${esc(aiName())} see", camera pictures go too. It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
+        If you turn on "Let ${esc(aiName())} see", camera pictures go too. Today's question, the diary and study quizzes also use Gemini. It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
         <div class="sa-who">${(polling ? people() : [myName()]).map((n) => `<span class="${consent[n] ? "ok" : ""}"><span class="icon" aria-hidden="true">${consent[n] ? "check_circle" : "schedule"}</span>${esc(n)}</span>`).join("")}</div>
         ${consent[myName()] ? `<small>Waiting for ${esc(missing.join(" and "))} to agree on their phone.</small>` : `<button class="btn primary" data-sa="agree">I agree</button>`}</div>`;
     }
@@ -141,8 +139,6 @@
       html += `<div class="sa-check"><span class="icon" aria-hidden="true">handshake</span><div><b>Peace deal check-in</b><small>${esc(c.topic)}: did you do your part?</small>
         <span class="sa-check-btns"><button class="btn small-btn primary" data-follow="${c.id}" data-kept="1">Yes, I did</button><button class="btn small-btn outline" data-follow="${c.id}" data-kept="0">Not yet</button></span></div></div>`;
     }
-    html += `<button class="sa-ask-row" data-sa="ask" ${blocked ? "disabled" : ""}><span class="icon" aria-hidden="true">lock</span><span><b>Ask ${esc(aiName())} privately</b><small>Advice just for you. Your partner never sees this chat.</small></span><span class="icon" aria-hidden="true">chevron_right</span></button>`;
-    if (!polling) html += `<p class="sa-home-note"><span class="icon" aria-hidden="true">info</span>Join the call to bring ${esc(aiName())} in by voice: talk, games, Faisla, date plans and stories.</p>`;
     html += `<div class="sa-modes">${Object.entries(MODE_INFO).map(([k, m]) => `<button class="sa-mode ${k}" data-mode="${k}" ${blocked || liveNow ? "disabled" : ""}>
       <span class="sa-mode-ic icon" aria-hidden="true">${m.icon}</span><b>${m.label}</b><small>${m.small}</small></button>`).join("")}</div>`;
     if (!polling) html = html.replace('<div class="sa-modes">', '<div class="sa-modes" hidden>');
@@ -150,6 +146,7 @@
     html += `<div class="sa-tools">
       <button data-sa="soft" ${off ? "disabled" : ""}><span class="icon" aria-hidden="true">spa</span>Say it softly</button>
       <button data-sa="promises"><span class="icon" aria-hidden="true">task_alt</span>Promises${promises.length ? ` <i>${promises.length}</i>` : ""}</button>
+      <button data-diary><span class="icon" aria-hidden="true">auto_stories</span>Our diary</button>
       <button data-sa="history"><span class="icon" aria-hidden="true">history</span>Past faislas</button>
       <button data-sa="about"><span class="icon" aria-hidden="true">badge</span>About us</button></div>`;
     return html;
@@ -205,42 +202,6 @@
       <p class="muted sa-small">${S.info.notes || 0} notes remembered. To wipe everything, use Admin → Settings.</p>`;
   }
 
-  function askView() {
-    const empty = !S.chat.length;
-    const starters = ["Mujhe sorry kaise bolna chahiye?", "Uske liye surprise idea do", "Mujhe lagta hai main overthink kar raha hoon", "Exam stress ho raha hai yaar"];
-    return `<div class="sa-chat">${empty ? `<div class="sa-chat-empty"><span class="sa-orb" aria-hidden="true"><i></i></span>
-        <p>Only you see this chat, and it isn't saved. Ask anything: what to say, how to fix a fight, gift ideas, or just vent.</p>
-        <div class="sa-starters">${starters.map((t) => `<button data-starter="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>` : ""}
-      ${S.chat.map((m) => `<div class="sa-msg ${m.role}">${esc(m.text)}</div>`).join("")}
-      ${S.chatBusy ? `<div class="sa-msg ai typing"><i></i><i></i><i></i></div>` : ""}</div>
-      <form class="sa-chat-form" data-chat-form><input id="sa-chat-in" class="field" maxlength="1200" placeholder="Message ${esc(aiName())}…" autocomplete="off">
-        <button class="sa-send" aria-label="Send" ${S.chatBusy ? "disabled" : ""}><span class="icon" aria-hidden="true">arrow_upward</span></button></form>
-      ${S.chat.length ? `<button class="sa-drop" data-sa="clear-chat"><span class="icon" aria-hidden="true">delete_sweep</span>Clear this chat</button>` : ""}`;
-  }
-
-  async function sendChat(text) {
-    text = text.trim();
-    if (!text || S.chatBusy) return;
-    const history = S.chat.slice(-16);
-    S.chat.push({ role: "me", text });
-    S.chatBusy = true;
-    paint();
-    try {
-      const { reply } = await api("chat", { text, history });
-      S.chat.push({ role: "ai", text: reply });
-    } catch (error) {
-      S.chat.push({ role: "ai err", text: error.message });
-    }
-    S.chatBusy = false;
-    paint();
-    setTimeout(() => q("#sa-chat-in", panel)?.focus(), 50);
-  }
-  panel.addEventListener("submit", (event) => {
-    if (!event.target.closest("[data-chat-form]")) return;
-    event.preventDefault();
-    sendChat(q("#sa-chat-in", panel).value);
-  });
-
   function historyView() {
     const cases = (S.info.cases || []).filter((c) => c.status === "done").reverse();
     if (!cases.length) return `<div class="sa-empty"><span class="icon" aria-hidden="true">balance</span><p>No faislas yet. Hopefully it stays that way.</p></div>`;
@@ -261,7 +222,7 @@
     const go = t.closest("[data-sa]")?.dataset.sa;
     const mode = t.closest("[data-mode]")?.dataset.mode;
     try {
-      if (["home", "faisla", "soft", "about", "history", "promises", "ask"].includes(go)) { S.view = go; return paint(); }
+      if (["home", "faisla", "soft", "about", "history", "promises"].includes(go)) { S.view = go; return paint(); }
       if (go === "agree") { S.info.consent = (await api("consent", { ok: true })).consent; tell({ act: "refresh" }); return paint(); }
       if (go === "end") return S.live ? endVoice("ended") : tell({ act: "end" });
       if (mode) return mode === "faisla" ? (S.view = "faisla", paint()) : startVoice(mode);
@@ -285,9 +246,6 @@
         return startVoice("faisla", open.id);
       }
       if (go === "dictate") return dictate();
-      const starter = t.closest("[data-starter]");
-      if (starter) return sendChat(starter.dataset.starter);
-      if (go === "clear-chat") { S.chat = []; return paint(); }
       const drop = t.closest("[data-drop]");
       if (drop) {
         if (!(await window.DU.kit.confirmBox({ title: "Delete this Faisla?", text: "It's removed for both of you, with any sides written so far.", ok: "Delete", cancel: "Keep" }))) return;
