@@ -125,7 +125,7 @@
       const consent = info.consent || {};
       html += `<div class="sa-consent"><b>Before ${esc(aiName())} can listen</b>
         <p>${esc(aiName())} runs on Google Gemini, so what you say during a ${esc(aiName())} conversation is sent to Google to get answers.
-        If you turn on "Let ${esc(aiName())} see", camera pictures go too. Today's question, the diary and study quizzes also use Gemini. It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
+        If you turn on "Let ${esc(aiName())} see", camera pictures go too. The diary and study quizzes also use Gemini. It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
         <div class="sa-who">${(polling ? people() : [myName()]).map((n) => `<span class="${consent[n] ? "ok" : ""}"><span class="icon" aria-hidden="true">${consent[n] ? "check_circle" : "schedule"}</span>${esc(n)}</span>`).join("")}</div>
         ${consent[myName()] ? `<small>Waiting for ${esc(missing.join(" and "))} to agree on their phone.</small>` : `<button class="btn primary" data-sa="agree">I agree</button>`}</div>`;
     }

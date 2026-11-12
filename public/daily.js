@@ -1,9 +1,6 @@
-// DU Meet · Today's question and Our diary (both run on Saathi, see saathi.py).
-//
-// Today's question: one question a day on the home screen. You see your partner's answer
-// only after you answer too; answering on the same day keeps the streak going.
-// Our diary: one page per day, written by Saathi from that day's calls, chat, answers,
-// study time and the one line each of you leaves after a call.
+// DU Meet · Our diary (runs on Saathi, see saathi.py): one page per day, written by
+// Saathi from that day's calls, chat, study time and the one line each of you leaves
+// after a call.
 // Uses globals from app.js (me, prefs, peers, polling, toast).
 
 (() => {
@@ -18,7 +15,6 @@
     const names = [...new Set([...document.querySelectorAll("[data-who]")].map((b) => b.dataset.who))];
     return [myName(), ...names.filter((n) => n && n !== myName())].filter(Boolean).slice(0, 2);
   }
-  const partnerName = () => people().find((n) => n !== myName()) || "your partner";
   const api = async (action, body = {}) => {
     const response = await fetch(`/api/ai/${action}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -29,78 +25,6 @@
     return data;
   };
   const orb = `<span class="sa-orb mini" aria-hidden="true"><i></i></span>`;
-
-  // ---------- Today's question (home screen) ----------
-
-  const card = document.createElement("section");
-  card.className = "dq rise";
-  card.style.setProperty("--i", "4");
-  card.setAttribute("aria-label", "Today's question");
-  q("#home .cta")?.after(card);
-
-  let daily = null;
-  let busy = false;
-
-  async function loadDaily() {
-    if (!daily) card.innerHTML = `<div class="dq-skel"><i></i><i></i><i></i></div>`;
-    try {
-      daily = await api("daily");
-    } catch {
-      card.hidden = !daily;
-      return;
-    }
-    card.hidden = false;
-    paintDaily();
-  }
-
-  function paintDaily() {
-    const t = daily.today;
-    const other = partnerName();
-    const theyAnswered = t.answered.some((n) => n !== myName());
-    const head = `<header class="dq-head"><span class="dq-label">${orb}Today's question</span>
-      ${daily.streak ? `<span class="dq-streak" title="Days in a row you both answered"><span class="icon" aria-hidden="true">local_fire_department</span>${daily.streak} day${daily.streak === 1 ? "" : "s"}</span>` : ""}</header>
-      <p class="dq-q">${esc(t.question)}</p>`;
-    let html = head;
-    if (!myName()) {
-      html += `<button class="btn primary dq-who" data-home="who">Pick who you are to answer</button>`;
-    } else if (!t.mine) {
-      html += `<form class="dq-form"><textarea class="dq-in" rows="1" maxlength="600" placeholder="Your answer…" aria-label="Your answer"></textarea>
-        <button class="dq-send" aria-label="Send answer" ${busy ? "disabled" : ""}><span class="icon" aria-hidden="true">arrow_upward</span></button></form>
-        <p class="dq-hint"><span class="icon" aria-hidden="true">${theyAnswered ? "lock" : "visibility_off"}</span>${theyAnswered ? `${esc(other)} has answered. Answer to see it.` : `${esc(other)} sees your answer only after answering too.`}</p>`;
-    } else {
-      html += `<div class="dq-answers">${[myName(), ...t.answered.filter((n) => n !== myName())].map((n) => `
-        <div class="dq-a"><span class="dq-av">${esc(n[0] || "?")}</span><div><b>${n === myName() ? "You" : esc(n)}</b><p>${esc(t.answers[n] || "")}</p></div></div>`).join("")}
-        ${theyAnswered ? "" : `<div class="dq-a wait"><span class="dq-av"><span class="icon" aria-hidden="true">hourglass_top</span></span><div><b>${esc(other)}</b><p>Hasn't answered yet. You'll see it here.</p></div></div>`}</div>
-        ${t.react ? `<p class="dq-react">${orb}<span>${esc(t.react)}</span></p>` : ""}`;
-    }
-    html += `<button class="dq-diary" data-diary><span class="icon" aria-hidden="true">auto_stories</span>Our diary<span class="icon" aria-hidden="true">chevron_right</span></button>`;
-    card.innerHTML = html;
-    const input = q(".dq-in", card);
-    if (input) {
-      const fit = () => { input.style.height = "auto"; input.style.height = `${Math.min(140, input.scrollHeight)}px`; };
-      input.addEventListener("input", fit);
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); q(".dq-form", card).requestSubmit(); }
-      });
-    }
-  }
-
-  card.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const text = q(".dq-in", card)?.value.trim();
-    if (!text || busy) return;
-    busy = true;
-    q(".dq-send", card).disabled = true;
-    q(".dq-send", card).classList.add("busy");
-    try {
-      daily = await api("answer", { text });
-      toast(daily.today.answered.length > 1 ? "Answers unlocked 🔓" : "Saved. Waiting for the other answer");
-    } catch (error) {
-      toast(error.message);
-    }
-    busy = false;
-    paintDaily();
-  });
 
   // ---------- Our diary ----------
 
@@ -179,11 +103,6 @@
     if (lines.length) {
       html += `<div class="dy-lines">${lines.map(([n, l]) => `<p><span class="dy-mood">${esc(l.mood || "💬")}</span><b>${esc(n)}</b>${l.text ? ` ${esc(l.text)}` : ""}</p>`).join("")}</div>`;
     }
-    const dq = p.question;
-    if (dq) {
-      html += `<div class="dy-q"><small>Question of the day</small><b>${esc(dq.question)}</b>
-        ${dq.mine ? Object.entries(dq.answers).map(([n, a]) => `<p><i>${esc(n)}</i>${esc(a)}</p>`).join("") : `<p class="dy-lock"><span class="icon" aria-hidden="true">lock</span>Answer it to see what ${esc(dq.answered.join(" and "))} wrote</p>`}</div>`;
-    }
     if (p.promises?.length) html += `<ul class="dy-promises">${p.promises.map((x) => `<li><span class="icon" aria-hidden="true">task_alt</span>${esc(x)}</li>`).join("")}</ul>`;
     return `${html}</article>`;
   }
@@ -256,14 +175,10 @@
 
   // ---------- hooks ----------
 
-  const prev = { home: window.DU.onHome, leave: window.DU.onLeave, join: window.DU.onJoin };
+  const prev = { leave: window.DU.onLeave, join: window.DU.onJoin };
   Object.assign(window.DU, {
-    onHome(...args) { prev.home?.(...args); loadDaily(); },
     onJoin(...args) { together = 0; q("#left .dl")?.remove(); prev.join?.(...args); },
     onLeave(...args) { prev.leave?.(...args); showLine(); together = 0; },
     openDiary,
   });
-  // answer saved on the home screen while a name gets picked
-  document.addEventListener("click", (event) => { if (event.target.closest("[data-who]")) setTimeout(loadDaily, 400); });
-  if (document.body.dataset.view === "home") loadDaily();
 })();

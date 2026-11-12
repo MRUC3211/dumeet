@@ -1744,45 +1744,7 @@ html[data-theme=dark] .h-av { color: #1d1d1f; }
 .sa-card-btn.see.on { background: #30d158; }
 .sa-body .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 
-/* v12 · Today's question, Our diary, after-call line */
-.dq { width: min(460px, 100%); margin-top: 26px; padding: 18px 18px 10px; border-radius: 24px; text-align: left; color: var(--color-ink); background: var(--glass); -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.6); backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.6); box-shadow: var(--glass-hi), var(--shadow-card); }
-.dq-skel { display: grid; gap: 10px; padding: 4px 0 10px; }
-.dq-skel i { height: 14px; border-radius: 8px; background: linear-gradient(90deg, var(--color-paper-3), var(--color-shade), var(--color-paper-3)); background-size: 200% 100%; animation: dqShine 1.2s linear infinite; }
-.dq-skel i:first-child { width: 40%; } .dq-skel i:nth-child(2) { width: 90%; height: 20px; } .dq-skel i:last-child { width: 70%; }
-@keyframes dqShine { to { background-position: -200% 0; } }
-.dq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.dq-label { display: inline-flex; align-items: center; gap: 8px; font: 600 12.5px var(--font-body); letter-spacing: .02em; text-transform: uppercase; color: var(--color-muted); }
-.dq-label .sa-orb { --s: 20px; }
-.dq-streak { display: inline-flex; align-items: center; gap: 3px; padding: 4px 10px 4px 7px; border-radius: 999px; font: 700 12.5px var(--font-body); color: #c2410c; background: rgba(255, 149, 0, .14); }
-.dq-streak .icon { font-size: 17px; color: #ff9500; }
-.dq-q { margin: 10px 0 14px; font: 650 clamp(1.1rem, 3.6vw, 1.28rem)/1.32 var(--font-display); letter-spacing: -0.02em; text-wrap: pretty; }
-.dq-form { display: flex; align-items: flex-end; gap: 8px; padding: 6px 6px 6px 16px; border-radius: 22px; background: var(--color-paper-2); box-shadow: inset 0 0 0 1px var(--color-rule); transition: box-shadow .2s var(--ease); }
-.dq-form:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
-.dq-in { flex: 1; min-width: 0; min-height: 36px; padding: 8px 0; border: 0; resize: none; outline: none; font: 400 15.5px/1.4 var(--font-body); color: var(--color-ink); background: transparent; }
-.dq-send { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; color: #fff; background: var(--color-accent); cursor: pointer; transition: transform .15s var(--ease), opacity .2s; }
-.dq-send:active { transform: scale(.92); }
-.dq-send.busy { opacity: .5; }
-.dq-send .icon { font-size: 20px; }
-.dq-hint { display: flex; align-items: center; gap: 6px; margin: 9px 4px 2px; font-size: 12.5px; color: var(--color-muted); }
-.dq-hint .icon { font-size: 15px; }
-.dq-who { width: 100%; }
-.dq-answers { display: grid; gap: 10px; }
-.dq-a { display: flex; gap: 10px; align-items: flex-start; animation: rise .5s var(--ease) both; }
-.dq-a + .dq-a { animation-delay: .12s; }
-.dq-av { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font: 700 13px var(--font-body); color: #fff; background: linear-gradient(135deg, #5e5ce6, #bf5af2); }
-.dq-a.wait .dq-av { color: var(--color-muted); background: var(--color-paper-3); }
-.dq-a.wait .dq-av .icon { font-size: 16px; }
-.dq-a b { display: block; font-size: 12.5px; color: var(--color-muted); font-weight: 600; }
-.dq-a p { margin-top: 1px; font-size: 15px; line-height: 1.42; overflow-wrap: anywhere; }
-.dq-a.wait p { color: var(--color-muted); font-size: 14px; }
-.dq-react { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 16px; font-size: 14px; line-height: 1.45; background: linear-gradient(120deg, rgba(94, 92, 230, .1), rgba(255, 55, 95, .07)); animation: rise .5s .25s var(--ease) both; }
-.dq-react .sa-orb { --s: 22px; margin-top: 1px; }
-.dq-diary { display: flex; align-items: center; gap: 8px; width: calc(100% + 12px); margin: 12px -6px 0; padding: 10px 6px; border: 0; border-top: 1px solid var(--color-rule); border-radius: 0 0 14px 14px; font: 600 14px var(--font-body); color: var(--color-ink-2); background: none; cursor: pointer; }
-.dq-diary .icon:first-child { font-size: 19px; color: #bf5af2; }
-.dq-diary .icon:last-child { margin-left: auto; font-size: 20px; color: var(--color-muted); }
-.dq-diary:hover { color: var(--color-ink); }
-@media (max-width: 600px) { .dq { margin-top: 22px; } }
-
+/* v12 · Our diary, after-call line */
 .dy-sheet { width: min(560px, 100%); }
 .dy-body { display: grid; gap: 14px; padding-top: 4px; }
 .dy-loading { display: grid; place-items: center; padding: 48px 0; }
@@ -1817,13 +1779,6 @@ html[data-theme=dark] .h-av { color: #1d1d1f; }
 .dy-lines p { font-size: 14.5px; line-height: 1.4; }
 .dy-lines b { margin-right: 4px; }
 .dy-mood { margin-right: 6px; }
-.dy-q { display: grid; gap: 4px; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(127, 127, 127, .09); }
-.dy-q small { font: 600 11.5px var(--font-body); letter-spacing: .05em; text-transform: uppercase; color: var(--color-muted); }
-.dy-q b { font-size: 15px; line-height: 1.35; }
-.dy-q p { font-size: 14px; line-height: 1.4; color: var(--color-ink-2); }
-.dy-q p i { font-style: normal; font-weight: 600; margin-right: 6px; color: var(--color-ink); }
-.dy-lock { display: flex; align-items: center; gap: 6px; color: var(--color-muted) !important; }
-.dy-lock .icon { font-size: 15px; }
 .dy-promises { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 14px; }
 .dy-promises li { display: flex; gap: 6px; align-items: flex-start; }
 .dy-promises .icon { font-size: 17px; color: #30d158; }
@@ -1917,4 +1872,3 @@ html[data-theme=dark] .h-av { color: #1d1d1f; }
 .st-trophy { font-size: 44px; color: #ffd60a; }
 .st-scores { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .st-scores span { padding: 6px 12px; border-radius: 999px; font-size: 13.5px; background: rgba(255, 255, 255, .08); }
-html[data-theme=dark] .dq-streak { color: #ffb340; background: rgba(255, 159, 10, .16); }
