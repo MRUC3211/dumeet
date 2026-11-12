@@ -421,7 +421,7 @@ class Handler(BaseHTTPRequestHandler):
         params = {key: values[0] for key, values in parse_qs(url.query).items()}
         path = url.path
         if path == "/healthz":
-            return self.send_json({"ok": True})
+            return self.send_json({"ok": True, "saathi": SAATHI.health()})
         if path == "/api/auth-info":
             # Lengths let the lock screens unlock as soon as the last character is typed.
             return self.send_json({"required": bool(PASSWORD), "admin": bool(ADMIN_PASSWORD),

@@ -64,6 +64,34 @@ TEXTS = Limit(150)
 class Saathi:
     def __init__(self, store, tls):
         self.store, self.tls = store, tls
+        self._health = ("checking", 0.0)
+        self._checking = False
+
+    def health(self):
+        """Short status for /healthz: is the key accepted and do both models exist?
+        Checked in the background at most every 10 minutes; never shows the key."""
+        if not key():
+            return "no key"
+        if time.time() - self._health[1] > 600 and not self._checking:
+            self._checking = True
+            threading.Thread(target=self._check, daemon=True).start()
+        return self._health[0]
+
+    def _check(self):
+        status = "ready"
+        for model in (LIVE_MODEL, TEXT_MODEL):
+            request = urllib.request.Request(f"{API}/models/{model}", headers={"x-goog-api-key": key()})
+            try:
+                urllib.request.urlopen(request, timeout=8, context=self.tls).close()
+            except urllib.error.HTTPError as error:
+                status = f"model {model} not found" if error.code == 404 else \
+                    "key not accepted" if error.code in (400, 401, 403) else f"google error {error.code}"
+                break
+            except (urllib.error.URLError, OSError):
+                status = "can't reach google"
+                break
+        self._health = (status, time.time())
+        self._checking = False
 
     # ---------- Gemini ----------
 
