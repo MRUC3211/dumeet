@@ -1,4 +1,4 @@
-// DU Meet · Date night talk cards, written fresh by Saathi's AI (with a built-in deck when
+// DU Meet · Date night talk cards, written fresh by Hey Lord's AI (with a built-in deck when
 // the AI isn't reachable): Deep talks, Spicy talks, Never have I ever and Truth or dare
 // after dark. Spicy ones have a heat level. Both phones always show the same card.
 
@@ -33,7 +33,11 @@
   const queues = {};
   const seenKey = (k) => `du-talk-seen-${k}`;
   const seen = (k) => store.get(seenKey(k), []);
-  const remember = (k, text) => store.set(seenKey(k), [...seen(k), text].slice(-60));
+  const D = () => window.DU.deck;
+  const remember = (k, text) => { store.set(seenKey(k), [...seen(k), text].slice(-60)); D().mark(`talk-${k}`, text); };
+  const old = (k, c) => seen(k).includes(c) || D().seen(`talk-${k}`, c);
+  // one card shown (here or on the partner's phone) counts toward the round of 10
+  const shown = (kind, text) => { if (text) { remember(kind, text); D().count(`talk-${st.kind || kind}`); } };
 
   async function draw(kind, level) {
     const key = `${kind}-${level}`;
@@ -41,14 +45,15 @@
     if (!queues[key].length) {
       try {
         const r = await V().api("cards", { kind, level, avoid: seen(kind) });
-        queues[key] = r.cards.filter((c) => !seen(kind).includes(c));
+        queues[key] = r.cards.filter((c) => !old(kind, c));
+        if (!queues[key].length) throw new Error("all seen");
       } catch {
-        const fresh = DECK[kind].filter((c) => !seen(kind).includes(c));
+        const fresh = DECK[kind].filter((c) => !old(kind, c));
         queues[key] = (fresh.length ? fresh : [...DECK[kind]]).sort(() => Math.random() - .5);
       }
     }
-    const text = queues[key].shift() || DECK[kind][0];
-    remember(kind, text);
+    const text = queues[key].shift() || DECK[kind][Math.floor(Math.random() * DECK[kind].length)];
+    shown(kind, text);
     return text;
   }
 
@@ -92,6 +97,7 @@
   async function next(mine) {
     if (!mine || st.loading) return;
     const kind = st.kind;
+    if (!D().can(`talk-${kind}`, KINDS[kind].title)) return;
     if (kind === "dare") { Object.assign(st, { text: "", td: "", votes: {}, n: st.n + 1, turn: st.n ? 1 - st.turn : 0 }); send("talk", { t: "card", kind, level: st.level, text: "", n: st.n, turn: st.turn }); return paint(); }
     st.loading = true; paint();
     const text = await draw(kind, st.level);
@@ -128,7 +134,7 @@
     w.el.querySelectorAll("[data-lv]").forEach((b) => b.classList.toggle("on", Number(b.dataset.lv) === st.level));
     const card = q(".tc-card", w.body);
     card.classList.toggle("loading", st.loading);
-    q(".tc-n", w.body).textContent = st.n ? `Card ${st.n}` : "";
+    { const pr = D().progress(`talk-${st.kind}`); q(".tc-n", w.body).textContent = st.n ? `Card ${st.n} · ${pr.n}/${pr.of} this round` : ""; }
     const turnName = players()[st.turn % players().length];
     const yours = turnName === me.name;
     let text = st.loading ? "Shuffling…" : st.text;
@@ -166,6 +172,7 @@
       const d = message.data || {};
       if (d.t === "card" && KINDS[d.kind]) {
         if (st.kind !== d.kind || !W().get(`talk-${d.kind}`)) { st.kind = d.kind; open(d.kind, peer.name); toast(`${peer.name} opened ${KINDS[d.kind].title} ${KINDS[d.kind].e}`); }
+        if (d.text && String(d.text) !== st.text) shown(d.td || d.kind, String(d.text).slice(0, 240));
         Object.assign(st, { level: heat(d.level), text: String(d.text || "").slice(0, 240), n: Number(d.n) || 0, turn: Number(d.turn) || 0, td: d.td || "", votes: {}, loading: false });
         paint();
       }

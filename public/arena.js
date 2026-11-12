@@ -64,7 +64,7 @@
     });
   }
 
-  // What happens in a game, in words, for Saathi (and her live commentary).
+  // What happens in a game, in words, for Hey Lord (and her live commentary).
   const events = [];
   function event(text) {
     const line = String(text || "").trim();
@@ -247,7 +247,7 @@
     onCoupleLeave(...args) { prev.leave?.(...args); close(); },
   });
 
-  /** Start a game for both right away (no setup screen): used when Saathi starts one. */
+  /** Start a game for both right away (no setup screen): used when Hey Lord starts one. */
   function startQuick(kind, opts = {}) {
     const game = games[kind];
     if (!game) return { error: "No such game" };

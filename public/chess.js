@@ -483,7 +483,7 @@
     checkEnd(key);
   }
 
-  // ---------- for Saathi: moves in words, the position, and moves said out loud ----------
+  // ---------- for Hey Lord: moves in words, the position, and moves said out loud ----------
   const PIECE = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
   function tellMove(m, notation, moverIdx) {
     const who = `${G.names[moverIdx]} (${moverIdx ? "black" : "white"})`;
@@ -535,7 +535,7 @@
     play(pick[0], true, true);
     return { played: notation };
   }
-  /** Start at once for both (Saathi): clock "3+2" | "5+0" | "10+0" | "none", side w | b | random. */
+  /** Start at once for both (Hey Lord): clock "3+2" | "5+0" | "10+0" | "none", side w | b | random. */
   function quick(opts = {}) {
     const other = A.other()?.name;
     if (!other) return;

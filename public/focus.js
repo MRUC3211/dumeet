@@ -1,6 +1,6 @@
 // DU Meet · Productivity: today's tasks for each of you, daily habits with streaks, and
-// "Plan my day" (Saathi orders your tasks into a timetable). Lists are saved, so they're
-// there after the call too. In a call you can also just ask Saathi out loud: "add gym to my
+// "Plan my day" (Hey Lord orders your tasks into a timetable). Lists are saved, so they're
+// there after the call too. In a call you can also just ask Hey Lord out loud: "add gym to my
 // tasks", "mark gym done", "what's left on Diya's list?" — see the tools at the bottom.
 
 (() => {
@@ -59,7 +59,7 @@
         <form class="tk-add"><input class="field" maxlength="140" placeholder="Add a task…" aria-label="New task"><button class="btn primary" aria-label="Add"><span class="icon">add</span></button></form>
         <ul class="tk-list"><li class="tk-empty">Loading…</li></ul>
         <div class="tk-acts"><button class="btn ghost" data-tk="plan"><span class="icon">auto_awesome</span>Plan my day</button><button class="btn ghost" data-tk="clear"><span class="icon">cleaning_services</span>Clear done</button></div>
-        <p class="fw-note center tk-tip">In a call, just say: “Saathi, add gym to my tasks” or “mark gym done”.</p></div>`,
+        <p class="fw-note center tk-tip">In a call, just say: “Hey Lord, add gym to my tasks” or “mark gym done”.</p></div>`,
     });
     const input = q(".tk-add .field", w.body);
     q(".tk-add", w.body).insertBefore(V().micButton(input, { onDone: (t) => addTask(whoName(tk.who), t) }), q(".tk-add .btn", w.body));
@@ -155,7 +155,7 @@
     const open = (await tasksOf(me.name)).filter((t) => !t.done).map((t) => t.text);
     if (!open.length) return toast("Add a few tasks first");
     const w = W().open({ id: "plan", title: "Plan my day", icon: "auto_awesome", w: 340, h: 500, tone: "calm",
-      html: `<div class="pl2"><div class="gr-load"><span class="sa-orb live"><i></i></span><small>Saathi is planning your day…</small></div></div>` });
+      html: `<div class="pl2"><div class="gr-load"><span class="sa-orb live"><i></i></span><small>Hey Lord is planning your day…</small></div></div>` });
     try {
       const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
       const r = await V().api("plan", { tasks: open, now });
@@ -260,7 +260,7 @@
     onCoupleLeave(...args) { prev.leave?.(...args); },
   });
 
-  // ---------- Saathi can run these when you ask out loud ----------
+  // ---------- Hey Lord can run these when you ask out loud ----------
 
   const personParam = { type: "STRING", description: "Whose list: the person's name. Leave empty for the person speaking to you (if unsure, ask)." };
   const who = (args) => {

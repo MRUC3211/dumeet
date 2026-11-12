@@ -1,5 +1,5 @@
-// DU Meet · small floating windows for in-call tools (fun, relax, date night, Saathi).
-// A window moves by its top bar, resizes from the corner grip or (for Saathi) by dragging
+// DU Meet · small floating windows for in-call tools (fun, relax, date night, Hey Lord).
+// A window moves by its top bar, resizes from the corner grip or (for Hey Lord) by dragging
 // an edge or pinching with two fingers, and remembers where it was left.
 
 (() => {

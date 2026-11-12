@@ -107,24 +107,26 @@
   const asked = new Set(store.get("du-asked", []));
   let deck = store.get("du-deck", "Deep talk");
 
+  const D = () => window.DU.deck;
   function pickQuestion(name) {
     const list = DECKS[name] || DECKS["Deep talk"];
-    let pool = list.filter((text) => !asked.has(text));
-    if (!pool.length) { list.forEach((text) => asked.delete(text)); pool = list; }
-    const text = pool[Math.floor(Math.random() * pool.length)];
+    const text = D().next(`q-${name}`, list);
     asked.add(text);
     store.set("du-asked", [...asked].slice(-200));
     return text;
   }
   function ask(name = deck) {
+    if (!D().can("questions", "Questions")) return;
     const text = pickQuestion(name);
+    D().count("questions");
     showQuestion({ deck: name, text, by: me.name });
     send("question", { deck: name, text });
     closeModal(q("#m-tool"));
   }
   function showQuestion({ deck: name, text, by }) {
     const card = q("#tg-question");
-    card.innerHTML = `<small><span class="icon">forum</span>${esc(name)} · ${by === me.name ? "you asked" : `${esc(by)} asked`}</small>
+    const pr = D().progress("questions");
+    card.innerHTML = `<small><span class="icon">forum</span>${esc(name)} · ${by === me.name ? "you asked" : `${esc(by)} asked`}<i class="dk-n">${pr.n}/${pr.of}</i></small>
       <p>${esc(text)}</p>
       <div class="q-actions"><button class="btn small-btn q-next" data-tg="q-next"><span class="icon">shuffle</span>Next</button><button class="icon-btn" data-tg="q-close" aria-label="Close"><span class="icon">close</span></button></div>`;
     card.dataset.deck = name;
@@ -175,9 +177,17 @@
     return board.every(Boolean) ? { mark: "draw", line: [] } : null;
   }
 
+  // every question card counts once toward the round, on both phones
+  const counted = new Set();
+  function countCard(g) {
+    if (!g || g.closed) return;
+    if (g.kind === "wyr" && !counted.has(`w${g.id}`)) { counted.add(`w${g.id}`); D().mark("wyr", g.q % WYR.length); D().count("wyr"); }
+    if (g.kind === "tod" && g.pick && g.text && !counted.has(`t${g.id}${g.text}`)) { counted.add(`t${g.id}${g.text}`); D().mark(`tod-${g.pick}`, g.text); D().count("tod"); }
+  }
   function commit(next) {
     next.v = Math.max(game?.v || 0, next.v || 0) + 1;
     next.by = me.name;
+    countCard(next);
     game = next;
     send("game", { g: game });
     paintGame();
@@ -188,12 +198,13 @@
     const other = [...peers.values()][0];
     if (!other && !GAMES[kind].solo) return toast(`${GAMES[kind].title} needs two people in the call`);
     const again = game?.kind === kind && !game.closed;
+    if (kind === "wyr" && !D().can("wyr", "Would you rather")) return;
     const players = again && game.players.length === 2 ? [game.players[1], game.players[0]] : [me.name, other?.name || ""];
     commit({
       kind, players, round: (again ? game.round : 0) + 1, turn: 0, closed: false,
       board: Array(GAMES[kind].size || 0).fill(""), winner: "", line: [], last: -1,
       score: again ? game.score : {}, picks: {},
-      options: game?.options || WHEEL_DEFAULT, spin: null, startedBy: me.name, id: Date.now(), q: Math.floor(Math.random() * 1e6), pick: "", text: "",
+      options: game?.options || WHEEL_DEFAULT, spin: null, startedBy: me.name, id: Date.now(), q: kind === "wyr" ? D().next("wyr", WYR.map((_, i) => i)) : Math.floor(Math.random() * 1e6), pick: "", text: "",
     });
   }
 
@@ -251,6 +262,7 @@
     ["Morning person", "Night owl"], ["Give up chocolate", "Give up coffee"],
     ["Movie night in", "Dinner date out"], ["Lose your phone", "Lose your wallet"],
   ];
+  WYR.push(...(window.DU.bank?.wyr || []));   // more from bank.js
   const TRUTHS = [
     "What did you first notice about me?", "What's a habit of mine you secretly love?", "When did you last cry, and why?",
     "What's one thing you've never told me?", "What's your most embarrassing moment?", "What do you miss most when we're apart?",
@@ -258,6 +270,7 @@
     "What's a dream you haven't told anyone?", "What's one thing you'd change about our calls?",
     "Who was your first crush?", "What's the most childish thing you still do?",
   ];
+  TRUTHS.push(...(window.DU.bank?.truths || []));   // more from bank.js
   const DARES = [
     "Sing the chorus of a song I choose", "Do your best impression of me", "Show the last photo in your gallery",
     "Talk in an accent for the next 2 minutes", "Send me a voice note saying something sweet, right now",
@@ -265,6 +278,7 @@
     "Read your last sent message out loud", "Dance for 15 seconds with no music", "Say three things you like about me, fast",
     "Draw me on the whiteboard in 30 seconds", "Speak only in questions until your next turn",
   ];
+  DARES.push(...(window.DU.bank?.dares || []));   // more from bank.js
   function settleWyr(g) {
     if (g.players.every((p) => g.picks[p])) g.revealed = true;
   }
@@ -279,8 +293,9 @@
   function todPick(kind) {
     if (game?.kind !== "tod" || game.pick) return;
     if (game.players[game.turn] !== me.name) return toast(`It's ${game.players[game.turn]}'s turn`);
+    if (!D().can("tod", "Truth or dare")) return;
     const list = kind === "truth" ? TRUTHS : DARES;
-    commit({ ...structuredClone(game), pick: kind, text: list[Math.floor(Math.random() * list.length)] });
+    commit({ ...structuredClone(game), pick: kind, text: D().next(`tod-${kind}`, list) });
   }
   function todNext() {
     if (game?.kind !== "tod") return;
@@ -317,6 +332,7 @@
     }
     if (game && (g.v < game.v || (g.v === game.v && g.by <= game.by))) return;
     const isNew = !g.closed && (!game || game.closed || game.kind !== g.kind || game.round !== g.round);
+    countCard(g);
     game = g;
     if (isNew && g.startedBy !== me.name && q("#tg-game").hidden) toast(`${peer.name} started ${GAMES[g.kind].title.toLowerCase()}`);
     paintGame();
@@ -383,7 +399,7 @@
         middle = `<div class="wyr">${[["a", a], ["b", b]].map(([k, t]) => `<div class="wyr-opt done ${same && mine === k ? "match" : ""}"><span>${esc(t)}</span><small>${game.players.filter((p) => game.picks[p] === k).map((p) => esc(name(p))).join(" & ") || "–"}</small></div>`).join('<b class="wyr-or">or</b>')}</div>`;
       } else {
         status = mine ? (game.picks[other] ? "" : `Waiting for ${other}…`) : game.picks[other] ? `${other} has picked. Your turn` : "Pick one. You'll both see after";
-        middle = `<div class="wyr">${[["a", a], ["b", b]].map(([k, t]) => `<button class="wyr-opt ${mine === k ? "on" : ""}" data-wyr="${k}" ${mine ? "disabled" : ""}><span>${esc(t)}</span></button>`).join('<b class="wyr-or">or</b>')}</div>`;
+        middle = `<small class="dk-n solo">Question ${D().progress("wyr").n} of ${D().progress("wyr").of}</small><div class="wyr">${[["a", a], ["b", b]].map(([k, t]) => `<button class="wyr-opt ${mine === k ? "on" : ""}" data-wyr="${k}" ${mine ? "disabled" : ""}><span>${esc(t)}</span></button>`).join('<b class="wyr-or">or</b>')}</div>`;
       }
     } else if (game.kind === "tod") {
       const who = game.players[game.turn];
@@ -392,7 +408,7 @@
         middle = `<div class="tod-pick">${who === me.name ? `<button data-tod="truth" class="tod-btn truth"><span class="icon">psychology_alt</span>Truth</button><button data-tod="dare" class="tod-btn dare"><span class="icon">bolt</span>Dare</button>` : `<div class="tod-wait"><span class="icon">hourglass_top</span></div>`}</div>`;
       } else {
         status = `${who === me.name ? "You" : who} · ${game.pick === "truth" ? "Truth" : "Dare"}`;
-        middle = `<div class="tod-card ${game.pick}"><small>${game.pick === "truth" ? "Truth" : "Dare"}</small><p>${esc(game.text)}</p></div><button class="btn primary small-btn g-again" data-g="tod-next"><span class="icon">sync_alt</span>Next turn</button>`;
+        middle = `<div class="tod-card ${game.pick}"><small>${game.pick === "truth" ? "Truth" : "Dare"}<i class="dk-n">${D().progress("tod").n}/${D().progress("tod").of}</i></small><p>${esc(game.text)}</p></div><button class="btn primary small-btn g-again" data-g="tod-next"><span class="icon">sync_alt</span>Next turn</button>`;
       }
     } else if (game.kind === "wheel") {
       const seg = 360 / game.options.length;
@@ -500,7 +516,7 @@
       const data = message.data || {};
       if (message.type === "question") {
         if (data.close) q("#tg-question").hidden = true;
-        else if (DECKS[data.deck]) showQuestion({ deck: data.deck, text: String(data.text).slice(0, 300), by: peer.name });
+        else if (DECKS[data.deck]) { D().mark(`q-${data.deck}`, String(data.text)); D().count("questions"); showQuestion({ deck: data.deck, text: String(data.text).slice(0, 300), by: peer.name }); }
         return;
       }
       if (message.type === "game") return receiveGame(data.g, peer);

@@ -635,10 +635,10 @@ class Handler(BaseHTTPRequestHandler):
     def ai_action(self, path, message):
         """Saathi, the AI friend (see saathi.py). Errors come back as {"error": text}."""
         if path == "/api/ai/forget" and not self.is_admin():
-            return self.send_json({"error": "Only Admin can wipe Saathi's memory"}, 403)
+            return self.send_json({"error": "Only Admin can wipe Hey Lord's memory"}, 403)
         action = path.rsplit("/", 1)[1]
         if not ADMIN.config["saathiOn"] and action not in ("state", "about", "consent"):
-            return self.send_json({"error": "Saathi is switched off by Admin"}, 400)
+            return self.send_json({"error": "Hey Lord is switched off by Admin"}, 400)
         message = message if isinstance(message, dict) else {}
         if action == "cards" and "level" in message:   # never hotter than Admin allows
             try:
@@ -806,7 +806,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": True})
         if path == "/api/admin/cmd":             # mute / camera off / reload / message, for one or all
             what = str(body.get("do", ""))
-            if what not in ("mute", "camoff", "reload", "toast", "policy"):
+            if what not in ("mute", "camoff", "reload", "toast", "policy", "rounds"):
                 return self.send_error(400)
             data = {"do": what, "text": str(body.get("text", ""))[:300]}
             if body.get("id"):

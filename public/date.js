@@ -141,17 +141,19 @@
     "wake up grumpy", "give the best hugs", "steal the blanket", "stay up till 3 am", "cry when happy",
     "make the first move", "remember every little detail", "get scared of a horror movie", "spoil the other", "pick the restaurant",
   ];
+  LIKELY.push(...(window.DU.bank?.likely || []));   // more from bank.js
   const ml = { order: [], i: 0, mine: null, theirs: null, score: 0, played: 0 };
   function openLikely(seed, by) {
     tray();
     if (!needPartner("Who's more likely")) return;
+    if (!seed && !ml.order.length && !window.DU.deck.can("likely", "Who's more likely")) return;
     const w = W().open({ id: "likely", title: "Who's more likely", icon: "group", w: 340, h: 400, tone: "rose", onClose: () => { ml.order = []; } });
-    if (seed) startLikely(seed, false, by); else if (!ml.order.length) startLikely(Array.from({ length: LIKELY.length }, (_, i) => i).sort(() => Math.random() - .5), true);
+    if (seed) startLikely(seed, false, by); else if (!ml.order.length) startLikely(window.DU.deck.order("likely", LIKELY.length), true);
     paintLikely(w);
     w.body.onclick = (e) => {
       const a = e.target.closest("[data-ml]")?.dataset.ml;
       if (!a) return;
-      if (a === "next") { send("date", { t: "ml-next" }); nextLikely(); return; }
+      if (a === "next") { if (!window.DU.deck.can("likely", "Who's more likely")) return; send("date", { t: "ml-next" }); nextLikely(); return; }
       if (ml.mine) return;
       ml.mine = a === "me" ? me.name : other()?.name;
       send("date", { t: "ml-pick", who: ml.mine });
@@ -160,10 +162,20 @@
   }
   function startLikely(order, mine, by) {
     Object.assign(ml, { order, i: 0, mine: null, theirs: null, score: 0, played: 0 });
+    seenLikely();
     if (mine) send("date", { t: "ml-start", order });
     else if (by) toast(`${by} started Who's more likely`);
   }
-  function nextLikely() { ml.i = (ml.i + 1) % ml.order.length; ml.mine = null; ml.theirs = null; paintLikely(); }
+  function nextLikely() { ml.i = (ml.i + 1) % ml.order.length; ml.mine = null; ml.theirs = null; seenLikely(); paintLikely(); }
+  // each question shown counts once toward the round, on both phones
+  let lastLikely = "";
+  function seenLikely() {
+    const k = `${ml.order.join(",").slice(0, 40)}:${ml.i}`;
+    if (!ml.order.length || k === lastLikely) return;
+    lastLikely = k;
+    window.DU.deck.mark("likely", ml.order[ml.i]);
+    window.DU.deck.count("likely");
+  }
   function paintLikely(w = W().get("likely")) {
     if (!w) return;
     const p = other()?.name || "them";
@@ -171,7 +183,7 @@
     const both = ml.mine && ml.theirs;
     if (both && !ml.counted) { ml.counted = true; ml.played += 1; if (ml.mine === ml.theirs) ml.score += 1; }
     if (!both) ml.counted = false;
-    w.body.innerHTML = `<div class="ml"><small class="ml-score">${ml.played ? `${ml.score} of ${ml.played} matched` : "Round 1"}</small><p class="ml-q">Who's more likely to <b>${esc(qtext)}?</b></p>
+    w.body.innerHTML = `<div class="ml"><small class="ml-score">${ml.played ? `${ml.score} of ${ml.played} matched` : "Let's see"} · ${window.DU.deck.progress("likely").n}/${window.DU.deck.progress("likely").of}</small><p class="ml-q">Who's more likely to <b>${esc(qtext)}?</b></p>
       ${both ? `<div class="ml-rev ${ml.mine === ml.theirs ? "yes" : "no"}"><div><small>You said</small><b>${esc(ml.mine === me.name ? "Me" : p)}</b></div><div><small>${esc(p)} said</small><b>${esc(ml.theirs === me.name ? "You" : p)}</b></div></div>
         <p class="ml-res">${ml.mine === ml.theirs ? "Same answer! 💞" : "Ooh, you disagree 👀"}</p><button class="btn primary wide" data-ml="next">Next question</button>`
       : `<div class="ml-picks"><button data-ml="me" class="${ml.mine === me.name ? "on" : ""}"><span>🙋</span><b>Me</b></button><button data-ml="them" class="${ml.mine && ml.mine !== me.name ? "on" : ""}"><span>👉</span><b>${esc(p)}</b></button></div>

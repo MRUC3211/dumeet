@@ -1,8 +1,8 @@
 // DU Meet · voice helpers shared by the tools.
-//  - DU.voice.api(action, body): calls Saathi's text AI on the server (/api/ai/<action>).
+//  - DU.voice.api(action, body): calls Hey Lord's text AI on the server (/api/ai/<action>).
 //  - DU.voice.listen(): speech to text with the browser's own recogniser, where it has one.
 //  - DU.voice.speak(text): reads text aloud on this phone.
-//  - DU.saathiTools: things Saathi can do when you ask her out loud in a call (add a task,
+//  - DU.saathiTools: things Hey Lord can do when you ask her out loud in a call (add a task,
 //    start a power nap, open a game…). Modules add { name, description, parameters, run }.
 
 (() => {
@@ -23,7 +23,7 @@
 
   /**
    * listen({ onText, onEnd, lang }) → stop(). Text arrives as you speak (final = true at the end).
-   * Returns null where the browser can't recognise speech (then ask Saathi instead).
+   * Returns null where the browser can't recognise speech (then ask Hey Lord instead).
    */
   function listen({ onText, onEnd, lang = "en-IN" } = {}) {
     if (!Rec) return null;
@@ -77,7 +77,7 @@
         onText: (t) => { input.value = before + t; input.dispatchEvent(new Event("input", { bubbles: true })); },
         onEnd: (t) => { stop = null; b.classList.remove("on"); if (t) onDone?.(input.value.trim()); },
       });
-      if (stop) b.classList.add("on"); else toast("Speech isn't available here. Ask Saathi instead.");
+      if (stop) b.classList.add("on"); else toast("Speech isn't available here. Ask Hey Lord instead.");
     });
     return b;
   }
@@ -96,7 +96,7 @@
   window.DU.voice = { api, listen, speak, stopSpeaking, micButton, match, canListen: Boolean(Rec) };
   window.DU.saathiTools ||= [];
 
-  // ---------- general things Saathi can do: open a tool or game, power nap, calm sounds ----------
+  // ---------- general things Hey Lord can do: open a tool or game, power nap, calm sounds ----------
   const FEATURES = {
     chess: "Chess", ludo: "Ludo", snl: "Snakes & ladders", quiz: "Quiz battle", clash: "Colour clash card game", word: "Daily word game",
     maths: "Maths duel", memo: "Memory match", pictionary: "Pictionary", race: "Reaction race", ttt: "Tic-tac-toe", c4: "4 in a row",

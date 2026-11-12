@@ -73,6 +73,12 @@ TOKENS = Limit(40)
 TEXTS = Limit(150)
 
 
+def ai_name(name):
+    """The assistant's name: "Hey Lord" (older saves said "Saathi")."""
+    name = str(name or "").strip()[:24]
+    return "Hey Lord" if not name or name.lower() in ("saathi", "sathi") else name
+
+
 class Saathi:
     def __init__(self, store, tls):
         self.store, self.tls = store, tls
@@ -170,7 +176,7 @@ class Saathi:
     def about(self):
         about = self._get("about")
         return {
-            "aiName": str(about.get("aiName") or "Saathi")[:24],
+            "aiName": ai_name(about.get("aiName")),
             "voice": about.get("voice") if about.get("voice") in VOICES else "Aoede",
             "story": str(about.get("story", ""))[:1500],
             "likes": str(about.get("likes", ""))[:1500],
@@ -185,7 +191,7 @@ class Saathi:
                 about[field] = data[field].strip()
         if about["voice"] not in VOICES:
             about["voice"] = "Aoede"
-        about["aiName"] = about["aiName"][:24] or "Saathi"
+        about["aiName"] = ai_name(about["aiName"])
         self.store.put(C, "about", about)
         return about
 
@@ -323,7 +329,7 @@ class Saathi:
                         | set(m["page"].get("lines") or {}))
         people = [p for p in people if p]
         if not self.consented(people):
-            raise ValueError(f"{' and '.join(people)} need to agree to Saathi first (open Saathi in a call)")
+            raise ValueError(f"{' and '.join(people)} need to agree to Hey Lord first (open Hey Lord in a call)")
         secs = sum(int(c.get("secs", 0)) for c in m["calls"])
         when = datetime.strptime(day, "%Y-%m-%d").strftime("%A, %d %B")
         facts = [f"Date: {when}", f"People: {', '.join(people)}"]
@@ -335,7 +341,7 @@ class Saathi:
             facts.append("Chat messages during the calls (oldest first):")
             facts += [f"{c.get('name', '')}: {str(c['text'])[:200]}" for c in chat[-60:]]
         if m["notes"]:
-            facts.append("What Saathi noted from conversations: " + " | ".join(m["notes"]))
+            facts.append("What you noted from conversations: " + " | ".join(m["notes"]))
         if m["promises"]:
             facts.append("Promises: " + "; ".join(f"{p.get('who', '')}: {p.get('what', '')}" for p in m["promises"]))
         for who, st in (m["page"].get("study") or {}).items():
@@ -352,7 +358,7 @@ class Saathi:
             "\"quoteBy\": who wrote it, or \"\"}.",
             "\n".join(facts)[-9000:], temperature=0.9)
         if not isinstance(entry, dict) or not entry.get("text"):
-            raise ValueError("Saathi couldn't write the page, try again")
+            raise ValueError("Hey Lord couldn't write the page, try again")
         page = self._get(f"d-{day}")
         page["entry"] = {k: str(entry.get(k, ""))[:1500] for k in ("title", "text", "quote", "quoteBy")}
         page["sig"] = self._sig(m)
@@ -451,6 +457,19 @@ class Saathi:
         return f"""You are {ai}, the close friend of {who}: the one friend both of them trust, who is
 on nobody's side but the relationship's. You are warm, quick, a little cheeky, emotionally sharp, and
 genuinely funny, like the best friend in a good Hindi web series, never like a customer-care bot.
+
+They call you by saying "Hey Lord" or "My Lord". Enjoy the "Lord" title with a wink (confident, playful, a little dramatic), but never arrogant: you are
+always on their team.
+
+UNDERSTANDING THEM (most important)
+- Work out what they actually want, even from half sentences, mixed Hindi/English, slang or a mumble.
+  "chess laga do", "notes mein likh do", "kitna time hua", "awaaz band karo" are all clear requests: act.
+- If one detail is missing and a sensible default exists, use it and say it ("5 minute ka timer laga diya").
+  Ask a short question only when guessing could do something wrong (like deleting or whose notes).
+- Several things in one sentence: do all of them, in order.
+- Remember what was said earlier in this conversation and use it ("woh pehle wala list mein daal do").
+- When you write something for them (notes, lists, messages), write it nicely: clean, short, correct
+  spelling, the same language they used.
 
 HOW YOU TALK
 - Natural Hinglish, the way young Indians actually talk ("arre", "yaar", "sach mein?", "chalo",
@@ -763,17 +782,17 @@ def handle(saathi, path, body, name_ok):
 
     # everything below talks to Gemini
     if not key():
-        raise ValueError("Saathi is not switched on yet: add GEMINI_API_KEY on the server")
+        raise ValueError("Hey Lord is not switched on yet: add GEMINI_API_KEY on the server")
     if action == "token":
         if not TOKENS.ok():
-            raise ValueError("Saathi needs a short break, try again in a while")
+            raise ValueError("Hey Lord needs a short break, try again in a while")
         mode = body.get("mode") if body.get("mode") in MODES else "talk"
         case = saathi.case(body.get("case")) if mode == "faisla" else None
         about = saathi.about()
         return {"token": saathi.token(), "model": LIVE_MODEL, "voice": about["voice"], "aiName": about["aiName"],
                 "system": saathi.system(mode, names, case)}
     if not TEXTS.ok():
-        raise ValueError("Saathi needs a short break, try again in a while")
+        raise ValueError("Hey Lord needs a short break, try again in a while")
     if action == "diary-write":
         return saathi.diary_write(str(body.get("day", ""))[:10], name)
     if action == "quiz":
@@ -784,7 +803,7 @@ def handle(saathi, path, body, name_ok):
         if not topic and not image:
             raise ValueError("Add a topic or a notes photo for the quiz")
         if not saathi.consented([name]):
-            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
+            raise ValueError("Agree to Hey Lord once first (open Hey Lord in a call)")
         avoid = [str(a)[:200] for a in (body.get("avoid") or [])][:20]
         return saathi.quiz(topic, image, avoid)
     if action == "cards":

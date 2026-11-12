@@ -227,13 +227,14 @@
 
         <div id="tg-tray" class="tg-tray" role="menu" hidden>
           <div class="tray-view tray-main">
-            <button role="menuitem" data-tg="saathi" class="span-all sa-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Saathi</b><small>Say “Hey Saathi” or tap · ask anything, open games, add tasks</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
+            <button role="menuitem" data-tg="saathi" class="span-all sa-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Hey Lord</b><small>Say “Hey Lord” or tap · ask anything, open games, add tasks</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch</b><small>YouTube, in sync</small></span></button>
             <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen</b><small>Our songs</small></span></button>
             <button role="menuitem" data-tg="view-games" class="tray-go"><span class="tg-ic game icon">sports_esports</span><span><b>Games</b><small>Play together</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-fun" class="tray-go"><span class="tg-ic fun icon">celebration</span><span><b>Fun</b><small>Filters, throw, nudge</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
             <button role="menuitem" data-tg="story"><span class="tg-ic storyic icon">auto_stories</span><span><b>Story time</b><small>Make a story with AI</small></span></button>
+            <button role="menuitem" data-tg="view-notes" class="tray-go"><span class="tg-ic notesic icon">sticky_note_2</span><span><b>Notes</b><small>Uday · Diya · Common</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-focus" class="tray-go"><span class="tg-ic focusic icon">task_alt</span><span><b>Productivity</b><small>Tasks, habits, study</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-date" class="tray-go"><span class="tg-ic dateic icon">wine_bar</span><span><b>Date night</b><small>Deep &amp; spicy talks, candles</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-relax" class="tray-go"><span class="tg-ic relax icon">spa</span><span><b>Relax</b><small>Sounds, power nap, calm</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
@@ -250,6 +251,9 @@
             <button role="menuitem" data-tg="word"><span class="tg-ic wordic icon">spellcheck</span><span><b>Daily word</b><small>5 letters, 5 tries, new daily</small></span></button>
             <button role="menuitem" data-tg="maths"><span class="tg-ic mathsic icon">calculate</span><span><b>Maths duel</b><small>10 sums, fastest wins</small></span></button>
             <button role="menuitem" data-tg="memo"><span class="tg-ic memoic icon">style</span><span><b>Memory match</b><small>Find the pairs</small></span></button>
+            <button role="menuitem" data-tg="dots"><span class="tg-ic dotsic icon">grid_4x4</span><span><b>Dots &amp; boxes</b><small>Close boxes, steal the board</small></span></button>
+            <button role="menuitem" data-tg="chain"><span class="tg-ic chainic icon">link</span><span><b>Word chain</b><small>Last letter, 20 seconds</small></span></button>
+            <button role="menuitem" data-tg="emoji"><span class="tg-ic emojiic icon">emoji_objects</span><span><b>Emoji riddles</b><small>Guess the movie or phrase</small></span></button>
             <button role="menuitem" data-tg="pictionary"><span class="tg-ic pict icon">brush</span><span><b>Pictionary</b><small>Draw, they guess</small></span></button>
             <button role="menuitem" data-tg="race"><span class="tg-ic race icon">bolt</span><span><b>Reaction race</b><small>Fastest tap wins</small></span></button>
             <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Best of you two</small></span></button>
@@ -291,9 +295,16 @@
             <button role="menuitem" data-tg="stars"><span class="tg-ic starsic icon">nights_stay</span><span><b>Stargazing</b><small>Wish on a shooting star</small></span></button>
             <button role="menuitem" data-tg="likely"><span class="tg-ic likelyic icon">group</span><span><b>Who's more likely</b><small>Answer in secret</small></span></button>
           </div>
+          <div class="tray-view tray-notes" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Notes</b><span></span></div>
+            <button role="menuitem" data-tg="notes-uday"><span class="tg-ic notes-u icon">person</span><span><b>Uday's notes</b><small id="tray-notes-uday">Empty</small></span></button>
+            <button role="menuitem" data-tg="notes-diya"><span class="tg-ic notes-d icon">person</span><span><b>Diya's notes</b><small id="tray-notes-diya">Empty</small></span></button>
+            <button role="menuitem" data-tg="notes-common" class="span-all"><span class="tg-ic notes-c icon">group</span><span><b>Common notes</b><small id="tray-notes-common">Empty</small></span></button>
+            <p class="tray-tip span-all"><span class="icon" aria-hidden="true">mic</span>Say “Hey Lord, add to my notes …” or “read the common notes”</p>
+          </div>
           <div class="tray-view tray-focus" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Productivity</b><span></span></div>
-            <button role="menuitem" data-tg="tasks" class="span-all"><span class="tg-ic focusic icon">task_alt</span><span><b>Today's tasks</b><small>Your lists · tick by tap or tell Saathi</small></span></button>
+            <button role="menuitem" data-tg="tasks" class="span-all"><span class="tg-ic focusic icon">task_alt</span><span><b>Today's tasks</b><small>Your lists · tick by tap or tell Hey Lord</small></span></button>
             <button role="menuitem" data-tg="habits"><span class="tg-ic habitic icon">local_fire_department</span><span><b>Habits</b><small>Daily streaks</small></span></button>
             <button role="menuitem" data-tg="planday"><span class="tg-ic planic icon">auto_awesome</span><span><b>Plan my day</b><small>AI makes a timetable</small></span></button>
             <button role="menuitem" data-tg="study"><span class="tg-ic studyt icon">menu_book</span><span><b>Study together</b><small>Focus timer + quiz</small></span></button>
@@ -301,7 +312,7 @@
           </div>
           <div class="tray-view tray-more" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>More</b><span></span></div>
-            <button role="menuitem" data-tg="wake" class="span-all wk-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Hey Saathi</b><small id="tray-wake">On · just say “Hey Saathi”</small></span><span class="wk-sw" aria-hidden="true"><i></i></span></button>
+            <button role="menuitem" data-tg="wake" class="span-all wk-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Hey Lord</b><small id="tray-wake">On · just say “Hey Lord”</small></span><span class="wk-sw" aria-hidden="true"><i></i></span></button>
             <button role="menuitem" data-tg="calendar"><span class="tg-ic cal icon">calendar_month</span><span><b>Calendar</b><small>Opens for both</small></span></button>
             <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer</b><small>Study or focus</small></span></button>
             <button role="menuitem" data-tg="countdown"><span class="tg-ic count icon">hourglass_top</span><span><b>Countdown</b><small id="tray-count">Till we meet</small></span></button>

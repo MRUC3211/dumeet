@@ -67,6 +67,7 @@
     ["What is the currency of Japan?", ["Yuan", "Won", "Yen", "Baht"], 2, "World"],
     ["How many hours are there in a week?", ["148", "168", "178", "186"], 1, "Numbers"],
   ];
+  BANK.push(...(window.DU.bank?.quiz || []));   // more from bank.js
   let Z = null;
 
   const mineIdx = () => Z.names.indexOf(me.name);
@@ -76,6 +77,7 @@
     const el = A.open(K, "Quiz battle", "");
     A.panel(""); A.live(true);
     Z = { el, names, qs, round: -1, scores: [0, 0], ans: {}, t0: 0, timer: 0, tick: 0, over: false };
+    qs.forEach((i) => { DK().mark("quiz", i); DK().count("quiz", true); });
     q(".ar-body", el).innerHTML = `${A.duel(names, COLORS)}<div class="qz">
       <div class="qz-top"><small class="qz-n"></small><small class="qz-topic"></small></div>
       <div class="qz-bar"><i></i></div>
@@ -154,13 +156,17 @@
     A.over(K, Z.names, a === b ? -1 : a > b ? 0 : 1, `${a} – ${b} points`, rematch);
   }
 
-  function pick() { return A.shuffle(BANK.map((_, i) => i)).slice(0, ROUNDS); }
+  // fresh questions first (DU.deck remembers which ones you've had); one game = one round of 10
+  const DK = () => window.DU.deck;
+  function pick() { return DK().order("quiz", BANK.length).slice(0, ROUNDS); }
   function start() {
+    if (!DK().can("quiz", "Quiz battle")) return;
     const names = [me.name, A.other().name], qs = pick();
     begin(names, qs);
     send(K, { t: "start", names, qs });
   }
   function rematch() {
+    if (!DK().can("quiz", "Quiz battle")) return;
     const qs = pick();
     begin(Z.names, qs);
     send(K, { t: "start", names: Z.names, qs });

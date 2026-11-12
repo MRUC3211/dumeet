@@ -1,7 +1,7 @@
-// DU Meet · Story time: Saathi's AI starts a story with a hook, you take turns adding what
+// DU Meet · Story time: Hey Lord's AI starts a story with a hook, you take turns adding what
 // happens next (speak it or type it), and the AI weaves in a twist after each round. New AI
-// parts can be read aloud. Both phones show the same story. Saathi can add lines for you when
-// she's in the call ("Saathi, add to the story: …").
+// parts can be read aloud. Both phones show the same story. Hey Lord can add lines for you when
+// she's in the call ("Hey Lord, add to the story: …").
 
 (() => {
   "use strict";
@@ -47,7 +47,7 @@
   const fill = (t) => { const [a, b] = [me.name, other()?.name || "their partner"].sort(() => Math.random() - .5); return t.replaceAll("{a}", a).replaceAll("{b}", b); };
   const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
   let offlineToast = 0;
-  const offline = () => { if (Date.now() - offlineToast > 60000) { offlineToast = Date.now(); toast("Saathi's AI isn't answering, so the built-in storyteller takes over"); } };
+  const offline = () => { if (Date.now() - offlineToast > 60000) { offlineToast = Date.now(); toast("Hey Lord's AI isn't answering, so the built-in storyteller takes over"); } };
 
   function open() {
     tray();
@@ -131,7 +131,7 @@
     if (!w) return;
     const body = q(".sy-body", w.body);
     if (!S.on) {
-      body.innerHTML = `<p class="fw-note">Pick a vibe. Saathi starts the story, then you two take turns. Speak or type your part.</p>
+      body.innerHTML = `<p class="fw-note">Pick a vibe. Hey Lord starts the story, then you two take turns. Speak or type your part.</p>
         <div class="sy-genres">${GENRES.map(([k, e, l]) => `<button data-genre="${k}"${S.busy ? " disabled" : ""}><span>${e}</span><b>${l}</b></button>`).join("")}</div>
         ${S.busy ? `<div class="gr-load"><span class="sa-orb live"><i></i></span><small>Writing the opening…</small></div>` : ""}`;
       return;

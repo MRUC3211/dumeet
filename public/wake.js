@@ -1,7 +1,7 @@
-// DU Meet · "Hey Saathi": say it during a call and Saathi joins by herself, already knowing
-// what you asked ("Hey Saathi, open chess", "Hey Saathi, add gym to my tasks"). It rides on
+// DU Meet · "Hey Lord": say it during a call and Hey Lord joins by herself, already knowing
+// what you asked ("Hey Lord, open chess", "Hey Lord, add gym to my tasks"). It rides on
 // the speech recogniser the call already uses for captions, on this phone only, and only
-// while the mic is on and Saathi isn't already in the call. A "Hey Saathi" visit ends by
+// while the mic is on and Hey Lord isn't already in the call. A "Hey Lord" visit ends by
 // itself after ~30 s of quiet. Turn it on or off from Tools → More.
 
 (() => {
@@ -14,17 +14,20 @@
   // On iPhone the recogniser can fight the call for the mic, so it starts off there.
   let on = store.get("du-wake", !iOS);
   let blocked = false;
-  let armed = null;       // { cmd, timer, until } while we catch what follows "Hey Saathi"
+  let armed = null;       // { cmd, timer, until } while we catch what follows "Hey Lord"
   let lastFire = 0;
 
-  const NAMES = ["saathi", "sathi", "saathee", "sathee", "saati", "sathy", "saathy", "sarthi", "saarthi", "saathiya", "साथी", "सारथी", "साथि"];
-  const HEY = ["hey", "hi", "hay", "hai", "hello", "ok", "okay", "oye", "oy", "are", "arey", "arre", "he", "हे", "है", "हाय", "हेलो", "ओके", "अरे", "ओए"];
+  // "Hey Lord" / "My Lord" / "Hi Lord" (also how phones tend to mishear it, and in Hindi)
+  const NAMES = ["lord", "lard", "laud", "lawd", "lourd", "lords", "लॉर्ड", "लार्ड", "लोर्ड", "लॉड"];
+  const HEY = ["hey", "hi", "hay", "hai", "hello", "ok", "okay", "oye", "oy", "are", "arey", "arre", "he", "my", "mai", "mere", "हे", "है", "हाय", "हेलो", "ओके", "अरे", "ओए", "माय", "मेरे"];
+  const ONE_WORD = ["heylord", "hilord", "mylord", "helord", "हेलॉर्ड", "मायलॉर्ड"];
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   function pattern() {
-    const custom = String(saathi()?.name?.() || "").trim().toLowerCase();
-    const names = [...new Set([...NAMES, ...(custom && custom !== "saathi" ? [custom] : [])])];
-    // "hey saathi" anywhere, as words (also Devanagari, where \b doesn't work)
-    return new RegExp(`(?:^|[\\s,.!?।])(?:${HEY.map(esc).join("|")})[\\s,]*(?:${names.map(esc).join("|")})(?=$|[\\s,.!?।])`, "i");
+    // a renamed assistant is also heard by its own name ("Hey <name>")
+    const custom = String(saathi()?.name?.() || "").trim().toLowerCase().replace(/^(hey|hi|my)\s+/, "");
+    const names = [...new Set([...NAMES, ...(custom && custom !== "lord" ? [custom] : [])])];
+    const pre = `(?:^|[\\s,.!?।])`, post = `(?=$|[\\s,.!?।])`;
+    return new RegExp(`${pre}(?:(?:${HEY.map(esc).join("|")})[\\s,-]*(?:${names.map(esc).join("|")})|${ONE_WORD.map(esc).join("|")})${post}`, "i");
   }
 
   const wanted = () => Boolean(on && !blocked && window.DU.policy?.saathiOn !== false && Rec && polling && me.mic
@@ -34,7 +37,7 @@
   window.DU.onHearBlocked = () => {
     if (!on || blocked) return;
     blocked = true;
-    toast("Microphone speech is blocked here, so \"Hey Saathi\" can't listen. Tap Saathi instead.");
+    toast("Microphone speech is blocked here, so \"Hey Lord\" can't listen. Tap Hey Lord instead.");
     paint();
   };
 
@@ -54,7 +57,7 @@
     const cmd = `${armed.done} ${armed.cur}`.trim();
     pillText(cmd);
     clearTimeout(armed.timer);
-    // a pause ends the request; just "Hey Saathi" waits a little longer for the rest
+    // a pause ends the request; just "Hey Lord" waits a little longer for the rest
     armed.timer = setTimeout(finish, final ? (cmd ? 700 : 3000) : 1700);
   };
 
@@ -79,7 +82,7 @@
     pill = document.createElement("div");
     pill.className = "wk-pill";
     pill.setAttribute("role", "status");
-    pill.innerHTML = `<span class="sa-orb mini live" aria-hidden="true"><i></i></span><span class="wk-t"><b>${saathi()?.name?.() || "Saathi"}</b><small>Listening…</small></span>`;
+    pill.innerHTML = `<span class="sa-orb mini live" aria-hidden="true"><i></i></span><span class="wk-t"><b>${saathi()?.name?.() || "Hey Lord"}</b><small>Listening…</small></span>`;
     (document.querySelector("#meeting") || document.body).append(pill);
     requestAnimationFrame(() => pill?.classList.add("in"));
   }
@@ -119,20 +122,20 @@
     const b = q("#tg-tray [data-tg=wake]");
     const l = q("#tray-wake");
     b?.classList.toggle("on", on && !blocked && Boolean(Rec));
-    if (l) l.textContent = !Rec ? "Not in this browser · use Chrome" : blocked ? "Blocked · allow the mic" : on ? "On · just say “Hey Saathi”" : "Off · tap to turn on";
+    if (l) l.textContent = !Rec ? "Not in this browser · use Chrome" : blocked ? "Blocked · allow the mic" : on ? "On · just say “Hey Lord”" : "Off · tap to turn on";
   }
   function toggle() {
-    if (!Rec) return toast("This browser can't listen for \"Hey Saathi\". Use Chrome, or tap Saathi.");
+    if (!Rec) return toast("This browser can't listen for \"Hey Lord\". Use Chrome, or tap Hey Lord.");
     on = !on;
     blocked = false;
     store.set("du-wake", on);
     paint();
-    toast(on ? "Say “Hey Saathi” anytime in a call" : "“Hey Saathi” is off");
+    toast(on ? "Say “Hey Lord” anytime in a call" : "“Hey Lord” is off");
     if (typeof updateRecognition === "function") updateRecognition();
   }
   paint();
 
-  // keep the recogniser in step with the call, the mic and Saathi coming and going
+  // keep the recogniser in step with the call, the mic and Hey Lord coming and going
   let was = null;
   setInterval(() => {
     const w = wanted();

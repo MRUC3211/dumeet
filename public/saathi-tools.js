@@ -1,7 +1,7 @@
-// DU Meet · what Saathi can see and do in the app, beyond each feature's own tools.
+// DU Meet · what Hey Lord can see and do in the app, beyond each feature's own tools.
 //
 // How it fits together:
-//  - Saathi runs on one phone (whoever called her). Tools marked `personal` act on one
+//  - Hey Lord runs on one phone (whoever called her). Tools marked `personal` act on one
 //    person's own phone: ai.js works out who asked (the name she passes, else whoever was
 //    just talking) and, for the partner, sends the call over and gets the result back.
 //  - `screen` lets her read and press anything that's open (cards, games, windows), so a
@@ -125,7 +125,7 @@
     { name: "start_game",
       description: "Start a game for both of them straight away. Chess can take a clock and who plays white.",
       parameters: { type: "OBJECT", properties: {
-        game: { type: "STRING", enum: ["chess", "ludo", "snl", "quiz", "clash", "maths", "memo"], description: "snl = Snakes & ladders, clash = Colour clash cards, memo = Memory match" },
+        game: { type: "STRING", enum: ["chess", "ludo", "snl", "quiz", "clash", "maths", "memo", "dots", "chain", "emoji"], description: "snl = Snakes & ladders, clash = Colour clash cards, memo = Memory match, dots = Dots & boxes, chain = Word chain, emoji = Emoji riddles" },
         clock: { type: "STRING", enum: ["3+2", "5+0", "10+0", "none"] },
         white: { type: "STRING", description: "Chess: who plays white (a name)" },
       }, required: ["game"] },
@@ -150,7 +150,7 @@
       parameters: { type: "OBJECT", properties: { on: { type: "BOOLEAN" } }, required: ["on"] },
       run: (a) => {
         const r = window.DU.saathi?.commentary(a.on);
-        if (r === null || r === undefined) return { error: "Only works on the phone running Saathi" };
+        if (r === null || r === undefined) return { error: "Only works on the phone running Hey Lord" };
         return { commentary: r ? "on" : "off", game: window.DU.arena?.current()?.kind || "none yet" };
       } },
 
@@ -159,7 +159,7 @@
       parameters: { type: "OBJECT", properties: { on: { type: "BOOLEAN" } }, required: ["on"] },
       run: (a) => {
         const r = window.DU.saathi?.see(a.on);
-        if (r === null || r === undefined) return { error: "Only works on the phone running Saathi" };
+        if (r === null || r === undefined) return { error: "Only works on the phone running Hey Lord" };
         return { seeing: r };
       } },
   );

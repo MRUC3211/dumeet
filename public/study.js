@@ -1,6 +1,6 @@
 // DU Meet · Study together: a shared focus timer for the call (25 + 5 style rounds).
 // Both see the same timer. Leaving the app during focus shows up for the other one
-// (with a little teasing). In every break Saathi makes a quick 3-question quiz from your
+// (with a little teasing). In every break Hey Lord makes a quick 3-question quiz from your
 // topic or a photo of your notes (the photo goes to Gemini only for that, never saved).
 // At the end the study time goes into Our diary. Uses globals from app.js.
 
@@ -33,7 +33,7 @@
     "Itni der? Chai bana rahe the ya Netflix?",
     "Focus mode tha, Instagram mode nahi 😄",
     "Wapas aa gaye, shabaash. Ab tikna!",
-    "Saathi ne dekh liya tha, bas bol nahi raha tha 👀",
+    "Hey Lord ne dekh liya tha, bas bol nahi raha tha 👀",
   ];
   const BREAK_LINES = ["Paani piyo, stretch karo 🧘", "Aankhen screen se hatao, 20 second door dekho 👀", "Ek glass paani, ek smile 🙂", "Uth ke thoda chal lo 🚶"];
 
@@ -73,9 +73,9 @@
   }
 
   function quizNote() {
-    if (!saathi) return `<small class="st-q-note">Checking Saathi…</small>`;
-    if (!saathi.enabled) return `<small class="st-q-note">Quizzes need Saathi (the Gemini key on the server).</small>`;
-    if (!saathi.consent?.[myName()]) return `<small class="st-q-note">Open Saathi once and tap "I agree" to get quizzes.</small>`;
+    if (!saathi) return `<small class="st-q-note">Checking Hey Lord…</small>`;
+    if (!saathi.enabled) return `<small class="st-q-note">Quizzes need Hey Lord (the Gemini key on the server).</small>`;
+    if (!saathi.consent?.[myName()]) return `<small class="st-q-note">Open Hey Lord once and tap "I agree" to get quizzes.</small>`;
     return `<small class="st-q-note">Your topic and photo go to Gemini only to make the quiz. Nothing is saved.</small>`;
   }
   const quizReady = () => Boolean(saathi?.enabled && saathi.consent?.[myName()]);
@@ -87,9 +87,9 @@
     const sw = q("[data-st=quiz]", sheet);
     if (sw && !sw.disabled) mine.quiz = sw.checked;
     const joining = st.on;
-    sbody.innerHTML = `${joining ? "" : `<p class="st-intro">Focus together with cameras on. Each break, Saathi quizzes you on what you just studied.</p>
+    sbody.innerHTML = `${joining ? "" : `<p class="st-intro">Focus together with cameras on. Each break, Hey Lord quizzes you on what you just studied.</p>
       <div class="st-plans" role="radiogroup" aria-label="Plan">${PLANS.map((p) => `<button role="radio" aria-checked="${p.id === st.plan.id}" data-plan="${p.id}"><b>${p.label}</b><small>${p.small}</small></button>`).join("")}</div>`}
-      ${joining ? `<p class="st-intro">${esc(st.by)} started a ${st.plan.label} session. Add what you're studying so Saathi can quiz you.</p>` : ""}
+      ${joining ? `<p class="st-intro">${esc(st.by)} started a ${st.plan.label} session. Add what you're studying so Hey Lord can quiz you.</p>` : ""}
       <label class="sa-label" for="st-topic">What are you studying?</label>
       <input id="st-topic" class="field" maxlength="120" placeholder="e.g. DBMS normalisation, Accounts ch 4" value="${esc(mine.topic)}">
       <div class="st-photo">${mine.image ? `<img src="data:image/jpeg;base64,${mine.image}" alt="Your notes"><span><b>Notes photo added</b><small>The quiz comes from this page.</small></span>
@@ -241,7 +241,7 @@
       share({ act: "back", name: myName(), secs });
       if (secs >= 20) {
         mine.aways += 1;
-        toast(`Welcome back. ${secs >= 60 ? `${Math.round(secs / 60)} min` : `${secs} sec`} away, Saathi noticed 😏`);
+        toast(`Welcome back. ${secs >= 60 ? `${Math.round(secs / 60)} min` : `${secs} sec`} away, Hey Lord noticed 😏`);
       }
     }
   });
@@ -262,7 +262,7 @@
 
   async function quiz() {
     qz = null;
-    qbody.innerHTML = `<div class="qz-load"><span class="sa-orb big live" aria-hidden="true"><i></i></span><p>Saathi is making your quiz…</p></div>`;
+    qbody.innerHTML = `<div class="qz-load"><span class="sa-orb big live" aria-hidden="true"><i></i></span><p>Hey Lord is making your quiz…</p></div>`;
     openModal(qModal);
     try {
       const r = await api("quiz", { topic: mine.topic, image: mine.image || undefined, avoid: mine.asked });

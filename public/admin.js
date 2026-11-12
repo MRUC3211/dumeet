@@ -1,5 +1,5 @@
 // DU Meet · the admin console's control room. Adds sections to the console in home.js:
-//   Live control · Switches · Features · Saathi & AI · Usage · Activity · Chat search ·
+//   Live control · Switches · Features · Hey Lord & AI · Usage · Activity · Chat search ·
 //   Server · Logs · Data · Devices
 // Everything goes through the admin's own token (window.DU.admin.fetch).
 
@@ -103,12 +103,16 @@
             <form class="a-inline" data-form="cfg-text" data-key="maintenanceText"><input class="field" name="t" maxlength="300" value="${esc(c.maintenanceText)}" aria-label="Maintenance message"><button class="btn outline">Save</button></form>
             ${sw("coupleOnly", c.coupleOnly, "Only the two of us", "Anyone with another name can't join a call")}
             <form class="a-inline" data-form="couple"><input class="field" name="t" value="${esc(c.couple.join(", "))}" aria-label="Allowed names"><button class="btn outline">Save names</button></form>`)}
-          ${card("Saathi", `${sw("saathiOn", c.saathiOn, "Saathi is on", "Off = no AI anywhere: voice, cards, stories, plans")}
+          ${card("Hey Lord", `${sw("saathiOn", c.saathiOn, "Hey Lord is on", "Off = no AI anywhere: voice, cards, stories, plans")}
             <div class="a-two"><label class="a-num"><span>Voice calls per hour</span><input class="field" type="number" min="0" max="500" data-num="liveHourly" value="${c.liveHourly}"></label>
             <label class="a-num"><span>Text AI per hour</span><input class="field" type="number" min="0" max="2000" data-num="textHourly" value="${c.textHourly}"></label></div>
             <p class="muted small">Limits keep the Gemini bill in check. 0 = paused.</p>`)}
           ${card("Spicy cards", `<p class="muted small">The hottest level the Date night cards may go to.</p>
             <div class="seg a-seg">${[[1, "Sweet"], [2, "Flirty"], [3, "Hot"]].map(([v, l]) => `<button data-heat="${v}" class="${c.maxHeat === v ? "on" : ""}">${l}</button>`).join("")}</div>`)}
+          ${card("Question rounds", `<p class="muted small">Question games (Truth or dare, Would you rather, Quiz, Date night cards…) give this many questions, then pause so they stay fresh. Questions never repeat until a whole deck is used.</p>
+            <div class="a-two"><label class="a-num"><span>Questions per round</span><input class="field" type="number" min="3" max="50" data-num="roundSize" value="${c.roundSize ?? 10}"></label>
+            <label class="a-num"><span>Break between rounds (minutes, 0 = none)</span><input class="field" type="number" min="0" max="240" data-num="roundBreak" value="${c.roundBreak ?? 10}"></label></div>
+            <button class="btn ghost small-btn" data-x="rounds"><span class="icon">restart_alt</span>Open a new round now for everyone</button>`)}
           ${card("Banner for everyone", `<p class="muted small">${bannerOn ? `Showing now${c.bannerUntil ? ` until ${when(c.bannerUntil)}` : ""}: <b>${esc(c.banner)}</b>` : "A message pinned at the top of the app for both of you."}</p>
             <form class="a-inline" data-form="banner"><input class="field" name="t" maxlength="200" placeholder="e.g. Happy anniversary! 💞" value="${bannerOn ? esc(c.banner) : ""}">
               <select class="field" name="h" aria-label="For how long"><option value="1">1 hour</option><option value="24" selected>1 day</option><option value="168">1 week</option><option value="0">Until removed</option></select><button class="btn primary">Show</button></form>
@@ -126,6 +130,7 @@
         const h = e.target.closest("[data-heat]");
         if (h) { saveConfig({ maxHeat: Number(h.dataset.heat) }); return true; }
         const x = e.target.closest("[data-x]")?.dataset.x;
+        if (x === "rounds") { try { await post("/api/admin/cmd", { do: "rounds" }); toast("New round opened on every phone in a call"); } catch (err) { toast(err.message); } return true; }
         if (x === "unbanner") { saveConfig({ banner: "", bannerUntil: 0 }, "Banner removed"); return true; }
         if (x === "signout") {
           if (!(await A().ask("Sign out everyone?", "Every device, yours too, needs the password again.", "Sign out all"))) return true;
@@ -162,9 +167,9 @@
       onClick(e) { if (e.target.closest("[data-x=all-on]")) { saveConfig({ hidden: [] }, "Everything is on"); return true; } return false; },
     },
 
-    // ---------------- Saathi & AI ----------------
+    // ---------------- Hey Lord & AI ----------------
     {
-      id: "ai", label: "Saathi & AI", icon: "auto_awesome", group: "Insights",
+      id: "ai", label: "Hey Lord & AI", icon: "auto_awesome", group: "Insights",
       load: async () => { [D.stats, D.status] = await Promise.all([get("/api/admin/stats"), get("/api/admin/status")]); },
       html() {
         if (!D.stats || !D.status) return loading;
@@ -172,7 +177,7 @@
         const ok = st.gemini === "ready";
         const tot = {}, fail = {};
         for (const d of D.stats.usage) { for (const [k, n] of Object.entries(d.ai || {})) tot[k] = (tot[k] || 0) + n; for (const [k, n] of Object.entries(d.aiFail || {})) fail[k] = (fail[k] || 0) + n; }
-        const NAMES = { token: "Voice calls with Saathi", cards: "Date night cards", story: "Story time", plan: "Plan my day", quiz: "Study quiz", soften: "Say it softly", verdict: "Faisla verdicts", remember: "Memories saved", "diary-write": "Diary pages", state: "Saathi screen opened" };
+        const NAMES = { token: "Voice calls with Hey Lord", cards: "Date night cards", story: "Story time", plan: "Plan my day", quiz: "Study quiz", soften: "Say it softly", verdict: "Faisla verdicts", remember: "Memories saved", "diary-write": "Diary pages", state: "Hey Lord screen opened" };
         const rows = Object.keys({ ...tot, ...fail }).sort((x, y) => (tot[y] || 0) - (tot[x] || 0));
         const max = Math.max(1, ...rows.map((k) => tot[k] || 0));
         return `<div class="a-stats">
@@ -181,8 +186,8 @@
             <div><b>${a.textUsed}/${a.textLimit}</b><span>Text AI this hour</span></div>
             <div><b>${Object.values(tot).reduce((x, y) => x + y, 0)}</b><span>AI calls · 14 days</span></div></div>
           ${card("Models", `<ul class="a-kv"><li><span>Voice (Live)</span><b>${esc(st.liveModel)}</b></li><li><span>Text</span><b>${esc(st.textModel)}</b></li></ul>`)}
-          ${card("What Saathi did · last 14 days", rows.length ? `<ul class="a-usage">${rows.map((k) => `<li><span>${esc(NAMES[k] || k)}</span>${bar(tot[k] || 0, max)}<b>${tot[k] || 0}</b>${fail[k] ? `<em class="warn">${fail[k]} failed</em>` : ""}</li>`).join("")}</ul>` : `<p class="muted small">Nothing yet.</p>`)}
-          ${card("Memory", `<p class="muted small">Saathi remembers your story, promises, Faislas and diary. Wiping deletes it for good.</p><button class="btn outline danger-text" data-a-forget-ai><span class="icon">psychology_alt</span>Wipe Saathi's memory</button>`)}`;
+          ${card("What Hey Lord did · last 14 days", rows.length ? `<ul class="a-usage">${rows.map((k) => `<li><span>${esc(NAMES[k] || k)}</span>${bar(tot[k] || 0, max)}<b>${tot[k] || 0}</b>${fail[k] ? `<em class="warn">${fail[k]} failed</em>` : ""}</li>`).join("")}</ul>` : `<p class="muted small">Nothing yet.</p>`)}
+          ${card("Memory", `<p class="muted small">Hey Lord remembers your story, promises, Faislas and diary. Wiping deletes it for good.</p><button class="btn outline danger-text" data-a-forget-ai><span class="icon">psychology_alt</span>Wipe Hey Lord's memory</button>`)}`;
       },
     },
 
@@ -254,14 +259,14 @@
         if (!st || !rq) return loading;
         const dot = (ok) => `<i class="a-dot ${ok ? "ok" : "bad"}"></i>`;
         const hmax = Math.max(1, ...rq.hours.map((h) => h.n));
-        const NAMES = { meetings: "Sessions", snaps: "Photos", logins: "Sign-in log", calendar: "Calendar notes", songs: "Saved songs", settings: "Settings & lists", ai: "Saathi memory", push: "Ring devices", admin: "Admin data" };
+        const NAMES = { meetings: "Sessions", snaps: "Photos", logins: "Sign-in log", calendar: "Calendar notes", songs: "Saved songs", settings: "Settings & lists", ai: "Hey Lord memory", push: "Ring devices", admin: "Admin data" };
         return `<div class="a-stats">
             <div><b>${ago(st.uptime)}</b><span>Up since restart</span></div>
             <div><b>${st.peers}</b><span>People online</span></div>
             <div><b>${rq.total}</b><span>Requests · 48h</span></div>
             <div><b class="${rq.errors ? "warn" : ""}">${rq.errors}</b><span>Errors · 48h</span></div></div>
           ${card("Health", `<ul class="a-kv">
-            <li><span>${dot(st.gemini === "ready")}Saathi (Gemini)</span><b>${esc(st.gemini)}</b></li>
+            <li><span>${dot(st.gemini === "ready")}Hey Lord (Gemini)</span><b>${esc(st.gemini)}</b></li>
             <li><span>${dot(st.persistent)}Storage</span><b>${esc(st.storage)}${st.persistent ? "" : " · resets on restart"}</b></li>
             <li><span>${dot(st.turn !== "off")}Calls across networks (TURN)</span><b>${esc(st.turn)}</b></li>
             <li><span>${dot(st.password)}Password lock</span><b>${st.password ? "On" : "Off"}</b></li>
@@ -300,7 +305,7 @@
       id: "data", label: "All data", icon: "database", group: "Data",
       load: async () => { D.data[D.coll] = (await get(`/api/admin/data?c=${D.coll}`)).docs; },
       html() {
-        const NAMES = { calendar: "Calendar", settings: "Settings & lists", songs: "Songs", meetings: "Sessions", snaps: "Photos", logins: "Sign-ins", ai: "Saathi memory", push: "Ring devices", admin: "Admin" };
+        const NAMES = { calendar: "Calendar", settings: "Settings & lists", songs: "Songs", meetings: "Sessions", snaps: "Photos", logins: "Sign-ins", ai: "Hey Lord memory", push: "Ring devices", admin: "Admin" };
         const docs = D.data[D.coll];
         const preview = (d) => { const t = JSON.stringify(d.data); return esc(t.length > 140 ? `${t.slice(0, 140)}…` : t); };
         return `<div class="a-inline"><select class="field" data-coll aria-label="Collection">${Object.entries(NAMES).map(([k, l]) => `<option value="${k}"${k === D.coll ? " selected" : ""}>${l}</option>`).join("")}</select>

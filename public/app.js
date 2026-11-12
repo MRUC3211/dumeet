@@ -616,6 +616,12 @@ function handleMessage(message) {
     case "wb-clear":
       if (peer) clearWhiteboard(false);
       break;
+    case "wb-item":
+      if (peer) receiveItem(data);
+      break;
+    case "wb-undo":
+      if (peer) receiveUndo(data);
+      break;
     case "wb-open":
       if (peer) {
         setWhiteboardOpen(Boolean(data?.open), false);
@@ -1022,7 +1028,7 @@ let audioContext = null;
 const meters = new Map(); // id -> { analyser, samples }
 let speakerChangedAt = 0;
 
-// When each person last spoke clearly (so Saathi knows who said "mute me").
+// When each person last spoke clearly (so Hey Lord knows who said "mute me").
 const spokeAt = new Map();
 /** Name of whoever spoke most recently within `ms`, or "" if nobody did. */
 function whoSpokeLast(ms = 8000) {
@@ -1239,7 +1245,7 @@ function toggleCaptions() {
 }
 
 function updateRecognition() {
-  // also listens (on this phone only) for "Hey Saathi" when that's switched on
+  // also listens (on this phone only) for "Hey Lord" when that's switched on
   const want = Boolean(SpeechRecognition && polling && me.mic && micTrack())
     && (captionsWanted() || Boolean(window.DU?.wakeWanted?.()));
   if (want === recognitionWanted && (!want || recognition)) return;
@@ -1536,39 +1542,77 @@ function refreshRecording() {
   $("#rec-badge").hidden = !anyone;
 }
 
-// ---------- Whiteboard (new) ----------
+// ---------- Whiteboard ----------
 //
-// A shared drawing board everyone can draw on at the same time. Strokes are
-// sent in small pieces while you draw, so others see them appear live.
+// A shared drawing board both can draw on at the same time. Pens, pencil, marker and
+// eraser are sent in small pieces while you draw, so the other side sees them appear live;
+// shapes, highlighter, fill and text are sent when finished. Undo/redo take back your own
+// items. A see-through layer on top shows a shape while you drag it.
 
 const WB_W = 1600;
 const WB_H = 900;
-const WB_COLORS = ["#1d1d1f", "#d93a3a", "#2f5bd3", "#22915a", "#e08a00"];
-const wb = {
-  open: false, strokes: new Map(), canvas: null, ctx: null, tile: null, stream: null,
-  color: WB_COLORS[0], eraser: false, current: null, pending: [], timer: null, seq: 0,
+const WB_COLORS = ["#1d1d1f", "#8e8e93", "#ffffff", "#d93a3a", "#ff7a1a", "#f2c300", "#22915a", "#14a3b8", "#2f5bd3", "#7a3fd1", "#e0458c", "#8a5a2b"];
+const WB_TOOLS = {
+  pencil: { label: "Pencil", icon: "edit", live: true },
+  pen: { label: "Pen", icon: "ink_pen", live: true },
+  marker: { label: "Marker", icon: "brush", live: true },
+  hl: { label: "Highlighter", icon: "ink_highlighter" },
+  eraser: { label: "Eraser", icon: "ink_eraser", live: true },
+  line: { label: "Line", svg: '<path d="M5 19 19 5"/>' },
+  arrow: { label: "Arrow", svg: '<path d="M5 19 19 5M10 5h9v9"/>' },
+  rect: { label: "Rectangle", svg: '<rect x="4" y="6" width="16" height="12" rx="1.5"/>' },
+  ellipse: { label: "Circle", svg: '<ellipse cx="12" cy="12" rx="8.5" ry="7"/>' },
+  tri: { label: "Triangle", svg: '<path d="M12 4.5 20.5 19h-17z"/>' },
+  fill: { label: "Fill colour", icon: "format_color_fill" },
+  text: { label: "Text", icon: "title" },
 };
+const WB_SHAPES = new Set(["line", "arrow", "rect", "ellipse", "tri"]);
+const wb = {
+  open: false, strokes: new Map(), canvas: null, ctx: null, over: null, octx: null, tile: null, stream: null,
+  tool: "pen", color: WB_COLORS[0], size: 5, filled: false, current: null, pending: [], timer: null, seq: 0,
+  mine: [], redo: [], panel: false,
+};
+// how thick each tool draws for a given size, and how see-through
+const wbWidth = (t, s) => ({ pencil: Math.max(1.5, s * 0.45), pen: s, marker: s * 2.6, hl: s * 4, eraser: s * 6 }[t] ?? s);
+const wbAlpha = (t) => ({ pencil: 0.85, hl: 0.32 }[t] ?? 1);
+const wbHex = (c) => (/^#[0-9a-f]{6}$/i.test(String(c)) ? c : WB_COLORS[0]);
 
 function whiteboardTile() {
   if (wb.tile) return wb.tile;
   const tile = document.createElement("div");
   tile.className = "tile whiteboard-tile";
+  const toolBtn = (k) => { const t = WB_TOOLS[k]; return `<button class="wb-tool" data-wb-tool="${k}" title="${t.label}" aria-label="${t.label}">${t.svg ? `<svg viewBox="0 0 24 24" aria-hidden="true">${t.svg}</svg>` : `<span class="icon" aria-hidden="true">${t.icon}</span>`}</button>`; };
   tile.innerHTML = `
-    <canvas width="${WB_W}" height="${WB_H}" aria-label="Shared whiteboard"></canvas>
-    <div class="wb-tools" role="toolbar" aria-label="Whiteboard tools">
-      ${WB_COLORS.map((c) => `<button class="wb-color" data-wb-color="${c}" style="--swatch:${c}" aria-label="Pen colour ${c}"></button>`).join("")}
-      <button class="wb-tool" data-wb="eraser" title="Eraser" aria-label="Eraser"><span class="icon" aria-hidden="true">ink_eraser</span></button>
-      <button class="wb-tool" data-wb="clear" title="Clear for everyone" aria-label="Clear for everyone"><span class="icon" aria-hidden="true">delete_sweep</span></button>
-      <button class="wb-tool" data-wb="save" title="Save as image" aria-label="Save as image"><span class="icon" aria-hidden="true">download</span></button>
-      <button class="wb-tool" data-wb="close" title="Close whiteboard" aria-label="Close whiteboard"><span class="icon" aria-hidden="true">close</span></button>
+    <canvas class="wb-main" width="${WB_W}" height="${WB_H}" aria-label="Shared whiteboard"></canvas>
+    <canvas class="wb-over" width="${WB_W}" height="${WB_H}" aria-hidden="true"></canvas>
+    <div class="wb-bar" role="toolbar" aria-label="Whiteboard tools">
+      <div class="wb-group">${["pencil", "pen", "marker", "hl", "eraser"].map(toolBtn).join("")}</div>
+      <div class="wb-group">${["line", "arrow", "rect", "ellipse", "tri"].map(toolBtn).join("")}</div>
+      <div class="wb-group">${["fill", "text"].map(toolBtn).join("")}
+        <button class="wb-tool wb-swatch" data-wb="panel" title="Colour and size" aria-label="Colour and size" aria-expanded="false"><i></i></button></div>
+      <div class="wb-group">
+        <button class="wb-tool" data-wb="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><span class="icon" aria-hidden="true">undo</span></button>
+        <button class="wb-tool" data-wb="redo" title="Redo" aria-label="Redo"><span class="icon" aria-hidden="true">redo</span></button>
+        <button class="wb-tool" data-wb="clear" title="Clear for everyone" aria-label="Clear for everyone"><span class="icon" aria-hidden="true">delete_sweep</span></button>
+        <button class="wb-tool" data-wb="save" title="Save as image" aria-label="Save as image"><span class="icon" aria-hidden="true">download</span></button>
+        <button class="wb-tool" data-wb="close" title="Close whiteboard" aria-label="Close whiteboard"><span class="icon" aria-hidden="true">close</span></button>
+      </div>
+    </div>
+    <div class="wb-panel" hidden>
+      <div class="wb-colors">${WB_COLORS.map((c) => `<button class="wb-color" data-wb-color="${c}" style="--swatch:${c}" aria-label="Colour ${c}"></button>`).join("")}
+        <label class="wb-color wb-custom" title="Any colour"><input type="color" value="#2f5bd3" aria-label="Pick any colour"><span class="icon" aria-hidden="true">colorize</span></label></div>
+      <label class="wb-size"><span>Size</span><input type="range" min="1" max="30" step="1" value="${wb.size}" aria-label="Brush size"><i class="wb-dot"></i></label>
+      <div class="wb-fillmode" role="group" aria-label="Shapes"><button data-wb-fillmode="0">Outline</button><button data-wb-fillmode="1">Filled</button></div>
     </div>
     <div class="tile-actions">
       <button class="tile-btn" data-tile-action="pin" title="Pin" aria-label="Pin"><span class="icon" aria-hidden="true">keep</span></button>
     </div>
     <div class="tile-name"><span class="icon pin-mark" aria-hidden="true">keep</span><span class="name">Whiteboard</span></div>`;
   wb.tile = tile;
-  wb.canvas = tile.querySelector("canvas");
-  wb.ctx = wb.canvas.getContext("2d");
+  wb.canvas = tile.querySelector(".wb-main");
+  wb.ctx = wb.canvas.getContext("2d", { willReadFrequently: true });
+  wb.over = tile.querySelector(".wb-over");
+  wb.octx = wb.over.getContext("2d");
   wb.ctx.fillStyle = "#ffffff";
   wb.ctx.fillRect(0, 0, WB_W, WB_H);
   paintWhiteboardTools();
@@ -1580,82 +1624,128 @@ function whiteboardTile() {
     const y = (event.clientY - rect.top - (rect.height - WB_H * scale) / 2) / scale;
     return [Math.round(Math.max(0, Math.min(WB_W, x))), Math.round(Math.max(0, Math.min(WB_H, y)))];
   };
+  const newItem = (extra) => ({ id: `${me.id}:${wb.seq++}`, t: wb.tool, c: wb.color, w: wbWidth(wb.tool, wb.size), ...extra });
+
   wb.canvas.addEventListener("pointerdown", (event) => {
     event.preventDefault();
+    closeWbPanel();
+    const p = point(event);
+    if (wb.tool === "fill") return commitItem(newItem({ x: p[0], y: p[1] }));
+    if (wb.tool === "text") return askText(p, event);
     wb.canvas.setPointerCapture(event.pointerId);
-    const id = `${me.id}:${wb.seq++}`;
-    wb.current = { id, c: wb.color, w: 4, e: wb.eraser, p: [] };
-    wb.strokes.set(id, wb.current);
-    addPoints(wb.current, [point(event)]);
-    wb.pending.push(wb.current.p.at(-1));
-    scheduleStrokeSend();
+    if (WB_SHAPES.has(wb.tool)) { wb.current = newItem({ a: p, b: p, f: wb.filled && !["line", "arrow"].includes(wb.tool) }); return; }
+    wb.current = newItem({ p: [] });
+    if (WB_TOOLS[wb.tool].live) {
+      wb.strokes.set(wb.current.id, wb.current);
+      addPoints(wb.current, [p]);
+      wb.pending.push(p);
+      scheduleStrokeSend();
+    } else wb.current.p.push(p);
   });
   wb.canvas.addEventListener("pointermove", (event) => {
-    if (!wb.current) return;
+    const it = wb.current;
+    if (!it) return;
     const p = point(event);
-    const last = wb.current.p.at(-1);
+    if (it.a) { it.b = event.shiftKey ? snap(it.a, p, it.t) : p; return previewItem(it); }
+    const last = it.p.at(-1);
     if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 2) return;
-    addPoints(wb.current, [p]);
-    wb.pending.push(p);
-    scheduleStrokeSend();
+    if (WB_TOOLS[it.t].live) { addPoints(it, [p]); wb.pending.push(p); scheduleStrokeSend(); }
+    else { it.p.push(p); previewItem(it); }
   });
   const end = () => {
-    if (!wb.current) return;
-    flushStroke();
+    const it = wb.current;
+    if (!it) return;
     wb.current = null;
+    if (WB_TOOLS[it.t]?.live) { flushStroke(it); wb.mine.push(it.id); wb.redo = []; paintWhiteboardTools(); return; }
+    wb.octx.clearRect(0, 0, WB_W, WB_H);
+    if (it.a && Math.hypot(it.b[0] - it.a[0], it.b[1] - it.a[1]) < 4) return;
+    commitItem(it);
   };
   wb.canvas.addEventListener("pointerup", end);
   wb.canvas.addEventListener("pointercancel", end);
 
   tile.addEventListener("click", (event) => {
     const color = event.target.closest("[data-wb-color]");
-    const tool = event.target.closest("[data-wb]")?.dataset.wb;
-    if (color) {
-      wb.color = color.dataset.wbColor;
-      wb.eraser = false;
-    } else if (tool === "eraser") {
-      wb.eraser = !wb.eraser;
-    } else if (tool === "clear") {
-      clearWhiteboard(true);
-    } else if (tool === "save") {
-      saveWhiteboard();
-    } else if (tool === "close") {
-      setWhiteboardOpen(false, true);
-    }
+    const tool = event.target.closest("[data-wb-tool]")?.dataset.wbTool;
+    const act = event.target.closest("[data-wb]")?.dataset.wb;
+    const mode = event.target.closest("[data-wb-fillmode]")?.dataset.wbFillmode;
+    if (color) { wb.color = color.dataset.wbColor; if (wb.tool === "eraser") wb.tool = "pen"; }
+    else if (tool) { wb.tool = tool; closeWbPanel(); }
+    else if (mode != null) wb.filled = mode === "1";
+    else if (act === "panel") { wb.panel = !wb.panel; }
+    else if (act === "undo") undoWhiteboard();
+    else if (act === "redo") redoWhiteboard();
+    else if (act === "clear") clearWhiteboard(true);
+    else if (act === "save") saveWhiteboard();
+    else if (act === "close") setWhiteboardOpen(false, true);
     paintWhiteboardTools();
   });
+  tile.querySelector(".wb-custom input").addEventListener("input", (event) => { wb.color = event.target.value; if (wb.tool === "eraser") wb.tool = "pen"; paintWhiteboardTools(); });
+  tile.querySelector(".wb-size input").addEventListener("input", (event) => { wb.size = Number(event.target.value); paintWhiteboardTools(); });
   return tile;
 }
 
-function paintWhiteboardTools() {
-  for (const button of wb.tile.querySelectorAll("[data-wb-color]")) {
-    button.classList.toggle("active", !wb.eraser && button.dataset.wbColor === wb.color);
+// Shift while dragging: straight lines at 45°, squares and circles
+function snap(a, b, t) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  if (t === "line" || t === "arrow") {
+    const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4), len = Math.hypot(dx, dy);
+    return [Math.round(a[0] + Math.cos(ang) * len), Math.round(a[1] + Math.sin(ang) * len)];
   }
-  wb.tile.querySelector("[data-wb=eraser]").classList.toggle("active", wb.eraser);
-  wb.canvas.classList.toggle("erasing", wb.eraser);
+  const s = Math.max(Math.abs(dx), Math.abs(dy));
+  return [a[0] + Math.sign(dx || 1) * s, a[1] + Math.sign(dy || 1) * s];
+}
+
+function closeWbPanel() { if (wb.panel) { wb.panel = false; paintWhiteboardTools(); } }
+
+function paintWhiteboardTools() {
+  if (!wb.tile) return;
+  for (const button of wb.tile.querySelectorAll("[data-wb-tool]")) {
+    const on = button.dataset.wbTool === wb.tool;
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-pressed", String(on));
+  }
+  for (const button of wb.tile.querySelectorAll("[data-wb-color]")) button.classList.toggle("active", button.dataset.wbColor.toLowerCase() === wb.color.toLowerCase());
+  const custom = wb.tile.querySelector(".wb-custom");
+  custom.classList.toggle("active", !WB_COLORS.some((c) => c.toLowerCase() === wb.color.toLowerCase()));
+  custom.style.setProperty("--swatch", wb.color);
+  wb.tile.style.setProperty("--wb-color", wb.tool === "eraser" ? "#ffffff" : wb.color);
+  wb.tile.style.setProperty("--wb-dot", `${Math.max(4, Math.min(30, wbWidth(wb.tool === "eraser" ? "pen" : wb.tool, wb.size) * 0.6))}px`);
+  const panel = wb.tile.querySelector(".wb-panel");
+  panel.hidden = !wb.panel;
+  wb.tile.querySelector("[data-wb=panel]").setAttribute("aria-expanded", String(wb.panel));
+  wb.tile.querySelector(".wb-fillmode").hidden = !WB_SHAPES.has(wb.tool) || ["line", "arrow"].includes(wb.tool);
+  for (const b of wb.tile.querySelectorAll("[data-wb-fillmode]")) b.classList.toggle("on", (b.dataset.wbFillmode === "1") === wb.filled);
+  wb.tile.querySelector("[data-wb=undo]").disabled = !wb.mine.length;
+  wb.tile.querySelector("[data-wb=redo]").disabled = !wb.redo.length;
+  wb.canvas.dataset.tool = wb.tool;
 }
 
 function scheduleStrokeSend() {
-  wb.timer ??= setTimeout(flushStroke, 90);
+  wb.timer ??= setTimeout(() => flushStroke(), 90);
 }
 
-function flushStroke() {
+function flushStroke(it = wb.current) {
   clearTimeout(wb.timer);
   wb.timer = null;
-  if (!wb.current || !wb.pending.length) return;
-  const { id, c, w, e } = wb.current;
-  send("wb", { id, c, w, e, p: wb.pending.splice(0) });
+  if (!it || !wb.pending.length) return;
+  const { id, c, w, t } = it;
+  send("wb", { id, c, w, t, e: t === "eraser", p: wb.pending.splice(0) });
 }
 
-function drawSegment(stroke, from, to) {
-  const ctx = wb.ctx;
-  ctx.strokeStyle = stroke.e ? "#ffffff" : stroke.c;
-  ctx.lineWidth = stroke.e ? 40 : stroke.w;
+// ---------- drawing ----------
+
+function drawSegment(stroke, from, to, ctx = wb.ctx) {
+  ctx.save();
+  ctx.globalAlpha = wbAlpha(stroke.t);
+  ctx.strokeStyle = stroke.t === "eraser" || stroke.e ? "#ffffff" : stroke.c;
+  ctx.lineWidth = stroke.w;
   ctx.lineCap = ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(from[0], from[1]);
   ctx.lineTo(to[0] + (from === to ? 0.1 : 0), to[1]);
   ctx.stroke();
+  ctx.restore();
 }
 
 function addPoints(stroke, points) {
@@ -1666,13 +1756,143 @@ function addPoints(stroke, points) {
   }
 }
 
+/** Draws one finished item (shape, highlighter, fill, text, or a whole pen stroke). */
+function drawItem(it, ctx = wb.ctx) {
+  if (it.t === "fill") return floodFill(it.x, it.y, it.c);
+  ctx.save();
+  ctx.globalAlpha = wbAlpha(it.t);
+  ctx.strokeStyle = ctx.fillStyle = it.t === "eraser" || it.e ? "#ffffff" : it.c;
+  ctx.lineWidth = it.w;
+  ctx.lineCap = ctx.lineJoin = "round";
+  if (it.t === "text") {
+    ctx.textBaseline = "top";
+    ctx.font = `600 ${Math.round(it.w)}px Inter, system-ui, sans-serif`;
+    String(it.s || "").split("\n").forEach((line, i) => ctx.fillText(line, it.x, it.y + i * it.w * 1.2));
+  } else if (it.a) {
+    const [x1, y1] = it.a, [x2, y2] = it.b;
+    ctx.beginPath();
+    if (it.t === "line" || it.t === "arrow") {
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      if (it.t === "arrow") {
+        const ang = Math.atan2(y2 - y1, x2 - x1), head = Math.max(14, it.w * 3.5);
+        ctx.moveTo(x2, y2); ctx.lineTo(x2 - head * Math.cos(ang - 0.45), y2 - head * Math.sin(ang - 0.45));
+        ctx.moveTo(x2, y2); ctx.lineTo(x2 - head * Math.cos(ang + 0.45), y2 - head * Math.sin(ang + 0.45));
+      }
+    } else if (it.t === "rect") ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    else if (it.t === "ellipse") ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+    else if (it.t === "tri") { const top = Math.min(y1, y2), base = Math.max(y1, y2); ctx.moveTo((x1 + x2) / 2, top); ctx.lineTo(x2, base); ctx.lineTo(x1, base); ctx.closePath(); }
+    if (it.f) ctx.fill();
+    ctx.stroke();
+  } else if (it.p?.length) {
+    // smooth curve through the points
+    const p = it.p;
+    ctx.beginPath();
+    ctx.moveTo(p[0][0], p[0][1]);
+    if (p.length < 3) ctx.lineTo(p.at(-1)[0] + 0.1, p.at(-1)[1]);
+    for (let i = 1; i < p.length - 1; i++) ctx.quadraticCurveTo(p[i][0], p[i][1], (p[i][0] + p[i + 1][0]) / 2, (p[i][1] + p[i + 1][1]) / 2);
+    if (p.length >= 3) ctx.lineTo(p.at(-1)[0], p.at(-1)[1]);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function previewItem(it) {
+  wb.octx.clearRect(0, 0, WB_W, WB_H);
+  drawItem(it, wb.octx);
+}
+
+// paint bucket: fills the area of the same colour around the point
+function floodFill(x, y, hex) {
+  const ctx = wb.ctx;
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || y < 0 || x >= WB_W || y >= WB_H) return;
+  const img = ctx.getImageData(0, 0, WB_W, WB_H), d = img.data;
+  const at = (y * WB_W + x) * 4;
+  const [r0, g0, b0] = [d[at], d[at + 1], d[at + 2]];
+  const n = parseInt(wbHex(hex).slice(1), 16), R = n >> 16, G = (n >> 8) & 255, B = n & 255;
+  if (Math.abs(r0 - R) + Math.abs(g0 - G) + Math.abs(b0 - B) < 6) return;
+  const same = (i) => Math.abs(d[i] - r0) + Math.abs(d[i + 1] - g0) + Math.abs(d[i + 2] - b0) < 90;
+  const seen = new Uint8Array(WB_W * WB_H);
+  const stack = [[x, y]];
+  while (stack.length) {
+    let [cx, cy] = stack.pop();
+    while (cy >= 0 && same((cy * WB_W + cx) * 4) && !seen[cy * WB_W + cx]) cy--;
+    cy++;
+    let left = false, right = false;
+    while (cy < WB_H && same((cy * WB_W + cx) * 4) && !seen[cy * WB_W + cx]) {
+      const k = cy * WB_W + cx, i = k * 4;
+      seen[k] = 1; d[i] = R; d[i + 1] = G; d[i + 2] = B; d[i + 3] = 255;
+      if (cx > 0) { const s = same(i - 4) && !seen[k - 1]; if (s && !left) { stack.push([cx - 1, cy]); left = true; } else if (!s) left = false; }
+      if (cx < WB_W - 1) { const s = same(i + 4) && !seen[k + 1]; if (s && !right) { stack.push([cx + 1, cy]); right = true; } else if (!s) right = false; }
+      cy++;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function askText(p, event) {
+  wb.tile.querySelector(".wb-text")?.remove();
+  const box = document.createElement("textarea");
+  box.className = "wb-text";
+  box.rows = 1;
+  box.placeholder = "Type, then Enter";
+  const rect = wb.tile.getBoundingClientRect();
+  box.style.left = `${Math.min(rect.width - 180, event.clientX - rect.left)}px`;
+  box.style.top = `${Math.min(rect.height - 60, event.clientY - rect.top)}px`;
+  box.style.color = wb.color;
+  wb.tile.append(box);
+  setTimeout(() => box.focus(), 30);
+  let done = false;
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    const s = box.value.trim().slice(0, 300);
+    box.remove();
+    if (keep && s) commitItem({ id: `${me.id}:${wb.seq++}`, t: "text", c: wb.color, w: 18 + wb.size * 3, x: p[0], y: p[1], s });
+  };
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finish(true); }
+    if (e.key === "Escape") finish(false);
+  });
+  box.addEventListener("blur", () => finish(true));
+}
+
+function commitItem(it) {
+  wb.strokes.set(it.id, it);
+  drawItem(it);
+  send("wb-item", { item: it });
+  wb.mine.push(it.id);
+  wb.redo = [];
+  paintWhiteboardTools();
+}
+
+function cleanItem(raw) {
+  if (!raw || typeof raw.id !== "string" || !WB_TOOLS[raw.t]) return null;
+  const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Number(v) || 0));
+  const pt = (q) => (Array.isArray(q) && q.length === 2 && q.every(Number.isFinite) ? [num(q[0], 0, WB_W), num(q[1], 0, WB_H)] : null);
+  const it = { id: raw.id.slice(0, 60), t: raw.t, c: wbHex(raw.c), w: num(raw.w, 1, 200) };
+  if (raw.t === "fill") Object.assign(it, { x: num(raw.x, 0, WB_W - 1), y: num(raw.y, 0, WB_H - 1) });
+  else if (raw.t === "text") Object.assign(it, { x: num(raw.x, 0, WB_W), y: num(raw.y, 0, WB_H), s: String(raw.s || "").slice(0, 300) });
+  else if (WB_SHAPES.has(raw.t)) { const a = pt(raw.a), b = pt(raw.b); if (!a || !b) return null; Object.assign(it, { a, b, f: Boolean(raw.f) }); }
+  else it.p = (Array.isArray(raw.p) ? raw.p : []).map(pt).filter(Boolean).slice(0, 4000);
+  return it;
+}
+
+function receiveItem(data) {
+  const it = cleanItem(data?.item);
+  if (!it) return;
+  wb.strokes.set(it.id, it);
+  drawItem(it);
+  if (!wb.open) setWhiteboardOpen(true, false);
+}
+
 function receiveStroke(data) {
   if (typeof data?.id !== "string" || !Array.isArray(data.p)) return;
   const points = data.p.filter((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)).slice(0, 2000);
   let stroke = wb.strokes.get(data.id);
   if (!stroke) {
-    const color = WB_COLORS.includes(data.c) ? data.c : WB_COLORS[0];
-    stroke = { id: data.id, c: color, w: Math.min(Math.max(Number(data.w) || 4, 1), 20), e: Boolean(data.e), p: [] };
+    const t = WB_TOOLS[data.t]?.live ? data.t : data.e ? "eraser" : "pen";
+    stroke = { id: data.id, t, c: wbHex(data.c), w: Math.min(Math.max(Number(data.w) || 4, 1), 200), e: Boolean(data.e), p: [] };
     wb.strokes.set(data.id, stroke);
   }
   addPoints(stroke, points);
@@ -1683,16 +1903,47 @@ function redrawWhiteboard() {
   if (!wb.ctx) whiteboardTile();
   wb.ctx.fillStyle = "#ffffff";
   wb.ctx.fillRect(0, 0, WB_W, WB_H);
-  for (const stroke of wb.strokes.values()) {
-    const points = stroke.p;
-    stroke.p = [];
-    addPoints(stroke, points);
-  }
+  for (const it of wb.strokes.values()) drawItem(it);
 }
+
+// ---------- undo / redo (your own items) ----------
+
+function undoWhiteboard() {
+  const id = wb.mine.pop();
+  const it = id && wb.strokes.get(id);
+  if (!it) return paintWhiteboardTools();
+  wb.strokes.delete(id);
+  wb.redo.push(it);
+  redrawWhiteboard();
+  send("wb-undo", { id });
+  paintWhiteboardTools();
+}
+function redoWhiteboard() {
+  const it = wb.redo.pop();
+  if (!it) return;
+  const copy = { ...it, id: `${me.id}:${wb.seq++}` };
+  wb.strokes.set(copy.id, copy);
+  drawItem(copy);
+  send("wb-item", { item: copy });
+  wb.mine.push(copy.id);
+  paintWhiteboardTools();
+}
+function receiveUndo(data) {
+  if (typeof data?.id === "string" && wb.strokes.delete(data.id)) redrawWhiteboard();
+}
+addEventListener("keydown", (event) => {
+  if (!wb.open || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+  if (event.target.closest?.("input, textarea, [contenteditable]")) return;
+  event.preventDefault();
+  if (event.shiftKey) redoWhiteboard(); else undoWhiteboard();
+});
 
 function clearWhiteboard(mine) {
   wb.strokes.clear();
+  wb.mine = [];
+  wb.redo = [];
   redrawWhiteboard();
+  paintWhiteboardTools();
   if (mine) send("wb-clear");
 }
 

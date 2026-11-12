@@ -258,7 +258,7 @@
   }
   paintList();
 
-  // ---------- Saathi can use the list and reminders when asked out loud ----------
+  // ---------- Hey Lord can use the list and reminders when asked out loud ----------
   const listMatch = (what) => window.DU.voice.match(list, what);
   const at12 = (text) => {
     const m = String(text || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);

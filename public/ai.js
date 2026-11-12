@@ -1,13 +1,13 @@
-// DU Meet · Saathi, the AI friend who joins the call (Google Gemini Live).
+// DU Meet · Hey Lord, the AI friend who joins the call (Google Gemini Live).
 //
-// One device "hosts" Saathi: it opens a WebSocket straight to Gemini with a one-time
+// One device "hosts" Hey Lord: it opens a WebSocket straight to Gemini with a one-time
 // token from our server, sends what it hears (its own mic + the partner's voice from the
-// call) and plays Saathi's voice. Saathi's voice is also mixed into the host's outgoing
+// call) and plays Hey Lord's voice. Hey Lord's voice is also mixed into the host's outgoing
 // mic, so the partner hears it through the call like a third person. Captions and state
 // go to the partner over the call's data channel.
 //
 // Modes: just talk, Faisla (judge a disagreement), game host, plan a date, bedtime story.
-// Extras: cool-down when voices get loud, "say it softly", promises Saathi remembers,
+// Extras: cool-down when voices get loud, "say it softly", promises Hey Lord remembers,
 // verdict cards with a 3-day peace-deal check-in. Uses globals from app.js.
 
 (() => {
@@ -63,7 +63,7 @@
     if (!response.ok || data.error) throw new Error(data.error || "Something went wrong");
     return data;
   };
-  const aiName = () => S.info?.about?.aiName || S.remote?.aiName || "Saathi";
+  const aiName = () => { const n = S.info?.about?.aiName || S.remote?.aiName || ""; return !n || /^saa?thi$/i.test(n) ? "Hey Lord" : n; };
   async function refresh() {
     try { S.info = await api("state"); } catch (error) { S.info ||= { enabled: false, error: error.message }; }
     paint();
@@ -79,7 +79,7 @@
   panel.innerHTML = `<div class="sheet sa-sheet" role="dialog" aria-modal="true" aria-labelledby="sa-title">
     <header class="sheet-head">
       <button class="icon-btn sa-back" data-sa="home" aria-label="Back" hidden><span class="icon" aria-hidden="true">arrow_back</span></button>
-      <div class="sa-brand"><span class="sa-orb mini" aria-hidden="true"><i></i></span><h2 id="sa-title">Saathi</h2></div>
+      <div class="sa-brand"><span class="sa-orb mini" aria-hidden="true"><i></i></span><h2 id="sa-title">Hey Lord</h2></div>
       <button class="icon-btn" data-modal-close aria-label="Close"><span class="icon" aria-hidden="true">close</span></button>
     </header>
     <div class="sheet-body sa-body"></div></div>`;
@@ -120,7 +120,7 @@
       <p>${esc(aiName())} knows you both, talks in Hinglish, and joins the call like a third friend.</p></div>`;
     if (off) {
       html += `<div class="sa-note warn"><span class="icon" aria-hidden="true">key</span><div><b>Almost ready</b>
-        <small>Saathi switches on once the Gemini key is added on the server (GEMINI_API_KEY in Render's Environment).</small></div></div>`;
+        <small>Hey Lord switches on once the Gemini key is added on the server (GEMINI_API_KEY in Render's Environment).</small></div></div>`;
     } else if (missing.length) {
       const consent = info.consent || {};
       html += `<div class="sa-consent"><b>Before ${esc(aiName())} can listen</b>
@@ -192,7 +192,7 @@
     const a = S.info.about || {};
     const field = (k, label, ph) => `<label class="sa-label" for="sa-${k}">${label}</label><textarea id="sa-${k}" class="field" rows="3" maxlength="1500" placeholder="${ph}">${esc(a[k] || "")}</textarea>`;
     return `<p class="muted sa-p">${esc(aiName())} reads this before every conversation. Both of you can edit it.</p>
-      <div class="sa-grid2"><div><label class="sa-label" for="sa-aiName">Saathi's name</label><input id="sa-aiName" class="field" maxlength="24" value="${esc(a.aiName || "Saathi")}"></div>
+      <div class="sa-grid2"><div><label class="sa-label" for="sa-aiName">Assistant's name</label><input id="sa-aiName" class="field" maxlength="24" value="${esc(a.aiName || "Hey Lord")}"></div>
       <div><label class="sa-label" for="sa-voice">Voice</label><select id="sa-voice" class="field">${(S.info.voices || []).map((v) => `<option ${v === a.voice ? "selected" : ""}>${v}</option>`).join("")}</select></div></div>
       ${field("story", "Your story", "When and how you met, how long together, long-distance since…")}
       ${field("likes", "What each of you likes", "Food, songs, movies, dreams, love languages…")}
@@ -363,7 +363,7 @@
       mode, caseId, ws: null, ctx: null, cap: null, sources: new Map(), playing: new Set(), nextTime: 0,
       quietUntil: 0, lines: [], aiLine: "", themLine: "", loud: 0, lastCool: 0, wantVerdict: false, ready: false,
       aiName: t.aiName, timer: null,
-      wake,                       // null, or what was said after "Hey Saathi" (may be "")
+      wake,                       // null, or what was said after "Hey Lord" (may be "")
       pending: wake !== null,     // still catching the rest of the request: hold the kickoff and the mic
       lastActive: Date.now(),
     };
@@ -381,7 +381,7 @@
       sink.gain.value = 0;
       live.cap.connect(sink).connect(live.ctx.destination);
       live.cap.port.onmessage = (event) => onChunk(live, event.data);
-      // Saathi's voice: to my speakers and into my outgoing mic
+      // Hey Lord's voice: to my speakers and into my outgoing mic
       live.out = live.ctx.createGain();
       live.out.connect(live.ctx.destination);
       live.mix = live.ctx.createMediaStreamDestination();
@@ -396,7 +396,7 @@
       console.warn(error);
       S.live = null;
       cleanupAudio(live);
-      return toast("This browser can't run Saathi's audio");
+      return toast("This browser can't run Hey Lord's audio");
     }
 
     connectLive(live, t, 2);
@@ -427,7 +427,7 @@
         inputAudioTranscription: {},
         outputAudioTranscription: {},
         contextWindowCompression: { slidingWindow: {} },
-        realtimeInputConfig: { automaticActivityDetection: { silenceDurationMs: 900, prefixPaddingMs: 300 } },
+        realtimeInputConfig: { automaticActivityDetection: { silenceDurationMs: 750, prefixPaddingMs: 300 } },
       },
     }));
     live.ws.onmessage = async (event) => {
@@ -473,10 +473,10 @@
   function onChunk(live, { pcm, rms }) {
     if (!live.ready || live.pending || live.ws?.readyState !== 1) return;
     const now = performance.now();
-    // While Saathi talks, don't send what the speakers play back to it (no echo loop).
+    // While Hey Lord talks, don't send what the speakers play back to it (no echo loop).
     if (now < live.quietUntil) return;
     live.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(pcm), mimeType: "audio/pcm;rate=16000" } } }));
-    // cool-down: voices loud for ~4 s → Saathi steps in gently (at most every 90 s)
+    // cool-down: voices loud for ~4 s → Hey Lord steps in gently (at most every 90 s)
     live.loud = rms > 0.16 ? live.loud + 1 : Math.max(0, live.loud - 2);
     if (live.loud >= 40 && now - live.lastCool > 90000) {
       live.lastCool = now;
@@ -492,7 +492,7 @@
   }
 
 
-  // ---------- things Saathi can do in the app when asked out loud ----------
+  // ---------- things Hey Lord can do in the app when asked out loud ----------
   // Modules add tools to window.DU.saathiTools: { name, description, parameters, run(args) → result }.
   const toolList = () => (window.DU.saathiTools || []).filter((t) => t && t.name && typeof t.run === "function");
   const toolDecls = () => toolList().map(({ name, description, parameters }) => (parameters ? { name, description, parameters } : { name, description }));
@@ -507,14 +507,21 @@
       + "calendar, the timer, power naps, calm sounds, the story game, chat, and opening any feature. "
       + "Two people share the call: for things on one person's phone (mic, camera, screen, their chess move) pass "
       + "their name as person when you know who asked; if you don't, leave it empty and the app uses whoever just spoke. "
+      + "There are three notebooks: Uday's notes, Diya's notes and Common notes (notes tool): add, read, edit or "
+      + "remove notes there when they ask ('mere notes mein likh do', 'common notes padh ke sunao'); 'my notes' "
+      + "means the notes of whoever is speaking. "
       + "Call the tool straight away, then confirm in a few words. Only use tools when they ask. "
+      + "If they ask for several things, call several tools one after another. If a tool returns an error, "
+      + "try another way (screen can press any button) before giving up, and never claim something worked "
+      + "when the tool said it didn't. Before answering about a game or what's open, check with the tool "
+      + "instead of guessing. "
       + "You can also search the web for facts, news, scores or weather. When they say bye, thanks that's all, "
       + "or tell you to go, say a short bye and call leave_call. "
       + `Right now it is ${new Date().toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" })} `
       + `(date ${new Date().toLocaleDateString("en-CA")}).`
     : "");
   // A tool marked `personal` acts on one person's own phone (their mic, camera, screen, their
-  // move in a game). Saathi runs on the host's phone, so for the partner it's passed over the
+  // move in a game). Hey Lord runs on the host's phone, so for the partner it's passed over the
   // call and their phone runs it and sends the result back.
   const names = () => people();
   function personFor(tool, args) {
@@ -563,7 +570,7 @@
     if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
   }
 
-  // ---------- live game commentary: moves are told to Saathi as they happen ----------
+  // ---------- live game commentary: moves are told to Hey Lord as they happen ----------
   let lastFeed = 0, feedQueue = [], feedTimer = 0;
   function gameEvent(text) {
     const live = S.live;
@@ -583,10 +590,10 @@
     const others = people().filter((n) => n !== me.name).join(" and ") || "nobody else yet";
     if (live.wake === null) return say(live, KICKOFF[live.mode](others));
     say(live, live.wake
-      ? `(App: ${me.name} just said "Hey ${live.aiName}" and asked: "${live.wake.slice(0, 300)}". Do it now. If it is something in the app, use your tool first. Then answer in one or two short sentences. No long greeting.)`
-      : `(App: ${me.name} just said "Hey ${live.aiName}". Reply with only a short "Haan, bolo?" style line and listen. Nothing else.)`);
+      ? `(App: ${me.name} just called you ("${live.aiName}") and asked: "${live.wake.slice(0, 300)}". Do it now. If it is something in the app, use your tool first. Then answer in one or two short sentences. No long greeting.)`
+      : `(App: ${me.name} just called you ("${live.aiName}"). Reply with only a short "Haan, bolo?" style line and listen. Nothing else.)`);
   }
-  // the rest of a "Hey Saathi" request arrives (from the phone's recogniser)
+  // the rest of a "Hey Lord" request arrives (from the phone's recogniser)
   function giveAsk(live, text) {
     if (!live.pending) return;
     live.pending = false;
@@ -599,7 +606,7 @@
     if (msg.setupComplete) {
       live.ready = true;
       setOrb({ status: "listening" });
-      if (live.pending) return; // the "Hey Saathi" request is still being said
+      if (live.pending) return; // the "Hey Lord" request is still being said
       kickoff(live);
       return;
     }
@@ -737,7 +744,7 @@
     setOrb({ status: "listening" });
   }
 
-  // ---------- "Let Saathi see": a small picture of the call every 1.5 s ----------
+  // ---------- "Let Hey Lord see": a small picture of the call every 1.5 s ----------
 
   function toggleSee(by = myName()) {
     const live = S.live;
@@ -950,7 +957,7 @@
     openModal(vModal);
   }
 
-  // A "Hey Saathi" visit ends by itself once nobody has spoken for a while (like Siri).
+  // A "Hey Lord" visit ends by itself once nobody has spoken for a while (like Siri).
   const IDLE_MS = 30000;
   function checkIdle(live) {
     if (S.live !== live || !live.ready) return;
@@ -959,7 +966,7 @@
     if (Date.now() - live.lastActive > IDLE_MS) endVoice("idle");
   }
 
-  // "Hey Saathi": both phones may hear it (one through the speaker). Say we're waking;
+  // "Hey Lord": both phones may hear it (one through the speaker). Say we're waking;
   // if the partner's phone said so too within a moment, the earlier one (then the name) wins.
   const wakeState = { mine: 0, theirs: 0, theirName: "" };
   async function wakeUp(command = "") {
@@ -979,7 +986,7 @@
   }
   window.DU.saathi = {
     wake: wakeUp,
-    // the request can finish before the call to Saathi is set up; keep it for a moment
+    // the request can finish before the call to Hey Lord is set up; keep it for a moment
     ask: (text) => { if (S.live) giveAsk(S.live, text); else S.earlyAsk = { text, at: Date.now() }; },
     active: () => Boolean(S.live || S.remote),
     end: () => { if (S.live) endVoice("ended"); else if (S.remote) tell({ act: "end" }); },
@@ -1023,7 +1030,7 @@
         break;
       case "end": if (S.live) endVoice("ended"); break;
       case "do": {
-        // only the phone running Saathi may ask this phone to do things
+        // only the phone running Hey Lord may ask this phone to do things
         if (!S.remote || S.remote.host !== peer.id) break;
         const tool = toolList().find((t) => t.name === d.name && t.personal);
         (tool ? runLocal(d.name, { ...(d.args || {}), person: me.name }) : Promise.resolve({ error: "Not allowed" }))
@@ -1080,7 +1087,7 @@
     if (event.target.closest("[data-home=saathi]")) open("home");
   });
 
-  // A partner who leaves while hosting takes Saathi with them.
+  // A partner who leaves while hosting takes Hey Lord with them.
   setInterval(() => {
     if (S.remote && !peers.has(S.remote.host)) { S.remote = null; hideOrb(); stopTurn(); paint(); }
   }, 3000);

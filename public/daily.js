@@ -1,5 +1,5 @@
-// DU Meet · Our diary (runs on Saathi, see saathi.py): one page per day, written by
-// Saathi from that day's calls, chat and study time.
+// DU Meet · Our diary (runs on Hey Lord, see saathi.py): one page per day, written by
+// Hey Lord from that day's calls, chat and study time.
 // Uses globals from app.js (me, prefs, peers, polling, toast).
 
 (() => {
@@ -63,7 +63,7 @@
       return;
     }
     paintDiary();
-    // Saathi writes (or updates) the newest pages, one at a time
+    // Hey Lord writes (or updates) the newest pages, one at a time
     for (const page of pages.filter((p) => p.stale).slice(0, 3)) {
       if (modal.hidden) break;
       writing.add(page.day);
@@ -90,7 +90,7 @@
       if (e.quote) html += `<blockquote>“${esc(e.quote)}”${e.quoteBy ? `<cite>${esc(e.quoteBy)}</cite>` : ""}</blockquote>`;
       if (isWriting) html += `<p class="dy-writing small">${orb}Adding today's latest…</p>`;
     } else if (isWriting) {
-      html += `<p class="dy-writing">${orb}Saathi is writing this page<span class="dots"><i></i><i></i><i></i></span></p>`;
+      html += `<p class="dy-writing">${orb}Hey Lord is writing this page<span class="dots"><i></i><i></i><i></i></span></p>`;
     } else if (failed.has(p.day)) {
       html += `<p class="dy-note">${esc(failed.get(p.day))}</p>`;
     }
@@ -109,7 +109,7 @@
   function paintDiary() {
     if (!pages.length) {
       body.innerHTML = `<div class="dy-empty"><span class="icon" aria-hidden="true">auto_stories</span>
-        <b>Your diary is empty for now</b><p>It fills itself: after a call together, Saathi writes the day's page from your call, chat and the line each of you leaves.</p></div>`;
+        <b>Your diary is empty for now</b><p>It fills itself: after a call together, Hey Lord writes the day's page from your call, chat and the line each of you leaves.</p></div>`;
       return;
     }
     body.innerHTML = pages.map(pageHtml).join("");

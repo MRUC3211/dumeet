@@ -1,4 +1,4 @@
-// DU Meet · follows the admin's switches on every phone: hidden features, Saathi on/off,
+// DU Meet · follows the admin's switches on every phone: hidden features, Hey Lord on/off,
 // the spiciest card level, maintenance and a banner. Also obeys the admin's live commands
 // (mute, camera off, reload, a message) and counts which features get opened.
 
@@ -47,6 +47,7 @@
   // ---------- the admin's live commands ----------
   window.DU.onAdmin = (d) => {
     if (d.do === "policy") return load();
+    if (d.do === "rounds") { window.DU.deck?.admin(true); return toast("Question rounds were reset by admin"); }
     if (d.do === "reload") return setTimeout(() => location.reload(), 400);
     if (d.do === "mute") { if (typeof setMic === "function") setMic(false); toast("Admin muted your mic"); }
     if (d.do === "camoff") { if (typeof setCamera === "function") setCamera(false); toast("Admin turned your camera off"); }

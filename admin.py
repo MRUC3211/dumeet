@@ -21,7 +21,7 @@ DEFAULTS = {
     "maintenance": False, "maintenanceText": "DU Meet is getting an update. Back in a few minutes.",
     "coupleOnly": False, "couple": ["Uday", "Diya"],
     "saathiOn": True, "liveHourly": 40, "textHourly": 150,
-    "hidden": [], "maxHeat": 3,
+    "hidden": [], "maxHeat": 3, "roundSize": 10, "roundBreak": 10,
     "banner": "", "bannerUntil": 0,
     "epoch": 0,
 }
@@ -54,6 +54,7 @@ class Admin:
         c = self.config
         return {"maintenance": c["maintenance"], "maintenanceText": c["maintenanceText"], "hidden": c["hidden"],
                 "maxHeat": c["maxHeat"], "saathiOn": c["saathiOn"],
+                "roundSize": c["roundSize"], "roundBreak": c["roundBreak"],
                 "banner": c["banner"] if c["banner"] and (not c["bannerUntil"] or c["bannerUntil"] > time.time()) else "",
                 "epoch": c["epoch"]}
 
@@ -74,6 +75,10 @@ class Admin:
                 clean[k] = [str(x)[:40] for x in (v or []) if str(x).strip()][:80]
             else:
                 clean[k] = str(v or "")[:300]
+        if "roundSize" in clean:
+            clean["roundSize"] = max(3, min(50, clean["roundSize"]))
+        if "roundBreak" in clean:
+            clean["roundBreak"] = min(240, clean["roundBreak"])
         if "maxHeat" in clean:
             clean["maxHeat"] = max(1, min(3, clean["maxHeat"]))
         with self.lock:

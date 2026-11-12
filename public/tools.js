@@ -962,7 +962,7 @@
 
   // ---------- messages from the other side ----------
 
-  window.DU.kit = { q, qa, esc, pad, store, dayKey, parseDay, getDocs, putDoc, delDoc, upload, confirmBox, toggleTray, shrinkImage, partnerName };
+  window.DU.kit = { q, qa, esc, pad, store, dayKey, parseDay, getDocs, putDoc, delDoc, upload, confirmBox, toggleTray, showTrayView, shrinkImage, partnerName };
 
   window.DU = Object.assign(window.DU || {}, {
     place: placeSaved,
@@ -1069,7 +1069,7 @@
   // the heart shape reused by the floating hearts
   document.body.insertAdjacentHTML("beforeend", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="tools-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#64d2ff"/><stop offset=".55" stop-color="#bf5af2"/><stop offset="1" stop-color="#ff375f"/></linearGradient><linearGradient id="hg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient><symbol id="hg-path" viewBox="0 0 24 24"><path fill="url(#hg2)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></defs></svg>`);
 
-  // ---------- Saathi can use the calendar and the timer when asked out loud ----------
+  // ---------- Hey Lord can use the calendar and the timer when asked out loud ----------
   window.DU.saathiTools?.push(
     { name: "calendar", description: "Their shared calendar of notes and plans. Read what's on a day or the next days, or add a note/plan to a date (YYYY-MM-DD).",
       parameters: { type: "OBJECT", properties: {
