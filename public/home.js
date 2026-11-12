@@ -328,18 +328,34 @@
   const OUR_ROOM = "our-room";
   const joinButton = q("[data-home=join]");
 
+  // The photo links are remembered on this device, so the photos show at once after a
+  // reload (the images themselves come from the browser's cache); the server is still
+  // asked in the background in case they changed.
+  const AV_KEY = "du-avatars";
   let avatars = {};
+  try { avatars = JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { /* private mode */ }
   async function loadAvatars() {
+    paintAvatars();
     try {
-      avatars = (await (await fetch("/api/data?c=settings")).json()).docs.find((d) => d.id === "avatars")?.data || {};
+      const fresh = (await (await fetch("/api/data?c=settings")).json()).docs.find((d) => d.id === "avatars")?.data || {};
+      if (JSON.stringify(fresh) === JSON.stringify(avatars)) return;
+      avatars = fresh;
       paintAvatars();
-    } catch { /* offline: letters stay */ }
+    } catch { /* offline: keep what we have */ }
   }
   function paintAvatars() {
+    try { localStorage.setItem(AV_KEY, JSON.stringify(avatars)); } catch { /* private mode */ }
     for (const el of document.querySelectorAll("[data-face]")) {
-      const url = avatars[el.dataset.face];
+      const url = avatars[el.dataset.face] ? window.authUrl(avatars[el.dataset.face]) : "";
+      if (el.dataset.src === url) continue;
+      el.dataset.src = url;
       el.classList.toggle("has-photo", Boolean(url));
-      el.innerHTML = url ? `<img src="${esc(window.authUrl(url))}" alt="">` : esc(el.dataset.face[0]);
+      if (!url) { el.textContent = el.dataset.face[0]; continue; }
+      const img = new Image();
+      img.alt = "";
+      img.src = url;
+      if (img.complete) el.replaceChildren(img);
+      else img.decode().then(() => el.replaceChildren(img), () => {});
     }
   }
 
