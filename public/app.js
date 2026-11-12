@@ -1215,13 +1215,16 @@ function toggleCaptions() {
 }
 
 function updateRecognition() {
+  // also listens (on this phone only) for "Hey Saathi" when that's switched on
   const want = Boolean(SpeechRecognition && polling && me.mic && micTrack())
-    && (me.cc || [...peers.values()].some((peer) => peer.cc));
+    && (captionsWanted() || Boolean(window.DU?.wakeWanted?.()));
   if (want === recognitionWanted && (!want || recognition)) return;
   recognitionWanted = want;
   if (want) startRecognition();
   else stopRecognition();
 }
+
+const captionsWanted = () => me.cc || [...peers.values()].some((peer) => peer.cc);
 
 function startRecognition() {
   const listener = new SpeechRecognition();
@@ -1233,6 +1236,8 @@ function startRecognition() {
       const result = event.results[i];
       const text = result[0].transcript.trim();
       if (!text) continue;
+      try { window.DU?.onHeard?.(text, result.isFinal); } catch (error) { console.warn(error); }
+      if (!captionsWanted()) continue;
       const now = Date.now();
       showCaption(me.id, "You", text, result.isFinal);
       if (!result.isFinal && now - lastInterimSent < 350) continue;
@@ -1244,6 +1249,7 @@ function startRecognition() {
     if (event.error === "not-allowed" || event.error === "service-not-allowed") {
       recognition = null;
       recognitionWanted = false;
+      window.DU?.onHearBlocked?.();
       if (me.cc) toast("Speech recognition is blocked, so your own words can't be captioned");
     }
   };

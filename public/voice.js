@@ -82,7 +82,18 @@
     return b;
   }
 
-  window.DU.voice = { api, listen, speak, stopSpeaking, micButton, canListen: Boolean(Rec) };
+  /** Find the item someone means: its number, the exact text, or the closest words. */
+  function match(items, what, key = (x) => x.text) {
+    const s = String(what || "").trim().toLowerCase();
+    if (!s) return null;
+    const n = Number(s);
+    if (Number.isInteger(n) && n >= 1 && n <= items.length) return items[n - 1];
+    const t = (x) => String(key(x) || "").toLowerCase();
+    return items.find((x) => t(x) === s) || items.find((x) => t(x).includes(s)) || items.find((x) => t(x) && s.includes(t(x)))
+      || items.find((x) => s.split(/\s+/).filter((w) => w.length > 2).some((w) => t(x).includes(w))) || null;
+  }
+
+  window.DU.voice = { api, listen, speak, stopSpeaking, micButton, match, canListen: Boolean(Rec) };
   window.DU.saathiTools ||= [];
 
   // ---------- general things Saathi can do: open a tool or game, power nap, calm sounds ----------
@@ -108,5 +119,28 @@
     { name: "play_sound", description: "Play a calm background sound for both, or stop it.",
       parameters: { type: "OBJECT", properties: { sound: { type: "STRING", enum: ["rain", "thunder", "waves", "stream", "forest", "wind", "fire", "night", "cafe", "train", "fan", "chimes", "bowl", "heart", "white", "brown", "stop"] } }, required: ["sound"] },
       run: (a) => { const k = a.sound === "stop" ? "" : String(a.sound); window.DU.sounds?.play(k); return { playing: k || "nothing" }; } },
+    { name: "camera", description: "Turn the camera of the person asking on or off, or flip between front and back camera.",
+      parameters: { type: "OBJECT", properties: { action: { type: "STRING", enum: ["on", "off", "flip"] } }, required: ["action"] },
+      run: async (a) => {
+        if (a.action === "flip") { await flipCamera(); return { flipped: true }; }
+        await setCamera(a.action === "on"); return { camera: me.cam ? "on" : "off" };
+      } },
+    { name: "send_chat_message", description: "Send a text message in the call's chat, from the person asking (e.g. a link, an address, a note to keep).",
+      parameters: { type: "OBJECT", properties: { text: { type: "STRING" } }, required: ["text"] },
+      run: (a) => {
+        const text = String(a.text || "").trim().slice(0, 1000);
+        if (!text) return { error: "Empty message" };
+        send("chat", { text });
+        addChatMessage(me.name, text, true);
+        return { sent: text };
+      } },
+    { name: "close_windows", description: "Close all open tool windows, games and panels on the screen.",
+      parameters: { type: "OBJECT", properties: {} },
+      run: () => {
+        window.DU.win?.closeAll();
+        window.DU.kit?.toggleTray(false);
+        document.querySelectorAll(".modal.open").forEach((m) => { if (!m.closest("#meeting-end")) window.DU.closeModal?.(m); });
+        return { closed: true };
+      } },
   );
 })();

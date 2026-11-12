@@ -258,6 +258,57 @@
   }
   paintList();
 
+  // ---------- Saathi can use the list and reminders when asked out loud ----------
+  const listMatch = (what) => window.DU.voice.match(list, what);
+  const at12 = (text) => {
+    const m = String(text || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!m) return 0;
+    let h = Number(m[1]) % 24; const min = Number(m[2] || 0);
+    if (m[3]) { h %= 12; if (/pm/i.test(m[3])) h += 12; }
+    const d = new Date(); d.setHours(h, min, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  };
+  window.DU.saathiTools?.push(
+    { name: "our_list", description: "Their shared 'Our list' (plans, things to buy, movies to watch). Read it, add items, mark items done or not done, or remove them.",
+      parameters: { type: "OBJECT", properties: {
+        action: { type: "STRING", enum: ["read", "add", "done", "undone", "remove"] },
+        items: { type: "ARRAY", items: { type: "STRING" }, description: "For add: the new items. For done/undone/remove: which items (words from them, or their number)." },
+      }, required: ["action"] },
+      run: (a) => {
+        const act = a.action;
+        if (act === "read") return { items: list.map((i, n) => ({ n: n + 1, text: i.text, done: i.done, by: i.by })) };
+        const items = (Array.isArray(a.items) ? a.items : [a.items]).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20);
+        if (!items.length) return { error: "Which items?" };
+        if (act === "add") {
+          items.forEach((text, k) => list.push({ id: `${Date.now() + k}${Math.random().toString(36).slice(2, 5)}`, text: text.slice(0, 120), by: me.name, at: Date.now(), done: false }));
+          saveList();
+          return { added: items };
+        }
+        const hit = items.map(listMatch).filter(Boolean);
+        if (!hit.length) return { error: "Not on the list", list: list.map((i) => i.text) };
+        if (act === "remove") list = list.filter((i) => !hit.includes(i));
+        else hit.forEach((i) => { i.done = act === "done"; i.doneBy = i.done ? me.name : ""; });
+        saveList();
+        return { [act === "remove" ? "removed" : act]: hit.map((i) => i.text) };
+      } },
+    { name: "set_reminder", description: "Set a reminder that rings on both phones, either in some minutes or at a clock time (24h 'HH:MM' or like '9:30 pm').",
+      parameters: { type: "OBJECT", properties: { label: { type: "STRING" }, in_minutes: { type: "NUMBER" }, at_time: { type: "STRING" } }, required: ["label"] },
+      run: (a) => {
+        const at = Number(a.in_minutes) > 0 ? Date.now() + Math.min(24 * 60, Number(a.in_minutes)) * 60000 : at12(a.at_time);
+        if (!at) return { error: "When? Give minutes or a time" };
+        const label = String(a.label || "Reminder").slice(0, 60);
+        reminders.push({ id: `${Date.now()}`, at, label, by: me.name });
+        saveReminders();
+        send("remind", { list: reminders });
+        toast(`Reminder set for ${timeText(at)}: ${label}`);
+        return { set: label, at: timeText(at) };
+      } },
+    { name: "list_reminders", description: "Read out the reminders that are set.",
+      parameters: { type: "OBJECT", properties: {} },
+      run: () => ({ reminders: reminders.sort((x, y) => x.at - y.at).map((r) => ({ label: r.label, at: timeText(r.at), by: r.by })) }) },
+  );
+
   // ---------- hooks ----------
 
   const prev = { click: window.DU.onCoupleClick, msg: window.DU.onCouple, peer: window.DU.onCouplePeer, leave: window.DU.onCoupleLeave };

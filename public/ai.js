@@ -347,12 +347,12 @@
     return btoa(s);
   };
 
-  async function startVoice(mode, caseId = null) {
+  async function startVoice(mode, caseId = null, wake = null) {
     if (S.live || S.remote) return toast(`${aiName()} is already in the call`);
     if (!polling) return toast(`Join the call first, then call ${aiName()}`);
-    if (needsConsent().length) { S.view = "home"; return paint(); }
+    if (needsConsent().length) { S.view = "home"; open("home"); return; }
     closeModal(panel);
-    toast(`Calling ${aiName()}…`);
+    if (wake === null) toast(`Calling ${aiName()}…`);
     let t;
     try {
       t = await api("token", { mode, case: caseId });
@@ -363,8 +363,13 @@
       mode, caseId, ws: null, ctx: null, cap: null, sources: new Map(), playing: new Set(), nextTime: 0,
       quietUntil: 0, lines: [], aiLine: "", themLine: "", loud: 0, lastCool: 0, wantVerdict: false, ready: false,
       aiName: t.aiName, timer: null,
+      wake,                       // null, or what was said after "Hey Saathi" (may be "")
+      pending: wake !== null,     // still catching the rest of the request: hold the kickoff and the mic
+      lastActive: Date.now(),
     };
     S.live = live;
+    if (wake !== null && S.earlyAsk && Date.now() - S.earlyAsk.at < 15000) giveAsk(live, S.earlyAsk.text);
+    S.earlyAsk = null;
     try {
       live.ctx = new (window.AudioContext || window.webkitAudioContext)();
       await Promise.race([live.ctx.resume(), new Promise((r) => setTimeout(r, 1500))]);
@@ -394,7 +399,11 @@
       return toast("This browser can't run Saathi's audio");
     }
 
-    connectLive(live, t, true);
+    connectLive(live, t, 2);
+    if (wake !== null) {
+      live.idleTimer = setInterval(() => checkIdle(live), 2000);
+      setTimeout(() => { if (live.pending) giveAsk(live, live.wake || ""); }, 10000);
+    }
     showOrb({ mode, aiName: t.aiName, host: me.id });
     tell({ act: "live", on: true, mode, aiName: t.aiName, host: me.id, caseId });
   }
@@ -402,8 +411,9 @@
 
   // Open the Gemini Live socket. With tools first; if Gemini refuses that setup before the
   // session starts, get a fresh one-use token and connect again without tools.
-  function connectLive(live, t, withTools) {
-    const decls = withTools ? toolDecls() : [];
+  // level 2: app tools + web search, 1: app tools only, 0: plain talk
+  function connectLive(live, t, level) {
+    const decls = level ? toolDecls() : [];
     live.ws = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(t.token)}`);
     live.ws.onopen = () => live.ws.send(JSON.stringify({
       setup: {
@@ -413,7 +423,7 @@
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: t.voice } } },
         },
         systemInstruction: { parts: [{ text: t.system + (decls.length ? TOOL_HINT() : "") }] },
-        ...(decls.length ? { tools: [{ functionDeclarations: decls }] } : {}),
+        ...(decls.length ? { tools: [{ functionDeclarations: decls }, ...(level === 2 ? [{ googleSearch: {} }] : [])] } : {}),
         inputAudioTranscription: {},
         outputAudioTranscription: {},
         contextWindowCompression: { slidingWindow: {} },
@@ -426,12 +436,12 @@
       try { msg = JSON.parse(raw); } catch { return; }
       onServer(live, msg);
     };
-    live.ws.onerror = () => { if (!live.ready && !decls.length) toast(`Couldn't reach ${aiName()}`); };
+    live.ws.onerror = () => { if (!live.ready && !level) toast(`Couldn't reach ${aiName()}`); };
     live.ws.onclose = async (event) => {
       if (S.live !== live) return;
       if (!live.ready && event.reason) console.warn("Gemini closed:", event.code, event.reason);
-      if (!live.ready && decls.length) {
-        try { const t2 = await api("token", { mode: live.mode, case: live.caseId }); if (S.live === live) return connectLive(live, t2, false); } catch { /* fall through */ }
+      if (!live.ready && level) {
+        try { const t2 = await api("token", { mode: live.mode, case: live.caseId }); if (S.live === live) return connectLive(live, t2, level - 1); } catch { /* fall through */ }
       }
       endVoice(live.ready ? "dropped" : "failed");
     };
@@ -461,7 +471,7 @@
   }
 
   function onChunk(live, { pcm, rms }) {
-    if (!live.ready || live.ws?.readyState !== 1) return;
+    if (!live.ready || live.pending || live.ws?.readyState !== 1) return;
     const now = performance.now();
     // While Saathi talks, don't send what the speakers play back to it (no echo loop).
     if (now < live.quietUntil) return;
@@ -488,9 +498,14 @@
   const toolDecls = () => toolList().map(({ name, description, parameters }) => (parameters ? { name, description, parameters } : { name, description }));
   const TOOL_HINT = () => (toolList().length
     ? "\n\nYou are inside their video-call app and can use it for them with your tools: their shared task lists "
-      + "(add, tick off, remove, read out), opening games and tools, power naps, calm sounds and the story game. "
+      + "(add, tick off, remove, read out), habits, 'Our list', reminders, the calendar, the timer, opening games and tools, "
+      + "power naps, calm sounds, the story game, the camera and the chat. "
       + "When they ask for one of these, call the tool straight away, then confirm in a few words. When a task "
-      + "list question comes up, read it with the tool first. Only use tools when they ask."
+      + "list question comes up, read it with the tool first. Only use tools when they ask. "
+      + "You can also search the web for facts, news, scores or weather. When they say bye, thanks that's all, "
+      + "or tell you to go, say a short bye and call leave_call. "
+      + `Right now it is ${new Date().toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" })} `
+      + `(date ${new Date().toLocaleDateString("en-CA")}).`
     : "");
   async function runTools(live, calls) {
     const responses = [];
@@ -503,14 +518,31 @@
     if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
   }
 
+  function kickoff(live) {
+    const others = people().filter((n) => n !== me.name).join(" and ") || "nobody else yet";
+    if (live.wake === null) return say(live, KICKOFF[live.mode](others));
+    say(live, live.wake
+      ? `(App: ${me.name} just said "Hey ${live.aiName}" and asked: "${live.wake.slice(0, 300)}". Do it now. If it is something in the app, use your tool first. Then answer in one or two short sentences. No long greeting.)`
+      : `(App: ${me.name} just said "Hey ${live.aiName}". Reply with only a short "Haan, bolo?" style line and listen. Nothing else.)`);
+  }
+  // the rest of a "Hey Saathi" request arrives (from the phone's recogniser)
+  function giveAsk(live, text) {
+    if (!live.pending) return;
+    live.pending = false;
+    live.wake = String(text || "").trim();
+    live.lastActive = Date.now();
+    if (live.ready) kickoff(live);
+  }
+
   function onServer(live, msg) {
     if (msg.setupComplete) {
       live.ready = true;
       setOrb({ status: "listening" });
-      const others = people().filter((n) => n !== me.name).join(" and ") || "nobody else yet";
-      say(live, KICKOFF[live.mode](others));
+      if (live.pending) return; // the "Hey Saathi" request is still being said
+      kickoff(live);
       return;
     }
+    live.lastActive = Date.now();
     if (msg.toolCall) { runTools(live, msg.toolCall.functionCalls || []); return; }
     if (msg.goAway) return; // the session ends soon; onclose wraps up
     const sc = msg.serverContent;
@@ -528,6 +560,7 @@
       setOrb({ cap: lastSentence(live.aiLine) });
     }
     if (sc.interrupted) stopPlayback(live);
+    if (sc.modelTurn || sc.inputTranscription?.text) live.lastActive = Date.now();
     if (sc.turnComplete) {
       if (live.aiLine) { live.lines.push({ who: "ai", text: live.aiLine.trim() }); live.aiLine = ""; }
       if (live.wantVerdict === "asked") {
@@ -603,6 +636,7 @@
     if (!live) return;
     S.live = null;
     clearInterval(live.seeTimer);
+    clearInterval(live.idleTimer);
     S.seeing = false;
     stopTurn();
     try { live.ws?.close(); } catch { /* closed */ }
@@ -855,6 +889,48 @@
     openModal(vModal);
   }
 
+  // A "Hey Saathi" visit ends by itself once nobody has spoken for a while (like Siri).
+  const IDLE_MS = 30000;
+  function checkIdle(live) {
+    if (S.live !== live || !live.ready) return;
+    const busy = live.playing.size || S.speaking;
+    if (busy) { live.lastActive = Date.now(); return; }
+    if (Date.now() - live.lastActive > IDLE_MS) endVoice("idle");
+  }
+
+  // "Hey Saathi": both phones may hear it (one through the speaker). Say we're waking;
+  // if the partner's phone said so too within a moment, the earlier one (then the name) wins.
+  const wakeState = { mine: 0, theirs: 0, theirName: "" };
+  async function wakeUp(command = "") {
+    if (S.live || S.remote || !polling) return false;
+    if (Date.now() - wakeState.theirs < 4000) return false;
+    const at = Date.now();
+    S.earlyAsk = null;
+    wakeState.mine = at;
+    tell({ act: "waking", at });
+    await new Promise((r) => setTimeout(r, 450));
+    if (wakeState.mine !== at || S.live || S.remote) return false;
+    if (wakeState.theirs && Math.abs(wakeState.theirs - at) < 1500
+      && (wakeState.theirs < at || (wakeState.theirs === at && wakeState.theirName < me.name))) return false;
+    wakeState.mine = 0;
+    startVoice("talk", null, String(command || "").trim());
+    return true;
+  }
+  window.DU.saathi = {
+    wake: wakeUp,
+    // the request can finish before the call to Saathi is set up; keep it for a moment
+    ask: (text) => { if (S.live) giveAsk(S.live, text); else S.earlyAsk = { text, at: Date.now() }; },
+    active: () => Boolean(S.live || S.remote),
+    end: () => { if (S.live) endVoice("ended"); else if (S.remote) tell({ act: "end" }); },
+    name: aiName,
+  };
+  window.DU.saathiTools ||= [];
+  window.DU.saathiTools.push({
+    name: "leave_call", description: "Leave the call when they say bye, that's all, or ask you to go.",
+    parameters: { type: "OBJECT", properties: {} },
+    run: () => { setTimeout(() => { if (S.live) endVoice("ended"); }, 3500); return { leaving: true }; },
+  });
+
   // ---------- messages from the partner ----------
 
   function onAi(d, peer) {
@@ -880,6 +956,7 @@
         paintOrb();
         break;
       case "end": if (S.live) endVoice("ended"); break;
+      case "waking": wakeState.theirs = Number(d.at) || Date.now(); wakeState.theirName = peer.name || ""; break;
       case "turn": if (S.live) giveTurn(String(d.who)); break;
       case "see": if (S.live) toggleSee(peer.name); break;
       case "turnState": S.turn = d.turn || null; paintTurn(); break;

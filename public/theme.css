@@ -2627,3 +2627,23 @@ li.done .tk-t { color: #8e8e93; text-decoration: line-through; }
 .md-opts button.bad { background: rgba(255, 69, 58, .25); box-shadow: inset 0 0 0 2px #ff453a; animation: shakeHard .4s both; }
 .md-opts button:disabled { cursor: default; }
 .md-msg { min-height: 1.3em; margin: 0; color: #d2d2d7; font: 600 14px var(--font-body); }
+
+/* v16 · Hey Saathi: tray switch and the "Listening…" pill */
+.tg-tray .tray-view > .wk-tray { gap: 12px; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }
+.tg-tray .tray-view > .wk-tray.on { background: rgba(123, 92, 255, .14); box-shadow: inset 0 0 0 1px rgba(160, 140, 255, .3); }
+.wk-tray .sa-orb { --s: 34px; flex: none; }
+.wk-tray > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wk-sw { flex: none; width: 42px; height: 26px; border-radius: 13px; background: rgba(255, 255, 255, .16); position: relative; transition: background .25s; }
+.wk-sw i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); transition: transform .3s cubic-bezier(.3, 1.4, .5, 1); }
+.wk-tray.on .wk-sw { background: #7b5cff; }
+.wk-tray.on .wk-sw i { transform: translateX(16px); }
+.wk-pill { position: fixed; z-index: 90; left: 50%; top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px; max-width: min(92vw, 420px);
+  padding: 8px 16px 8px 8px; border-radius: 999px; color: #fff; background: rgba(28, 28, 32, .78); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12), 0 12px 40px -10px rgba(0, 0, 0, .6);
+  transform: translate(-50%, -18px) scale(.92); opacity: 0; transition: transform .35s cubic-bezier(.2, 1.2, .4, 1), opacity .25s; pointer-events: none; }
+.wk-pill.in { transform: translate(-50%, 0) scale(1); opacity: 1; }
+.wk-pill .sa-orb { --s: 30px; flex: none; }
+.wk-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.wk-t b { font-size: 13px; font-weight: 600; }
+.wk-t small { font-size: 13px; opacity: .78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .wk-pill, .wk-sw i { transition: opacity .2s; } }

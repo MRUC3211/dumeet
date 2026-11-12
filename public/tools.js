@@ -1068,4 +1068,51 @@
 
   // the heart shape reused by the floating hearts
   document.body.insertAdjacentHTML("beforeend", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="tools-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#64d2ff"/><stop offset=".55" stop-color="#bf5af2"/><stop offset="1" stop-color="#ff375f"/></linearGradient><linearGradient id="hg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a9c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient><symbol id="hg-path" viewBox="0 0 24 24"><path fill="url(#hg2)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></defs></svg>`);
+
+  // ---------- Saathi can use the calendar and the timer when asked out loud ----------
+  window.DU.saathiTools?.push(
+    { name: "calendar", description: "Their shared calendar of notes and plans. Read what's on a day or the next days, or add a note/plan to a date (YYYY-MM-DD).",
+      parameters: { type: "OBJECT", properties: {
+        action: { type: "STRING", enum: ["read", "add"] },
+        date: { type: "STRING", description: "YYYY-MM-DD; for read, the first day (default today)" },
+        days: { type: "NUMBER", description: "For read: how many days from date (default 7)" },
+        text: { type: "STRING", description: "For add: the note or plan" },
+        time: { type: "STRING", description: "For add, optional, like 19:30" },
+      }, required: ["action"] },
+      run: async (a) => {
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(String(a.date || "")) ? a.date : dayKey();
+        if (a.action === "add") {
+          const text = String(a.text || "").trim().slice(0, 200);
+          if (!text) return { error: "What should I add?" };
+          const data = { date, text, time: String(a.time || "").slice(0, 10), color: NOTE_COLOR[me.name] || "green", by: me.name || "Guest", at: Date.now() / 1000 };
+          const doc = await putDoc("calendar", data);
+          cal.notes.push(doc);
+          cal.selected = date; cal.month = parseDay(date);
+          send("cal", { date, by: data.by });
+          renderCal();
+          return { added: text, date };
+        }
+        const days = Math.max(1, Math.min(60, Number(a.days) || 7));
+        const end = new Date(parseDay(date).getTime() + days * 86400000);
+        const notes = (await getDocs("calendar")).filter((n) => n.data.date >= date && n.data.date < dayKey(end))
+          .sort((x, y) => (x.data.date + (x.data.time || "")).localeCompare(y.data.date + (y.data.time || "")));
+        return { from: date, days, notes: notes.map((n) => ({ date: n.data.date, time: n.data.time || "", text: n.data.text, by: n.data.by })) };
+      } },
+    { name: "timer", description: "The shared timer both of them see. Start a countdown of some minutes, start a stopwatch, pause/resume, or stop it.",
+      parameters: { type: "OBJECT", properties: {
+        action: { type: "STRING", enum: ["countdown", "stopwatch", "pause", "resume", "stop", "status"] },
+        minutes: { type: "NUMBER" }, label: { type: "STRING", enum: TIMER_LABELS },
+      }, required: ["action"] },
+      run: (a) => {
+        if (a.label && TIMER_LABELS.includes(a.label)) timer.label = a.label;
+        if (a.action === "countdown" || a.action === "stopwatch") {
+          Object.assign(timer, { mode: a.action === "countdown" ? "timer" : "stopwatch", elapsed: 0, running: false, done: false });
+          if (a.action === "countdown") timer.target = Math.max(1, Math.min(600, Number(a.minutes) || 25)) * 60;
+          timerToggle();
+        } else if (a.action === "pause" && timer.running) timerToggle();
+        else if (a.action === "resume" && timer.on && !timer.running) timerToggle();
+        else if (a.action === "stop") timerStop(true);
+        return { on: timer.on, mode: timer.mode, running: timer.running, shown: clock(timerShown()), label: timer.label };
+      } },
+  );
 })();
