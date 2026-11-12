@@ -1,5 +1,5 @@
-// DU Meet · more fun in a call: Celebrate (effects on both screens), Soundboard, Photo booth,
-// Love meter and Secret note (a scratch card). Each opens as a small movable window.
+// DU Meet · more fun in a call: Celebrate (effects on both screens), Photo booth and
+// Secret note (a scratch card). Each opens as a small movable window.
 // Uses globals from app.js (send, peers, me, toast, tileOf) and window.DU.win.
 
 (() => {
@@ -201,7 +201,7 @@
   }
 
   // =================================================================
-  // Soundboard: sound effects both of you hear
+  // Sound effects (used by the photo booth; a partner's "sfx" message still plays)
   // =================================================================
 
   const SFX = [
@@ -222,20 +222,6 @@
     { k: "suspense", e: "😱", label: "Suspense" },
     { k: "bell", e: "🔔", label: "Ding dong" },
   ];
-  function openSoundboard() {
-    tray();
-    const w = W().open({
-      id: "soundboard", title: "Soundboard", icon: "music_note", w: 340, h: 400,
-      html: `<p class="fw-note">Both of you hear it.</p><div class="fx-grid">${SFX.map((x) => `<button data-sfx="${x.k}"><span class="fx-emoji">${x.e}</span><small>${x.label}</small></button>`).join("")}</div>`,
-    });
-    w.body.onclick = (e) => {
-      const b = e.target.closest("[data-sfx]");
-      if (!b) return;
-      send("joy", { t: "sfx", k: b.dataset.sfx });
-      sfx(b.dataset.sfx);
-      b.animate([{ transform: "scale(.88)" }, { transform: "scale(1)" }], { duration: 220 });
-    };
-  }
   function sfx(k) {
     let c;
     try { c = ac(); } catch { return; }
@@ -377,48 +363,6 @@
   }
 
   // =================================================================
-  // Love meter
-  // =================================================================
-
-  const LINES = [
-    [100, "Off the charts. Made for each other 💞"], [99, "Soulmates, officially certified 💍"], [98, "Dangerously in love 🔥"],
-    [97, "Two hearts, one wifi 📶"], [96, "Cuteness overload 🥹"], [95, "Perfect match, no notes ✨"],
-  ];
-  function openLove(value, by) {
-    tray();
-    if (!needPartner("Love meter")) return;
-    const w = W().open({
-      id: "love", title: "Love meter", icon: "favorite", w: 300, h: 380, tone: "rose",
-      html: `<div class="lm"><div class="lm-gauge"><svg viewBox="0 0 200 120" aria-hidden="true"><path d="M20 110a80 80 0 0 1 160 0" class="lm-track"/><path d="M20 110a80 80 0 0 1 160 0" class="lm-fill" pathLength="100"/></svg><b class="lm-pct">?</b></div>
-        <p class="lm-names">${esc(me.name)} <span>❤️</span> ${esc(other()?.name || "")}</p><p class="lm-line">Tap measure to find out</p>
-        <button class="btn primary" data-lm><span class="icon">favorite</span>Measure</button></div>`,
-    });
-    w.body.onclick = (e) => {
-      if (!e.target.closest("[data-lm]")) return;
-      const pick = LINES[Math.floor(Math.random() * LINES.length)];
-      send("joy", { t: "love", v: pick[0] });
-      runLove(w, pick[0]);
-    };
-    if (value) runLove(w, value, by);
-  }
-  function runLove(w, v, by) {
-    const fill = q(".lm-fill", w.body), pct = q(".lm-pct", w.body), line = q(".lm-line", w.body);
-    line.textContent = by ? `${by} is measuring…` : "Measuring…";
-    const t0 = performance.now(), D = 2400;
-    const step = (t) => {
-      const k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3);
-      const wobble = k < 1 ? Math.sin(t / 60) * 6 * (1 - k) : 0;
-      const now = Math.max(0, Math.min(100, v * e + wobble));
-      fill.style.strokeDasharray = `${now} 100`;
-      pct.textContent = `${Math.round(now)}%`;
-      if (k < 1) return requestAnimationFrame(step);
-      line.textContent = (LINES.find((l) => l[0] === v) || LINES[0])[1];
-      play("hearts");
-    };
-    requestAnimationFrame(step);
-  }
-
-  // =================================================================
   // Secret note: they scratch to read it
   // =================================================================
 
@@ -478,7 +422,7 @@
   const prev = { click: window.DU.onCoupleClick, msg: window.DU.onCouple, leave: window.DU.onCoupleLeave };
   Object.assign(window.DU, {
     onCoupleClick(button) {
-      const run = { celebrate: openCelebrate, soundboard: openSoundboard, booth: () => startBooth(false), love: () => openLove(), secret: openSecret }[button.dataset.tg];
+      const run = { celebrate: openCelebrate, booth: () => startBooth(false), secret: openSecret }[button.dataset.tg];
       if (run) run(); else prev.click?.(button);
     },
     onCouple(message, peer) {
@@ -487,13 +431,9 @@
       if (d.t === "fx" && EFFECTS.some((x) => x.k === d.k)) play(d.k);
       if (d.t === "sfx" && SFX.some((x) => x.k === d.k)) sfx(d.k);
       if (d.t === "booth") { toast(`${peer.name} started the photo booth 📸`); startBooth(true); }
-      if (d.t === "love" && typeof d.v === "number") {
-        const w = W().get("love");
-        if (w) runLove(w, d.v, peer.name); else openLove(d.v, peer.name);
-      }
       if (d.t === "secret" && typeof d.text === "string") gotSecret(d.text.slice(0, 200), peer);
       if (d.t === "read") toast(`${peer.name} read your secret note 💌`);
     },
-    onCoupleLeave(...args) { prev.leave?.(...args); ["celebrate", "soundboard", "love", "secret", "booth"].forEach((id) => W().get(id)?.close()); },
+    onCoupleLeave(...args) { prev.leave?.(...args); ["celebrate", "secret", "booth"].forEach((id) => W().get(id)?.close()); },
   });
 })();

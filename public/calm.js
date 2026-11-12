@@ -1,11 +1,10 @@
-// DU Meet · Relax extras: Sleep timer, Lullaby, Guided calm, Stretch break, Eye rest and
-// Gratitude. Sounds, Breathe, Night light and Sleep call live elsewhere (fun.js, couple.js,
+// DU Meet · Relax extras: Power nap, Guided calm, Stretch break and Eye rest. Sounds, Breathe, Night light and Sleep call live elsewhere (fun.js, couple.js,
 // extras.js, tools.js). Everything opens as a small movable window; the shared ones run on
 // both phones.
 
 (() => {
   "use strict";
-  const { q, esc, store, getDocs, putDoc } = window.DU.kit;
+  const { q, store } = window.DU.kit;
   const W = () => window.DU.win;
   const other = () => [...peers.values()][0];
   const tray = () => window.DU.kit.toggleTray(false);
@@ -24,129 +23,71 @@
   }
 
   // =================================================================
-  // Sleep timer: sounds fade out (and the call can end) after a while
+  // Power nap: a short nap for both, then a gentle alarm wakes you up
   // =================================================================
 
-  const timer = { end: 0, hangUp: false, tick: 0 };
-  function openSleepTimer() {
+  const nap = { end: 0, tick: 0, ring: 0, mins: 0 };
+  function openNap() {
     tray();
     const w = W().open({
-      id: "sleeptimer", title: "Sleep timer", icon: "bedtime", w: 320, h: 360,
-      html: `<div class="st2"><b class="st2-left">Off</b><small class="st2-sub">Sounds and the lullaby fade out softly.</small>
-        <div class="chips">${[10, 15, 30, 45, 60, 90].map((m) => `<button data-min="${m}">${m} min</button>`).join("")}</div>
-        <label class="switch-row"><input type="checkbox" class="st2-hang"${timer.hangUp ? " checked" : ""}><span>End the call too</span></label>
-        <button class="btn ghost wide" data-min="0">Turn off</button></div>`,
+      id: "nap", title: "Power nap", icon: "bedtime", w: 320, h: 400, tone: "calm",
+      html: `<div class="st2"><span class="st2-moon" aria-hidden="true">😴</span><b class="st2-left">Ready</b><small class="st2-sub">Close your eyes. A gentle alarm wakes you both up.</small>
+        <div class="chips">${[10, 15, 20, 25, 30, 45].map((m) => `<button data-min="${m}">${m} min</button>`).join("")}</div>
+        <label class="switch-row"><input type="checkbox" class="st2-rain"${store.get("du-nap-rain", true) ? " checked" : ""}><span>Soft rain while we nap</span></label>
+        <button class="btn ghost wide" data-min="0">Cancel nap</button></div>`,
     });
     w.body.onclick = (e) => {
       const b = e.target.closest("[data-min]");
       if (!b) return;
-      setTimer(Number(b.dataset.min), q(".st2-hang", w.body).checked, true);
+      const rain = q(".st2-rain", w.body).checked;
+      store.set("du-nap-rain", rain);
+      setNap(Number(b.dataset.min), rain, true);
     };
-    paintTimer();
+    paintNap();
   }
-  function setTimer(mins, hangUp, mine) {
-    timer.end = mins ? Date.now() + mins * 60000 : 0;
-    timer.hangUp = Boolean(hangUp);
-    clearInterval(timer.tick);
-    if (mins) timer.tick = setInterval(tickTimer, 1000);
-    if (mine) send("calm", { t: "timer", mins, hangUp: timer.hangUp });
-    if (mine && mins) toast(`Sleep timer: ${mins} min for both of you`);
-    paintTimer();
+  function setNap(mins, rain, mine) {
+    stopAlarm();
+    nap.mins = mins;
+    nap.end = mins ? Date.now() + mins * 60000 : 0;
+    clearInterval(nap.tick);
+    if (mins) nap.tick = setInterval(tickNap, 1000);
+    if (mine) {
+      send("calm", { t: "nap", mins, rain });
+      if (mins && rain) window.DU.sounds?.play("rain");
+      if (!mins && window.DU.sounds?.current === "rain") window.DU.sounds.play("");
+      if (mins) toast(`Power nap: ${mins} min for both of you. Sweet dreams 😴`);
+    }
+    paintNap();
   }
-  function tickTimer() {
-    const left = timer.end - Date.now();
-    paintTimer();
-    if (left > 0) return;
-    clearInterval(timer.tick);
-    timer.end = 0;
-    window.DU.sounds?.fadeOut(20);
-    stopLullaby(false);
-    toast("Sleep timer done. Good night 🌙");
-    if (timer.hangUp) setTimeout(() => document.querySelector('#call [data-action="leave"], .controls [data-action="leave"], [data-action="leave"]')?.click(), 21000);
-    paintTimer();
+  function tickNap() {
+    paintNap();
+    if (nap.end - Date.now() > 0) return;
+    clearInterval(nap.tick);
+    nap.end = 0;
+    window.DU.sounds?.fadeOut(4);
+    wake();
+    paintNap();
   }
-  function paintTimer() {
-    const w = W().get("sleeptimer");
-    const label = timer.end ? `${mmss(timer.end - Date.now())} left` : "Off";
-    const tl = q("#tray-timer2");
-    if (tl) tl.textContent = timer.end ? label : "Fade out, then sleep";
+  function wake() {
+    const w = W().open({ id: "wake", title: "Wakey wakey", icon: "wb_sunny", w: 300, h: 300, tone: "warm",
+      html: `<div class="gd"><span class="gd-e">☀️</span><b class="gd-t">Time to wake up!</b><p class="gd-p">${nap.mins} minutes of rest done. Stretch, drink some water, and smile.</p><button class="btn primary wide" data-wake>I'm up</button></div>`,
+      onClose: stopAlarm });
+    w.body.onclick = (e) => { if (e.target.closest("[data-wake]")) w.close(); };
+    let n = 0;
+    const ring = () => { softBell([523, 659, 784][n % 3], Math.min(.2, .06 + n * .012), 2.4); n += 1; if (n > 45) stopAlarm(); };
+    ring();
+    nap.ring = setInterval(ring, 1300);
+    try { navigator.vibrate?.([300, 200, 300]); } catch { /* no vibration */ }
+  }
+  function stopAlarm() { clearInterval(nap.ring); nap.ring = 0; }
+  function paintNap() {
+    const w = W().get("nap");
+    const label = nap.end ? `${mmss(nap.end - Date.now())}` : "Ready";
+    const tl = q("#tray-nap");
+    if (tl) tl.textContent = nap.end ? `${label} left` : "10–45 min, then a gentle alarm";
     if (!w) return;
     q(".st2-left", w.body).textContent = label;
-  }
-
-  // =================================================================
-  // Lullaby: a soft music box that plays on both phones
-  // =================================================================
-
-  const TUNES = [
-    { k: "moon", label: "Moonlight", root: 523.25, scale: [0, 2, 4, 7, 9, 12, 14, 16], tempo: .62, seed: 3 },
-    { k: "stars", label: "Little stars", root: 587.33, scale: [0, 2, 4, 5, 7, 9, 12, 14], tempo: .55, seed: 11 },
-    { k: "drift", label: "Drift away", root: 440, scale: [0, 3, 5, 7, 10, 12, 15], tempo: .7, seed: 7 },
-    { k: "rainy", label: "Rainy window", root: 493.88, scale: [0, 2, 3, 7, 8, 12, 14], tempo: .66, seed: 5 },
-  ];
-  const lull = { k: "", timer: 0, step: 0, next: 0, out: null, melody: [] };
-  function makeMelody(t) {
-    let s = t.seed;
-    const r = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-    const phrase = [];
-    let i = 2;
-    for (let n = 0; n < 16; n++) { i = Math.max(0, Math.min(t.scale.length - 1, i + Math.floor(r() * 5) - 2)); phrase.push(r() < .15 ? -1 : t.scale[i]); }
-    return [...phrase, ...phrase.slice(0, 12), t.scale[2], t.scale[1], t.scale[0], -1];
-  }
-  function playLullaby(k, mine) {
-    stopLullaby(false);
-    const t = TUNES.find((x) => x.k === k);
-    if (!t) return paintLull();
-    const c = ac();
-    lull.k = k; lull.step = 0; lull.melody = makeMelody(t); lull.next = c.currentTime + .1;
-    lull.out = c.createGain(); lull.out.gain.value = .0001; lull.out.connect(c.destination);
-    lull.out.gain.exponentialRampToValueAtTime(.5, c.currentTime + 1.5);
-    const note = (f, at, vol, dur) => {
-      [1, 3, 4.2].forEach((m, i) => {
-        const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f * m;
-        g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol / (i * 2.5 + 1), at + .005); g.gain.exponentialRampToValueAtTime(.0003, at + dur / (i + 1));
-        o.connect(g).connect(lull.out); o.start(at); o.stop(at + dur);
-      });
-    };
-    lull.timer = setInterval(() => {
-      while (lull.next < c.currentTime + .4) {
-        const semi = lull.melody[lull.step % lull.melody.length];
-        if (semi >= 0) note(t.root * Math.pow(2, semi / 12), lull.next, .16, 2.2);
-        if (lull.step % 4 === 0) note(t.root / 2 * Math.pow(2, t.scale[(lull.step / 4) % 3 === 2 ? 3 : 0] / 12), lull.next, .07, 3);
-        lull.step += 1;
-        lull.next += t.tempo;
-      }
-    }, 120);
-    if (mine) send("calm", { t: "lull", k });
-    paintLull();
-  }
-  function stopLullaby(mine) {
-    clearInterval(lull.timer);
-    if (lull.out) { const o = lull.out; try { o.gain.setTargetAtTime(.0001, ac().currentTime, .4); } catch { /* closed */ } setTimeout(() => o.disconnect(), 2500); }
-    const was = lull.k;
-    Object.assign(lull, { k: "", timer: 0, out: null });
-    if (mine && was) send("calm", { t: "lull", k: "" });
-    paintLull();
-  }
-  function openLullaby() {
-    tray();
-    const w = W().open({
-      id: "lullaby", title: "Lullaby", icon: "music_note", w: 320, h: 360,
-      html: `<p class="fw-note">A soft music box on both phones. Pairs well with the sleep timer.</p>
-        <div class="lb-list">${TUNES.map((t) => `<button data-lb="${t.k}"><span class="icon">music_note</span><b>${t.label}</b><i class="snd-eq"><b></b><b></b><b></b></i></button>`).join("")}</div>
-        <button class="btn ghost wide" data-lb="">Stop</button>`,
-    });
-    w.body.onclick = (e) => {
-      const b = e.target.closest("[data-lb]");
-      if (!b) return;
-      if (!b.dataset.lb || b.dataset.lb === lull.k) stopLullaby(true); else playLullaby(b.dataset.lb, true);
-    };
-    paintLull();
-  }
-  function paintLull() {
-    const t = q("#tray-lull");
-    if (t) t.textContent = lull.k ? `${TUNES.find((x) => x.k === lull.k).label} · playing` : "Soft music box";
-    W().get("lullaby")?.el.querySelectorAll("[data-lb]").forEach((b) => b.classList.toggle("on", Boolean(lull.k) && b.dataset.lb === lull.k));
+    q(".st2-sub", w.body).textContent = nap.end ? "Napping… we'll wake you both up." : "Close your eyes. A gentle alarm wakes you both up.";
   }
 
   // =================================================================
@@ -260,68 +201,27 @@
     }, 250);
   }, 15000);
 
-  // =================================================================
-  // Gratitude: three good things each, saved by day
-  // =================================================================
-
-  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  let grat = null;
-  async function loadGrat() {
-    try { grat = (await getDocs("settings")).find((d) => d.id === "gratitude")?.data || {}; } catch { grat = grat || {}; }
-    return grat;
-  }
-  async function openGrat() {
-    tray();
-    const w = W().open({ id: "grat", title: "Three good things", icon: "volunteer_activism", w: 360, h: 470,
-      html: `<div class="gr"><p class="fw-note">Three small things from today you're thankful for. You both see each other's.</p><div class="gr-body"><div class="gr-load"><span class="sa-orb"><i></i></span></div></div></div>` });
-    await loadGrat();
-    paintGrat(w);
-  }
-  function paintGrat(w = W().get("grat")) {
-    if (!w || !grat) return;
-    const day = (grat.days || {})[today()] || {};
-    const mine = day[me.name] || [];
-    const theirs = Object.entries(day).filter(([n]) => n !== me.name);
-    q(".gr-body", w.body).innerHTML = `<form class="gr-form">${[0, 1, 2].map((i) => `<label><span>${i + 1}</span><input class="field" maxlength="120" value="${esc(mine[i] || "")}" placeholder="${["Something that made you smile", "Someone you're glad for", "A small win"][i]}"></label>`).join("")}
-        <button class="btn primary wide">Save for today</button></form>
-      ${theirs.length ? theirs.map(([n, l]) => `<div class="gr-them"><b>${esc(n)}'s three</b><ol>${l.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`).join("") : `<p class="gr-wait">${esc(other()?.name || "Your partner")} hasn't added theirs yet.</p>`}`;
-    q(".gr-form", w.body).onsubmit = async (e) => {
-      e.preventDefault();
-      const items = [...w.body.querySelectorAll(".gr-form input")].map((i) => i.value.trim()).filter(Boolean);
-      if (!items.length) return toast("Write at least one");
-      await loadGrat();
-      const days = { ...(grat.days || {}) };
-      days[today()] = { ...(days[today()] || {}), [me.name]: items };
-      // keep the last 120 days
-      const keep = Object.keys(days).sort().slice(-120);
-      grat = { days: Object.fromEntries(keep.map((k) => [k, days[k]])) };
-      try { await putDoc("settings", grat, "gratitude"); send("calm", { t: "grat" }); toast("Saved 💛"); } catch { toast("Couldn't save. Check the internet."); }
-      paintGrat(w);
-    };
-  }
-
   // ---------- hooks ----------
 
   const prev = { click: window.DU.onCoupleClick, msg: window.DU.onCouple, leave: window.DU.onCoupleLeave, peer: window.DU.onCouplePeer };
   Object.assign(window.DU, {
     onCoupleClick(button) {
-      const run = { sleeptimer: openSleepTimer, lullaby: openLullaby, guided: () => openGuided("calm"), stretch: () => openGuided("stretch"), eyes: toggleEyes, grat: openGrat }[button.dataset.tg];
+      const run = { nap: openNap, guided: () => openGuided("calm"), stretch: () => openGuided("stretch"), eyes: toggleEyes }[button.dataset.tg];
       if (run) run(); else prev.click?.(button);
     },
     onCouple(message, peer) {
       if (message.type !== "calm") return prev.msg?.(message, peer);
       const d = message.data || {};
-      if (d.t === "timer") { setTimer(Math.max(0, Math.min(180, Number(d.mins) || 0)), d.hangUp, false); if (d.mins) toast(`${peer.name} set a ${d.mins}-min sleep timer`); }
-      if (d.t === "lull") { if (d.k) { playLullaby(String(d.k), false); toast(`${peer.name} put on a lullaby 🎶`); } else stopLullaby(false); }
+      if (d.t === "nap") { if (d.mins && !W().get("nap")) openNap(); setNap(Math.max(0, Math.min(90, Number(d.mins) || 0)), d.rain, false); toast(d.mins ? `${peer.name} started a ${d.mins}-min power nap 😴` : `${peer.name} cancelled the nap`); }
       if (d.t === "calm" || d.t === "stretch") openGuided(d.t, Date.now(), peer.name);
       if (d.t === "calm-go" || d.t === "stretch-go") jumpGuided(d.t.split("-")[0], Number(d.i) || 0);
-      if (d.t === "grat") loadGrat().then(() => paintGrat());
     },
     onCoupleLeave(...args) {
       prev.leave?.(...args);
-      stopLullaby(false); setTimer(0, false, false);
-      ["sleeptimer", "lullaby", "guided", "stretch", "grat", "eyebreak"].forEach((id) => W().get(id)?.close());
+      setNap(0, false, false);
+      ["nap", "wake", "guided", "stretch", "eyebreak"].forEach((id) => W().get(id)?.close());
     },
   });
+  window.DU.nap = (mins) => setNap(mins, store.get("du-nap-rain", true), true);
   paintEyes();
 })();

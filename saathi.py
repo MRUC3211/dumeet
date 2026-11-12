@@ -595,6 +595,80 @@ ask, and keep both of them included.
             saved.append({"id": pid, **promise})
         return {"note": note, "promises": saved}
 
+    # ---------- talk cards, story time, plan my day ----------
+
+    CARD_KINDS = {
+        "deep": "deep, meaningful questions that help them understand each other better: dreams, fears, childhood, "
+                "values, the future together, what they love about each other, what they still want to learn",
+        "spicy": "romantic and flirty questions about attraction, desire, intimacy, physical affection, turn-ons, "
+                 "fantasies and what each of them likes, for two consenting adults who are dating",
+        "never": "'Never have I ever …' statements for a couple to play (they react if they have done it); fun, "
+                 "romantic and cheeky about dating, love, crushes, flirting and intimacy",
+        "truth": "truth questions for a couple's truth-or-dare: honest, revealing, romantic and cheeky",
+        "dare": "dares a person can do on a VIDEO CALL right now in their own room (they are apart): flirty voice "
+                "lines, poses, expressions, compliments, sending a sweet text, a dance, showing something on camera",
+    }
+    HEAT = {1: "sweet and playful, nothing sexual", 2: "flirty and romantic, a little bold",
+            3: "bold and sensual about desire and intimacy, but never graphic or explicit"}
+
+    def cards(self, kind, level, avoid):
+        about = self.CARD_KINDS[kind]
+        heat = self.HEAT.get(level, self.HEAT[2]) if kind != "deep" else "warm and thoughtful"
+        result = self.ask(
+            "You write conversation cards for a loving adult couple (boyfriend and girlfriend, both adults) who use "
+            "a private video-call app. Everything must be respectful, consensual and kind. Never graphic sexual "
+            "detail, nothing involving anyone else, no minors, nothing humiliating or unsafe. Short, natural, "
+            "casual English that Indian couples use (a Hinglish word now and then is fine). Return JSON "
+            "{\"cards\": [12 strings]}, each under 160 characters, all different.",
+            f"Kind: {about}.\nTone: {heat}.\nDon't repeat or closely copy these: " + " | ".join(avoid[-30:]),
+            temperature=1.0)
+        cards = [str(c).strip()[:200] for c in (result.get("cards") or []) if isinstance(c, str) and c.strip()] \
+            if isinstance(result, dict) else []
+        if not cards:
+            raise ValueError("No cards came back")
+        return {"cards": cards[:12]}
+
+    def story(self, op, genre, lines, names):
+        people = " and ".join(names) or "the couple"
+        rules = ("You are a playful storyteller running a story game for a couple on a video call. The couple "
+                 f"({people}) take turns adding to the story and you weave their lines in with twists. Keep it "
+                 "warm, funny and easy to follow. Simple English with a little Hinglish flavour. Never graphic. "
+                 f"Genre: {genre}.")
+        so_far = "\n".join(f"{l.get('by', '?')}: {l.get('text', '')}" for l in lines[-40:] if isinstance(l, dict))
+        if op == "start":
+            r = self.ask(rules + " Return JSON {\"title\": short catchy title, \"hook\": a 2-3 sentence opening "
+                         "that ends on a cliffhanger, with both of them as the main characters}.",
+                         f"Start a new {genre} story.", temperature=1.0)
+            return {"title": str(r.get("title", "Our story"))[:80], "text": str(r.get("hook", ""))[:700]}
+        if op == "end":
+            r = self.ask(rules + " Return JSON {\"text\": a satisfying 3-4 sentence ending that ties in what they "
+                         "wrote, \"title\": a better title for the whole story}.", f"Story so far:\n{so_far}",
+                         temperature=0.9)
+            return {"title": str(r.get("title", "Our story"))[:80], "text": str(r.get("text", ""))[:900]}
+        r = self.ask(rules + " Continue from their latest lines with 2-3 sentences and a surprising twist, then "
+                     "end with a short question or situation for the next person. Return JSON {\"text\": string}.",
+                     f"Story so far:\n{so_far}", temperature=0.95)
+        return {"text": str(r.get("text", ""))[:700]}
+
+    def plan(self, name, tasks, now):
+        r = self.ask(
+            "You are a friendly, practical productivity coach. From a person's task list, make a realistic plan for "
+            "the rest of their day: order the tasks (hardest or most important first, quick wins in between), give "
+            "each a start time and duration, add short breaks. Simple English. Return JSON {\"plan\": [{\"time\": "
+            "\"HH:MM\", \"task\": string, \"mins\": number}], \"tip\": one short motivating line}.",
+            f"{name}'s tasks: " + "; ".join(t[:120] for t in tasks[:20]) + f"\nTime now: {now}", temperature=0.5)
+        plan = []
+        for item in (r.get("plan") or [])[:24] if isinstance(r, dict) else []:
+            if isinstance(item, dict) and item.get("task"):
+                try:
+                    mins = max(0, min(600, int(item.get("mins") or 0)))
+                except (TypeError, ValueError):
+                    mins = 0
+                plan.append({"time": str(item.get("time", ""))[:5], "task": str(item["task"])[:160], "mins": mins})
+        if not plan:
+            raise ValueError("Couldn't make a plan, add a few tasks first")
+        return {"plan": plan, "tip": str(r.get("tip", ""))[:200]}
+
 
 def handle(saathi, path, body, name_ok):
     """POST /api/ai/<action>. Returns a JSON-able dict, or raises ValueError (shown to the user)."""
@@ -685,6 +759,31 @@ def handle(saathi, path, body, name_ok):
             raise ValueError("Agree to Saathi once first (open Saathi in a call)")
         avoid = [str(a)[:200] for a in (body.get("avoid") or [])][:20]
         return saathi.quiz(topic, image, avoid)
+    if action == "cards":
+        kind = str(body.get("kind", ""))
+        if kind not in Saathi.CARD_KINDS:
+            raise ValueError("Unknown card kind")
+        try:
+            level = max(1, min(3, int(body.get("level", 2))))
+        except (TypeError, ValueError):
+            level = 2
+        avoid = [str(a)[:200] for a in (body.get("avoid") or [])][:40]
+        return saathi.cards(kind, level, avoid)
+    if action == "story":
+        if not saathi.consented([name]):
+            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
+        op = body.get("op") if body.get("op") in ("start", "next", "end") else "next"
+        genre = str(body.get("genre", "romantic comedy"))[:40]
+        lines = [{"by": str(l.get("by", ""))[:40], "text": str(l.get("text", ""))[:600]}
+                 for l in (body.get("lines") or []) if isinstance(l, dict)][-40:]
+        return saathi.story(op, genre, lines, names)
+    if action == "plan":
+        if not saathi.consented([name]):
+            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
+        tasks = [str(t).strip() for t in (body.get("tasks") or []) if str(t).strip()]
+        if not tasks:
+            raise ValueError("Add a few tasks first")
+        return saathi.plan(name, tasks, str(body.get("now", ""))[:20])
     if action == "soften":
         return saathi.soften(str(body.get("text", "")), name)
     if action == "verdict":

@@ -394,6 +394,16 @@
       return toast("This browser can't run Saathi's audio");
     }
 
+    connectLive(live, t, true);
+    showOrb({ mode, aiName: t.aiName, host: me.id });
+    tell({ act: "live", on: true, mode, aiName: t.aiName, host: me.id, caseId });
+  }
+
+
+  // Open the Gemini Live socket. With tools first; if Gemini refuses that setup before the
+  // session starts, get a fresh one-use token and connect again without tools.
+  function connectLive(live, t, withTools) {
+    const decls = withTools ? toolDecls() : [];
     live.ws = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(t.token)}`);
     live.ws.onopen = () => live.ws.send(JSON.stringify({
       setup: {
@@ -402,7 +412,8 @@
           responseModalities: ["AUDIO"],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: t.voice } } },
         },
-        systemInstruction: { parts: [{ text: t.system }] },
+        systemInstruction: { parts: [{ text: t.system + (decls.length ? TOOL_HINT() : "") }] },
+        ...(decls.length ? { tools: [{ functionDeclarations: decls }] } : {}),
         inputAudioTranscription: {},
         outputAudioTranscription: {},
         contextWindowCompression: { slidingWindow: {} },
@@ -415,14 +426,15 @@
       try { msg = JSON.parse(raw); } catch { return; }
       onServer(live, msg);
     };
-    live.ws.onerror = () => { if (!live.ready) toast(`Couldn't reach ${aiName()}`); };
-    live.ws.onclose = (event) => {
+    live.ws.onerror = () => { if (!live.ready && !decls.length) toast(`Couldn't reach ${aiName()}`); };
+    live.ws.onclose = async (event) => {
       if (S.live !== live) return;
       if (!live.ready && event.reason) console.warn("Gemini closed:", event.code, event.reason);
+      if (!live.ready && decls.length) {
+        try { const t2 = await api("token", { mode: live.mode, case: live.caseId }); if (S.live === live) return connectLive(live, t2, false); } catch { /* fall through */ }
+      }
       endVoice(live.ready ? "dropped" : "failed");
     };
-    showOrb({ mode, aiName: t.aiName, host: me.id });
-    tell({ act: "live", on: true, mode, aiName: t.aiName, host: me.id, caseId });
   }
 
   const prevOutTrack = (slot) => prev.out?.(slot) ?? null;
@@ -469,6 +481,28 @@
     if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ realtimeInput: { text } }));
   }
 
+
+  // ---------- things Saathi can do in the app when asked out loud ----------
+  // Modules add tools to window.DU.saathiTools: { name, description, parameters, run(args) → result }.
+  const toolList = () => (window.DU.saathiTools || []).filter((t) => t && t.name && typeof t.run === "function");
+  const toolDecls = () => toolList().map(({ name, description, parameters }) => (parameters ? { name, description, parameters } : { name, description }));
+  const TOOL_HINT = () => (toolList().length
+    ? "\n\nYou are inside their video-call app and can use it for them with your tools: their shared task lists "
+      + "(add, tick off, remove, read out), opening games and tools, power naps, calm sounds and the story game. "
+      + "When they ask for one of these, call the tool straight away, then confirm in a few words. When a task "
+      + "list question comes up, read it with the tool first. Only use tools when they ask."
+    : "");
+  async function runTools(live, calls) {
+    const responses = [];
+    for (const call of calls) {
+      const tool = toolList().find((t) => t.name === call.name);
+      let result;
+      try { result = tool ? await tool.run(call.args || {}, call) : { error: "No such tool" }; } catch (error) { result = { error: error.message || "Failed" }; }
+      responses.push({ id: call.id, name: call.name, response: typeof result === "object" && result ? result : { result: String(result ?? "done") } });
+    }
+    if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+  }
+
   function onServer(live, msg) {
     if (msg.setupComplete) {
       live.ready = true;
@@ -477,6 +511,7 @@
       say(live, KICKOFF[live.mode](others));
       return;
     }
+    if (msg.toolCall) { runTools(live, msg.toolCall.functionCalls || []); return; }
     if (msg.goAway) return; // the session ends soon; onclose wraps up
     const sc = msg.serverContent;
     if (!sc) return;
