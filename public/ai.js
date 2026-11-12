@@ -15,9 +15,16 @@
   const { q, esc } = window.DU.kit;
   const { openModal, closeModal } = window.DU;
   const tray = (open) => window.DU.kit.toggleTray(open);
-  const people = () => [me.name, ...[...peers.values()].map((p) => p.name)].filter(Boolean);
+  const myName = () => me.name || prefs.name || "";
+  const people = () => {
+    if (polling) return [me.name, ...[...peers.values()].map((p) => p.name)].filter(Boolean);
+    // on the home page: me plus the couple's other name from the "Who's joining?" picker
+    const names = [...new Set([...document.querySelectorAll("[data-who]")].map((b) => b.dataset.who))];
+    return [myName(), ...names.filter((n) => n && n !== myName())].filter(Boolean).slice(0, 2);
+  };
   const partner = () => [...peers.values()][0];
-  const fast = (type, data) => (typeof sendFast === "function" ? sendFast(type, data) : send(type, data));
+  const fast = (type, data) => { if (polling) (typeof sendFast === "function" ? sendFast : send)(type, data); };
+  const tell = (data) => { if (polling) send("ai", data); };
 
   const MODE_INFO = {
     talk: { icon: "forum", label: "Just talk", small: "Hang out, ask anything" },
@@ -44,12 +51,14 @@
     cap: "", speaking: false,
     turn: null,          // { who, ends }
     verdictCase: null,
+    chat: [],            // private chat (this device only, not saved)
+    seeing: false,
   };
 
   const api = async (action, body = {}) => {
     const response = await fetch(`/api/ai/${action}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: me.name, names: people(), ...body }),
+      body: JSON.stringify({ name: myName(), names: people(), ...body }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.error) throw new Error(data.error || "Something went wrong");
@@ -88,16 +97,17 @@
 
   function needsConsent() {
     const consent = S.info?.consent || {};
-    return people().filter((n) => !consent[n]);
+    return (polling ? people() : [myName()]).filter((n) => n && !consent[n]);
   }
 
   function paint() {
     if (panel.hidden) return;
     const info = S.info;
-    q("#sa-title", panel).textContent = S.view === "home" ? aiName() : ({ faisla: "Faisla", soft: "Say it softly", about: "About us", history: "Past faislas", promises: "Promises" })[S.view] || aiName();
+    q("#sa-title", panel).textContent = S.view === "home" ? aiName() : ({ faisla: "Faisla", soft: "Say it softly", about: "About us", history: "Past faislas", promises: "Promises", ask: "Ask privately" })[S.view] || aiName();
     q(".sa-back", panel).hidden = S.view === "home";
     if (!info) { body.innerHTML = `<div class="sa-loading"><span class="sa-orb"><i></i></span></div>`; return; }
-    body.innerHTML = ({ home: homeView, faisla: faislaView, soft: softView, about: aboutView, history: historyView, promises: promisesView })[S.view]?.() ?? "";
+    body.innerHTML = ({ home: homeView, faisla: faislaView, soft: softView, about: aboutView, history: historyView, promises: promisesView, ask: askView })[S.view]?.() ?? "";
+    if (S.view === "ask") { const list = q(".sa-chat", body); if (list) list.scrollTop = list.scrollHeight; }
   }
 
   function homeView() {
@@ -107,7 +117,7 @@
     const off = !info.enabled;
     const blocked = off || missing.length > 0;
     const open = (info.cases || []).find((c) => c.status !== "done");
-    const due = (info.cases || []).filter((c) => c.status === "done" && c.followAt && c.followAt * 1000 < Date.now() && !(c.follow || {})[me.name]);
+    const due = (info.cases || []).filter((c) => c.status === "done" && c.followAt && c.followAt * 1000 < Date.now() && !(c.follow || {})[myName()]);
     let html = `<div class="sa-hero"><span class="sa-orb big${liveNow ? " live" : ""}" aria-hidden="true"><i></i></span>
       <p>${esc(aiName())} knows you both, talks in Hinglish, and joins the call like a third friend.</p></div>`;
     if (off) {
@@ -117,9 +127,9 @@
       const consent = info.consent || {};
       html += `<div class="sa-consent"><b>Before ${esc(aiName())} can listen</b>
         <p>${esc(aiName())} runs on Google Gemini, so what you say during a ${esc(aiName())} conversation is sent to Google to get answers.
-        It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
-        <div class="sa-who">${people().map((n) => `<span class="${consent[n] ? "ok" : ""}"><span class="icon" aria-hidden="true">${consent[n] ? "check_circle" : "schedule"}</span>${esc(n)}</span>`).join("")}</div>
-        ${consent[me.name] ? `<small>Waiting for ${esc(missing.join(" and "))} to agree on their phone.</small>` : `<button class="btn primary" data-sa="agree">I agree</button>`}</div>`;
+        If you turn on "Let ${esc(aiName())} see", camera pictures go too. It keeps short notes and promises so it remembers you. Admin can wipe all of it any time.</p>
+        <div class="sa-who">${(polling ? people() : [myName()]).map((n) => `<span class="${consent[n] ? "ok" : ""}"><span class="icon" aria-hidden="true">${consent[n] ? "check_circle" : "schedule"}</span>${esc(n)}</span>`).join("")}</div>
+        ${consent[myName()] ? `<small>Waiting for ${esc(missing.join(" and "))} to agree on their phone.</small>` : `<button class="btn primary" data-sa="agree">I agree</button>`}</div>`;
     }
     if (liveNow) {
       html += `<button class="sa-live-row" data-sa="end"><span class="sa-dot" aria-hidden="true"></span><span><b>${esc(aiName())} is in the call</b><small>${esc(MODE_INFO[(S.live || S.remote).mode]?.label || "")} · tap to end</small></span><span class="icon" aria-hidden="true">call_end</span></button>`;
@@ -131,8 +141,11 @@
       html += `<div class="sa-check"><span class="icon" aria-hidden="true">handshake</span><div><b>Peace deal check-in</b><small>${esc(c.topic)}: did you do your part?</small>
         <span class="sa-check-btns"><button class="btn small-btn primary" data-follow="${c.id}" data-kept="1">Yes, I did</button><button class="btn small-btn outline" data-follow="${c.id}" data-kept="0">Not yet</button></span></div></div>`;
     }
+    html += `<button class="sa-ask-row" data-sa="ask" ${blocked ? "disabled" : ""}><span class="icon" aria-hidden="true">lock</span><span><b>Ask ${esc(aiName())} privately</b><small>Advice just for you. Your partner never sees this chat.</small></span><span class="icon" aria-hidden="true">chevron_right</span></button>`;
+    if (!polling) html += `<p class="sa-home-note"><span class="icon" aria-hidden="true">info</span>Join the call to bring ${esc(aiName())} in by voice: talk, games, Faisla, date plans and stories.</p>`;
     html += `<div class="sa-modes">${Object.entries(MODE_INFO).map(([k, m]) => `<button class="sa-mode ${k}" data-mode="${k}" ${blocked || liveNow ? "disabled" : ""}>
       <span class="sa-mode-ic icon" aria-hidden="true">${m.icon}</span><b>${m.label}</b><small>${m.small}</small></button>`).join("")}</div>`;
+    if (!polling) html = html.replace('<div class="sa-modes">', '<div class="sa-modes" hidden>');
     const promises = info.promises || [];
     html += `<div class="sa-tools">
       <button data-sa="soft" ${off ? "disabled" : ""}><span class="icon" aria-hidden="true">spa</span>Say it softly</button>
@@ -151,8 +164,8 @@
         <input id="sa-topic" class="field" maxlength="140" placeholder="e.g. Late reply last night">
         <button class="btn primary sa-wide" data-sa="new-case"><span class="icon" aria-hidden="true">gavel</span>Open Faisla</button>`;
     }
-    const mine = open.sidesIn.includes(me.name);
-    const others = people().filter((n) => n !== me.name);
+    const mine = open.sidesIn.includes(myName());
+    const others = people().filter((n) => n !== myName());
     return `<div class="sa-case-head"><span class="icon" aria-hidden="true">gavel</span><div><b>${esc(open.topic)}</b><small>Opened by ${esc(open.by || "")}</small></div></div>
       <div class="sa-steps">
         <div class="sa-step ${mine ? "done" : "now"}"><i>1</i><div><b>Write your side, privately</b>
@@ -166,8 +179,9 @@
       <div class="sa-who">${people().map((n) => `<span class="${open.sidesIn.includes(n) ? "ok" : ""}"><span class="icon" aria-hidden="true">${open.sidesIn.includes(n) ? "check_circle" : "edit_note"}</span>${esc(n)}</span>`).join("")}</div>
       <div class="sa-row">
         <button class="btn outline" data-sa="save-side">Save my side</button>
-        <button class="btn primary" data-sa="hearing" ${S.live || S.remote ? "disabled" : ""}><span class="icon" aria-hidden="true">record_voice_over</span>Start the hearing</button>
-      </div>`;
+        <button class="btn primary" data-sa="hearing" ${S.live || S.remote || !polling ? "disabled" : ""}><span class="icon" aria-hidden="true">record_voice_over</span>Start the hearing</button>
+      </div>
+      <button class="sa-drop" data-drop="${open.id}"><span class="icon" aria-hidden="true">delete</span>Delete this Faisla</button>`;
   }
 
   function softView() {
@@ -191,6 +205,42 @@
       <p class="muted sa-small">${S.info.notes || 0} notes remembered. To wipe everything, use Admin → Settings.</p>`;
   }
 
+  function askView() {
+    const empty = !S.chat.length;
+    const starters = ["Mujhe sorry kaise bolna chahiye?", "Uske liye surprise idea do", "Mujhe lagta hai main overthink kar raha hoon", "Exam stress ho raha hai yaar"];
+    return `<div class="sa-chat">${empty ? `<div class="sa-chat-empty"><span class="sa-orb" aria-hidden="true"><i></i></span>
+        <p>Only you see this chat, and it isn't saved. Ask anything: what to say, how to fix a fight, gift ideas, or just vent.</p>
+        <div class="sa-starters">${starters.map((t) => `<button data-starter="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>` : ""}
+      ${S.chat.map((m) => `<div class="sa-msg ${m.role}">${esc(m.text)}</div>`).join("")}
+      ${S.chatBusy ? `<div class="sa-msg ai typing"><i></i><i></i><i></i></div>` : ""}</div>
+      <form class="sa-chat-form" data-chat-form><input id="sa-chat-in" class="field" maxlength="1200" placeholder="Message ${esc(aiName())}…" autocomplete="off">
+        <button class="sa-send" aria-label="Send" ${S.chatBusy ? "disabled" : ""}><span class="icon" aria-hidden="true">arrow_upward</span></button></form>
+      ${S.chat.length ? `<button class="sa-drop" data-sa="clear-chat"><span class="icon" aria-hidden="true">delete_sweep</span>Clear this chat</button>` : ""}`;
+  }
+
+  async function sendChat(text) {
+    text = text.trim();
+    if (!text || S.chatBusy) return;
+    const history = S.chat.slice(-16);
+    S.chat.push({ role: "me", text });
+    S.chatBusy = true;
+    paint();
+    try {
+      const { reply } = await api("chat", { text, history });
+      S.chat.push({ role: "ai", text: reply });
+    } catch (error) {
+      S.chat.push({ role: "ai err", text: error.message });
+    }
+    S.chatBusy = false;
+    paint();
+    setTimeout(() => q("#sa-chat-in", panel)?.focus(), 50);
+  }
+  panel.addEventListener("submit", (event) => {
+    if (!event.target.closest("[data-chat-form]")) return;
+    event.preventDefault();
+    sendChat(q("#sa-chat-in", panel).value);
+  });
+
   function historyView() {
     const cases = (S.info.cases || []).filter((c) => c.status === "done").reverse();
     if (!cases.length) return `<div class="sa-empty"><span class="icon" aria-hidden="true">balance</span><p>No faislas yet. Hopefully it stays that way.</p></div>`;
@@ -211,22 +261,22 @@
     const go = t.closest("[data-sa]")?.dataset.sa;
     const mode = t.closest("[data-mode]")?.dataset.mode;
     try {
-      if (["home", "faisla", "soft", "about", "history", "promises"].includes(go)) { S.view = go; return paint(); }
-      if (go === "agree") { S.info.consent = (await api("consent", { ok: true })).consent; send("ai", { act: "refresh" }); return paint(); }
-      if (go === "end") return S.live ? endVoice("ended") : send("ai", { act: "end" });
+      if (["home", "faisla", "soft", "about", "history", "promises", "ask"].includes(go)) { S.view = go; return paint(); }
+      if (go === "agree") { S.info.consent = (await api("consent", { ok: true })).consent; tell({ act: "refresh" }); return paint(); }
+      if (go === "end") return S.live ? endVoice("ended") : tell({ act: "end" });
       if (mode) return mode === "faisla" ? (S.view = "faisla", paint()) : startVoice(mode);
       if (go === "new-case") {
         const topic = q("#sa-topic", panel).value.trim();
         if (!topic) return q("#sa-topic", panel).focus();
         await api("case", { topic });
         await refresh();
-        send("ai", { act: "case", topic });
+        tell({ act: "case", topic });
         return;
       }
       if (go === "save-side" || go === "hearing") {
         const open = (S.info.cases || []).find((c) => c.status !== "done");
         const text = q("#sa-side", panel)?.value.trim();
-        if (text) { await api("side", { id: open.id, text }); send("ai", { act: "refresh" }); }
+        if (text) { await api("side", { id: open.id, text }); tell({ act: "refresh" }); }
         if (go === "save-side") { toast(text ? "Your side is saved" : "Write something first"); return refresh(); }
         await refresh();
         const fresh = (S.info.cases || []).find((c) => c.id === open.id);
@@ -235,12 +285,24 @@
         return startVoice("faisla", open.id);
       }
       if (go === "dictate") return dictate();
+      const starter = t.closest("[data-starter]");
+      if (starter) return sendChat(starter.dataset.starter);
+      if (go === "clear-chat") { S.chat = []; return paint(); }
+      const drop = t.closest("[data-drop]");
+      if (drop) {
+        if (!(await window.DU.kit.confirmBox({ title: "Delete this Faisla?", text: "It's removed for both of you, with any sides written so far.", ok: "Delete", cancel: "Keep" }))) return;
+        await api("drop", { id: drop.dataset.drop });
+        tell({ act: "refresh" });
+        toast("Faisla deleted");
+        S.view = "home";
+        return refresh();
+      }
       if (go === "soften") return soften();
       if (go === "save-about") {
         const about = {};
         for (const k of ["aiName", "voice", "story", "likes", "jokes", "careful"]) about[k] = q(`#sa-${k}`, panel).value;
         S.info.about = (await api("about", { about })).about;
-        send("ai", { act: "refresh" });
+        tell({ act: "refresh" });
         toast("Saved");
         S.view = "home";
         return paint();
@@ -347,7 +409,7 @@
     S.live = live;
     try {
       live.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      await live.ctx.resume();
+      await Promise.race([live.ctx.resume(), new Promise((r) => setTimeout(r, 1500))]);
       const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
       await live.ctx.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
@@ -402,7 +464,7 @@
       endVoice(live.ready ? "dropped" : "failed");
     };
     showOrb({ mode, aiName: t.aiName, host: me.id });
-    send("ai", { act: "live", on: true, mode, aiName: t.aiName, host: me.id, caseId });
+    tell({ act: "live", on: true, mode, aiName: t.aiName, host: me.id, caseId });
   }
 
   const prevOutTrack = (slot) => prev.out?.(slot) ?? null;
@@ -440,7 +502,7 @@
       live.lastCool = now;
       live.loud = 0;
       say(live, "(App: Their voices are getting loud and heated. Step in gently in one or two sentences: help them pause, breathe, and talk calmly. Don't take sides.)");
-      send("ai", { act: "cool" });
+      tell({ act: "cool" });
       coolFlash();
     }
   }
@@ -547,12 +609,14 @@
     const live = S.live;
     if (!live) return;
     S.live = null;
+    clearInterval(live.seeTimer);
+    S.seeing = false;
     stopTurn();
     try { live.ws?.close(); } catch { /* closed */ }
     stopPlayback(live);
     cleanupAudio(live);
     hideOrb();
-    send("ai", { act: "live", on: false });
+    tell({ act: "live", on: false });
     if (reason === "failed") toast(`${aiName()} couldn't connect. Try again in a moment`);
     else if (reason === "dropped") toast(`${aiName()} left the call (time limit). Call again any time`);
     paint();
@@ -562,7 +626,7 @@
       const r = await api("remember", { transcript: text, mode: live.mode });
       if (r.promises?.length) {
         toast(`${aiName()} noted ${r.promises.length === 1 ? "a promise" : `${r.promises.length} promises`}`);
-        send("ai", { act: "refresh" });
+        tell({ act: "refresh" });
       }
     } catch { /* nothing to remember, or offline */ }
     refresh();
@@ -576,7 +640,7 @@
       const { case: c } = await api("verdict", { id: live.caseId, transcript: text });
       live.wantVerdict = "done";
       showVerdict(c);
-      send("ai", { act: "verdict", id: c.id });
+      tell({ act: "verdict", id: c.id });
       refresh();
     } catch (error) {
       live.wantVerdict = "spoken";
@@ -585,15 +649,69 @@
     setOrb({ status: "listening" });
   }
 
+  // ---------- "Let Saathi see": a small picture of the call every 1.5 s ----------
+
+  function toggleSee(by = myName()) {
+    const live = S.live;
+    if (!live) return;
+    S.seeing = !S.seeing;
+    clearInterval(live.seeTimer);
+    if (S.seeing) {
+      say(live, `(App: ${by} turned on the cameras for you. From now on you get a picture of the call every couple of seconds; each person's name is written on their part of the picture. Say one short, fun line about what you see, then carry on.)`);
+      sendFrame(live);
+      live.seeTimer = setInterval(() => sendFrame(live), 1500);
+      toast(`${aiName()} can see the call now`);
+    } else {
+      say(live, "(App: The cameras are off for you now; you can't see them any more.)");
+      toast(`${aiName()} can't see any more`);
+    }
+    setOrb({});
+  }
+
+  const frameCanvas = document.createElement("canvas");
+  function sendFrame(live) {
+    if (!S.seeing || live.ws?.readyState !== 1 || !live.ready) return;
+    const tiles = [...document.querySelectorAll(".stage .tile")].filter((t) => {
+      const v = t.querySelector("video");
+      return t.offsetParent && v?.videoWidth && v.readyState >= 2;
+    }).slice(0, 3);
+    if (!tiles.length) return;
+    const W = 768, H = 432, n = tiles.length, w = W / n;
+    frameCanvas.width = W; frameCanvas.height = H;
+    const ctx = frameCanvas.getContext("2d");
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    tiles.forEach((tile, i) => {
+      const v = tile.querySelector("video");
+      const screen = tile.classList.contains("screen");
+      const scale = (screen ? Math.min : Math.max)(w / v.videoWidth, H / v.videoHeight);
+      const vw = v.videoWidth * scale, vh = v.videoHeight * scale;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(i * w, 0, w, H); ctx.clip();
+      ctx.drawImage(v, i * w + (w - vw) / 2, (H - vh) / 2, vw, vh);
+      ctx.restore();
+      let name = tile.querySelector(".tile-name .name")?.textContent?.trim() || "";
+      if (name === "You") name = myName();
+      if (name === "You are presenting") name = `${myName()}'s screen`;
+      ctx.font = "600 20px sans-serif";
+      ctx.fillStyle = "rgba(0,0,0,.6)";
+      ctx.fillRect(i * w + 8, H - 38, ctx.measureText(name).width + 16, 30);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(name, i * w + 16, H - 16);
+    });
+    const data = frameCanvas.toDataURL("image/jpeg", 0.6).split(",")[1];
+    live.ws.send(JSON.stringify({ realtimeInput: { video: { data, mimeType: "image/jpeg" } } }));
+  }
+
   // ---------- Faisla turns ----------
 
   function giveTurn(who) {
-    if (!S.live) return send("ai", { act: "turn", who });
+    if (!S.live) return tell({ act: "turn", who });
     S.turn = { who, ends: Date.now() + TURN_SECONDS * 1000 };
     say(S.live, who === "verdict" ? "(App: Give your verdict now.)" : `(App: It is now ${who}'s turn to explain their side. Let ${who} speak; don't interrupt.)`);
     if (who === "verdict") { S.live.wantVerdict = "asked"; S.turn = null; }
     paintTurn();
-    send("ai", { act: "turnState", turn: S.turn });
+    tell({ act: "turnState", turn: S.turn });
     clearInterval(S.turnTimer);
     if (S.turn) S.turnTimer = setInterval(tickTurn, 500);
   }
@@ -604,7 +722,7 @@
       S.turn = null;
       clearInterval(S.turnTimer);
       if (S.live) say(S.live, `(App: ${who}'s two minutes are up. Thank ${who} in one line and continue.)`);
-      send("ai", { act: "turnState", turn: null });
+      tell({ act: "turnState", turn: null });
     }
     paintTurn();
   }
@@ -620,6 +738,7 @@
     orb.dataset.mode = mode;
     orb.innerHTML = `<div class="sa-card-top"><span class="sa-orb live" aria-hidden="true"><i></i></span>
       <div class="sa-card-txt"><b>${esc(name)}</b><small class="sa-status">connecting…</small></div>
+      <button class="sa-card-btn see" data-orb="see" aria-label="Let ${esc(name)} see" title="Let ${esc(name)} see through the cameras"><span class="icon" aria-hidden="true">visibility_off</span></button>
       <button class="sa-card-btn" data-orb="open" aria-label="Open ${esc(name)}"><span class="icon" aria-hidden="true">tune</span></button>
       <button class="sa-card-btn end" data-orb="end" aria-label="Send ${esc(name)} away"><span class="icon" aria-hidden="true">call_end</span></button></div>
       <p class="sa-cap" aria-live="polite"></p>
@@ -628,12 +747,13 @@
     orb.addEventListener("click", (event) => {
       const action = event.target.closest("[data-orb]")?.dataset.orb;
       const turn = event.target.closest("[data-turn]")?.dataset.turn;
-      if (action === "end") S.live ? endVoice("ended") : send("ai", { act: "end" });
+      if (action === "end") S.live ? endVoice("ended") : tell({ act: "end" });
       if (action === "open") open("home");
+      if (action === "see") S.live ? toggleSee() : tell({ act: "see" });
       if (turn) giveTurn(turn);
     });
   }
-  function hideOrb() { orb?.remove(); orb = null; S.cap = ""; S.speaking = false; }
+  function hideOrb() { orb?.remove(); orb = null; S.cap = ""; S.speaking = false; S.seeing = false; }
 
   let lastSent = 0;
   let pendingSend = null;
@@ -644,14 +764,17 @@
     paintOrb();
     if (!S.live) return;
     // tell the partner, at most ~4 times a second
-    const push = () => { lastSent = Date.now(); pendingSend = null; fast("ai", { act: "st", cap: S.cap, speaking: S.speaking, status: S.status }); };
+    const push = () => { lastSent = Date.now(); pendingSend = null; fast("ai", { act: "st", cap: S.cap, speaking: S.speaking, status: S.status, seeing: S.seeing }); };
     if (Date.now() - lastSent > 250) push();
     else if (!pendingSend) pendingSend = setTimeout(push, 260);
   }
   function paintOrb() {
     if (!orb) return;
     orb.classList.toggle("speaking", S.speaking);
-    q(".sa-status", orb).textContent = S.speaking ? "speaking" : (S.status || "listening");
+    q(".sa-status", orb).textContent = `${S.speaking ? "speaking" : (S.status || "listening")}${S.seeing ? " · can see you" : ""}`;
+    const see = q("[data-orb=see]", orb);
+    see.classList.toggle("on", S.seeing);
+    q(".icon", see).textContent = S.seeing ? "visibility" : "visibility_off";
     const cap = q(".sa-cap", orb);
     cap.textContent = S.cap;
     cap.hidden = !S.cap;
@@ -684,7 +807,19 @@
   vModal.id = "m-verdict";
   vModal.hidden = true;
   document.body.append(vModal);
-  vModal.addEventListener("click", (event) => { if (event.target.closest("[data-v-close]")) closeModal(vModal); });
+  vModal.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-v-close]")) closeModal(vModal);
+    const drop = event.target.closest("[data-v-drop]");
+    if (!drop) return;
+    if (!(await window.DU.kit.confirmBox({ title: "Delete this Faisla?", text: "The verdict and both sides are removed for good.", ok: "Delete", cancel: "Keep" }))) return;
+    try {
+      await api("drop", { id: drop.dataset.vDrop });
+      closeModal(vModal);
+      tell({ act: "refresh" });
+      toast("Faisla deleted");
+      refresh();
+    } catch (error) { toast(error.message); }
+  });
 
   function showVerdict(c) {
     const v = c.verdict;
@@ -708,6 +843,7 @@
         ${sideText}
         <p class="muted sa-small">${esc(aiName())} will ask both of you in 3 days if you kept your part.</p>
         <button class="btn primary sa-wide" data-v-close>We'll do it 🤝</button>
+        <button class="sa-drop" data-v-drop="${c.id}"><span class="icon" aria-hidden="true">delete</span>Delete this Faisla</button>
       </div></div>`;
     openModal(vModal);
   }
@@ -733,10 +869,12 @@
         S.cap = String(d.cap || "");
         S.speaking = Boolean(d.speaking);
         S.status = d.status || "listening";
+        S.seeing = Boolean(d.seeing);
         paintOrb();
         break;
       case "end": if (S.live) endVoice("ended"); break;
       case "turn": if (S.live) giveTurn(String(d.who)); break;
+      case "see": if (S.live) toggleSee(peer.name); break;
       case "turnState": S.turn = d.turn || null; paintTurn(); break;
       case "cool": coolFlash(); break;
       case "case":
@@ -779,6 +917,10 @@
       stopTurn();
     },
   });
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-home=saathi]")) open("home");
+  });
+
   // A partner who leaves while hosting takes Saathi with them.
   setInterval(() => {
     if (S.remote && !peers.has(S.remote.host)) { S.remote = null; hideOrb(); stopTurn(); paint(); }

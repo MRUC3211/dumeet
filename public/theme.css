@@ -1734,3 +1734,42 @@ html[data-theme=dark] .h-av { color: #1d1d1f; }
 .vd-sides { font-size: 14px; color: var(--color-ink-2); }
 .vd-sides summary { cursor: pointer; font-weight: 600; color: var(--color-muted); }
 .vd-sides p { margin-top: 8px; line-height: 1.45; }
+
+/* v11.1 · Saathi: private chat, delete, home entry, camera */
+.sa-nav { gap: 8px; }
+.sa-nav .sa-orb { --s: 22px; }
+@media (max-width: 420px) { #home .sa-nav { padding-inline: 10px; } }
+.sa-ask-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 14px; border: 0; border-radius: 16px; text-align: left; color: var(--color-ink); background: linear-gradient(120deg, rgba(48, 209, 88, .14), rgba(100, 210, 255, .08)); box-shadow: inset 0 0 0 1px rgba(48, 209, 88, .22); cursor: pointer; transition: transform .2s var(--ease); }
+.sa-ask-row:not(:disabled):hover { transform: translateY(-1px); }
+.sa-ask-row:disabled { opacity: .45; cursor: not-allowed; }
+.sa-ask-row > .icon:first-child { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #fff; font-size: 20px; background: linear-gradient(135deg, #30d158, #0e8a5f); }
+.sa-ask-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.sa-ask-row b { display: block; font-size: 15px; }
+.sa-ask-row small { display: block; margin-top: 2px; color: var(--color-muted); font-size: 12.5px; }
+.sa-home-note { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--color-muted); padding: 0 2px; }
+.sa-home-note .icon { font-size: 17px; margin-top: 1px; }
+.sa-drop { display: inline-flex; align-items: center; justify-content: center; gap: 6px; justify-self: center; margin-top: 2px; padding: 8px 14px; border: 0; border-radius: 999px; font: 600 13.5px var(--font-body); color: #ff6961; background: transparent; cursor: pointer; }
+.sa-drop:hover { background: rgba(255, 69, 58, .12); }
+.sa-drop .icon { font-size: 18px; }
+.vd-body .sa-drop { margin-top: -4px; }
+.sa-chat { display: flex; flex-direction: column; gap: 8px; min-height: 260px; max-height: min(52dvh, 460px); overflow-y: auto; padding: 4px 2px; overscroll-behavior: contain; }
+.sa-chat-empty { display: grid; justify-items: center; gap: 12px; margin: auto 0; padding: 10px 6px; text-align: center; }
+.sa-chat-empty p { max-width: 34ch; font-size: 14px; line-height: 1.5; color: var(--color-muted); }
+.sa-starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.sa-starters button { padding: 8px 13px; border: 0; border-radius: 999px; font: 500 13px var(--font-body); color: var(--color-ink-2); background: rgba(255, 255, 255, .07); cursor: pointer; }
+.sa-starters button:hover { background: rgba(255, 255, 255, .12); color: var(--color-ink); }
+.sa-msg { max-width: 82%; padding: 10px 14px; border-radius: 20px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .3s var(--ease) both; }
+.sa-msg.me { align-self: flex-end; color: #fff; background: #0a84ff; border-bottom-right-radius: 6px; }
+.sa-msg.ai { align-self: flex-start; color: var(--color-ink); background: rgba(255, 255, 255, .08); border-bottom-left-radius: 6px; }
+.sa-msg.err { color: #ff6961; }
+.sa-msg.typing { display: flex; gap: 4px; padding: 14px 16px; }
+.sa-msg.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-muted); animation: saDots 1s infinite; }
+.sa-msg.typing i:nth-child(2) { animation-delay: .15s; }
+.sa-msg.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes saDots { 50% { opacity: .3; transform: translateY(-3px); } }
+.sa-chat-form { display: flex; gap: 8px; align-items: center; }
+.sa-chat-form .field { flex: 1; border-radius: 999px !important; padding: 0 18px !important; height: 46px !important; }
+.sa-send { flex: none; display: grid; place-items: center; width: 46px; height: 46px; border: 0; border-radius: 50%; color: #fff; background: #0a84ff; cursor: pointer; }
+.sa-send:disabled { opacity: .5; }
+.sa-card-btn.see.on { background: #30d158; }
+.sa-body .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
