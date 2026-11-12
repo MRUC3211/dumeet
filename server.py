@@ -44,6 +44,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import push
+import saathi
 import storage
 
 # 127.0.0.1 = only this laptop. A cloud host (Render) sets HOST=0.0.0.0 so outside requests reach it.
@@ -207,6 +208,7 @@ def admin_token():
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
 RINGER = push.Ringer(STORE)
+SAATHI = saathi.Saathi(STORE, TLS)
 last_ring = {}  # caller name -> time, so a ring can't be spammed
 COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings", "logins"}
 MAX_DOC = 100 * 1024
@@ -523,6 +525,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error(502)
         if path.startswith("/api/push/"):
             return self.push_action(path, message)
+        if path.startswith("/api/ai/"):
+            return self.ai_action(path, message)
         if path != "/api/send":
             return self.send_error(404)
         room, sender = message.get("room"), message.get("from")
@@ -601,6 +605,19 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     # ---- password ----
+
+    def ai_action(self, path, message):
+        """Saathi, the AI friend (see saathi.py). Errors come back as {"error": text}."""
+        if path == "/api/ai/forget" and not self.is_admin():
+            return self.send_json({"error": "Only Admin can wipe Saathi's memory"}, 403)
+        try:
+            return self.send_json(saathi.handle(SAATHI, path, message if isinstance(message, dict) else {},
+                                                lambda name: bool(name.strip())))
+        except ValueError as error:
+            return self.send_json({"error": str(error)}, 400)
+        except (urllib.error.URLError, OSError) as error:
+            print(f"Saathi failed: {error}")
+            return self.send_json({"error": "Couldn't reach Gemini, try again"}, 502)
 
     def push_action(self, path, message):
         try:

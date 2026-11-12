@@ -227,6 +227,7 @@
         <button class="btn outline" data-a-export><span class="icon">download</span>Export everything</button>
         <button class="btn outline danger-text" data-a-clear="snaps"><span class="icon">hide_image</span>Delete all photos</button>
         <button class="btn outline danger-text" data-a-clear="meetings"><span class="icon">delete_history</span>Delete all sessions</button>
+        <button class="btn outline danger-text" data-a-forget-ai><span class="icon">psychology_alt</span>Wipe Saathi's memory</button>
       </div>`;
   }
 
@@ -276,6 +277,11 @@
       await adminFetch("/api/admin/unlock", { method: "POST", body: "{}" });
       toast("Locked devices can try again");
       return loadAdmin();
+    }
+    if (t.closest("[data-a-forget-ai]")) {
+      if (!(await ask("Wipe Saathi's memory?", "Everything Saathi knows is deleted for good: About us, notes, promises and every Faisla.", "Wipe"))) return;
+      const r = await adminFetch("/api/ai/forget", { method: "POST", body: "{}" });
+      return toast(r.ok ? "Saathi's memory is wiped" : "Couldn't wipe it");
     }
     const clear = t.closest("[data-a-clear]");
     if (clear) {

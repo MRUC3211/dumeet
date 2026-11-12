@@ -19,6 +19,8 @@ services:
       # Optional: song search inside Listen together
       - key: YOUTUBE_API_KEY
         sync: false
+      - key: GEMINI_API_KEY     # Saathi, the AI friend (aistudio.google.com)
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY

@@ -20,6 +20,8 @@ Supabase setup: SQL Editor mein `supabase.sql` chalao, phir Project Settings →
 
 Song search chahiye to `YOUTUBE_API_KEY` set karo (Google Cloud → YouTube Data API v3, free). Bina key ke link paste + saved songs chalte hain.
 
+**Saathi (AI friend):** `GEMINI_API_KEY` set karo (aistudio.google.com se free key). Saathi call me teesre dost ki tarah aata hai: baat, games, date plan, bedtime story aur **Faisla** (jhagde ka fair verdict + peace deal). Memory server pe rehti hai (`ai` collection), Admin → Settings se wipe hoti hai. Models badalne ho to `GEMINI_LIVE_MODEL` / `GEMINI_TEXT_MODEL`.
+
 ---
 
 Google Meet jaisa video calling app. Learning ke liye banaya gaya hai: video/audio call,
