@@ -201,26 +201,36 @@
         <div id="reaction-picker" role="group" aria-label="Reactions" hidden></div>
 
         <div id="tg-tray" class="tg-tray" role="menu" hidden>
-          <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch</b><small>YouTube, in sync</small></span></button>
-          <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen</b><small>Our songs</small></span></button>
-          <button role="menuitem" data-tg="calendar"><span class="tg-ic cal icon">calendar_month</span><span><b>Calendar</b><small>Opens for both</small></span></button>
-          <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer</b><small>Study or focus</small></span></button>
-          <button role="menuitem" data-tg="countdown"><span class="tg-ic count icon">hourglass_top</span><span><b>Countdown</b><small id="tray-count">Till we meet</small></span></button>
-          <button role="menuitem" data-tg="questions"><span class="tg-ic ask icon">forum</span><span><b>Questions</b><small>Things to talk about</small></span></button>
-          <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Best of you two</small></span></button>
-          <button role="menuitem" data-tg="c4"><span class="tg-ic four icon">view_column</span><span><b>4 in a row</b><small>Drop and connect</small></span></button>
-          <button role="menuitem" data-tg="land"><span class="tg-ic land icon">flag</span><span><b>Land grab</b><small>Most land in 45s</small></span></button>
-          <button role="menuitem" data-tg="rps"><span class="tg-ic rps icon">front_hand</span><span><b>Rock paper scissors</b><small>Pick in secret</small></span></button>
-          <button role="menuitem" data-tg="wheel"><span class="tg-ic wheel icon">donut_large</span><span><b>Spin to decide</b><small>Let the wheel choose</small></span></button>
-          <button role="menuitem" data-tg="breathe"><span class="tg-ic breathe icon">air</span><span><b>Breathe together</b><small>One calm minute</small></span></button>
-          <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
-          <button role="menuitem" data-tg="polls"><span class="tg-ic poll icon">ballot</span><span><b>Polls</b><small>Ask and vote</small><i id="polls-dot" class="dot" hidden></i></span></button>
-          <button role="menuitem" data-tg="sleep" class="span-all"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
+          <div class="tray-view tray-main">
+            <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch</b><small>YouTube, in sync</small></span></button>
+            <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen</b><small>Our songs</small></span></button>
+            <button role="menuitem" data-tg="calendar"><span class="tg-ic cal icon">calendar_month</span><span><b>Calendar</b><small>Opens for both</small></span></button>
+            <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer</b><small>Study or focus</small></span></button>
+            <button role="menuitem" data-tg="countdown"><span class="tg-ic count icon">hourglass_top</span><span><b>Countdown</b><small id="tray-count">Till we meet</small></span></button>
+            <button role="menuitem" data-tg="questions"><span class="tg-ic ask icon">forum</span><span><b>Questions</b><small>Things to talk about</small></span></button>
+            <button role="menuitem" data-tg="games"><span class="tg-ic game icon">sports_esports</span><span><b>Games</b><small>Play together</small></span></button>
+            <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
+            <button role="menuitem" data-tg="polls"><span class="tg-ic poll icon">ballot</span><span><b>Polls</b><small>Ask and vote</small><i id="polls-dot" class="dot" hidden></i></span></button>
+            <button role="menuitem" data-tg="mood"><span class="tg-ic mood icon">mood</span><span><b>Mood</b><small id="tray-mood">How you feel</small></span></button>
+            <button role="menuitem" data-tg="remind"><span class="tg-ic remind icon">alarm</span><span><b>Reminder</b><small>Rings for both</small></span></button>
+            <button role="menuitem" data-tg="night"><span class="tg-ic night icon">nightlight</span><span><b>Night light</b><small id="tray-night">Warm, dim screen</small></span></button>
+            <button role="menuitem" data-tg="sleep" class="span-all"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
+          </div>
+          <div class="tray-view tray-games" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="games-back" aria-label="Back to tools"><span class="icon">arrow_back</span></button><b>Games</b><span></span></div>
+            <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Best of you two</small></span></button>
+            <button role="menuitem" data-tg="c4"><span class="tg-ic four icon">view_column</span><span><b>4 in a row</b><small>Drop and connect</small></span></button>
+            <button role="menuitem" data-tg="rps"><span class="tg-ic rps icon">front_hand</span><span><b>Rock paper scissors</b><small>Pick in secret</small></span></button>
+            <button role="menuitem" data-tg="wyr"><span class="tg-ic wyr icon">call_split</span><span><b>Would you rather</b><small>Pick, then reveal</small></span></button>
+            <button role="menuitem" data-tg="tod"><span class="tg-ic tod icon">local_fire_department</span><span><b>Truth or dare</b><small>Take turns</small></span></button>
+            <button role="menuitem" data-tg="wheel"><span class="tg-ic spin icon">donut_large</span><span><b>Spin to decide</b><small>Let the wheel choose</small></span></button>
+            <button role="menuitem" data-tg="breathe"><span class="tg-ic breathe icon">air</span><span><b>Breathe together</b><small>One calm minute</small></span></button>
+          </div>
         </div>
 
       </div>
       <div class="right">
-        <button class="ctrl glass-ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_horiz</span></button>
+        <button class="ctrl glass-ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_vert</span></button>
         <div id="more-menu" class="menu" role="menu" aria-label="More options" hidden>
           <button role="menuitem" data-action="people"><span class="icon" aria-hidden="true">group</span><span class="label">People</span><span id="people-count" class="menu-count">1</span></button>
           <button role="menuitem" data-action="reactions"><span class="icon" aria-hidden="true">mood</span><span class="label">Reactions</span></button>
@@ -230,6 +240,7 @@
           <button role="menuitem" data-action="record"><span class="icon" aria-hidden="true">radio_button_checked</span><span class="label">Record meeting</span></button>
           <button role="menuitem" data-action="hide-self"><span class="icon" aria-hidden="true">hide_image</span><span class="label">Hide self view</span></button>
           <button role="menuitem" data-action="fullscreen"><span class="icon" aria-hidden="true">fullscreen</span><span class="label">Full screen</span></button>
+          <button role="menuitem" data-tg="saver"><span class="icon" aria-hidden="true">data_saver_on</span><span class="label" id="saver-label">Data saver: off</span></button>
           <button role="menuitem" data-action="settings"><span class="icon" aria-hidden="true">settings</span><span class="label">Settings</span></button>
         </div>
       </div>

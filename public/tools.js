@@ -51,6 +51,7 @@
   const tray = q("#tg-tray");
   function toggleTray(open = tray.hidden) {
     tray.hidden = !open;
+    if (!open) { q(".tray-main", tray).hidden = false; q(".tray-games", tray).hidden = true; }
     q("[data-tg=tray]").setAttribute("aria-expanded", String(open));
     q("[data-tg=tray]").classList.toggle("active", open);
   }
@@ -103,6 +104,7 @@
   }
 
   function showHeart(name) {
+    navigator.vibrate?.([70, 50, 70]);
     const fx = q("#heart-fx");
     q(".heart-text", fx).textContent = `${name} is thinking of you`;
     fx.hidden = false;

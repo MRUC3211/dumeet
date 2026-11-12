@@ -89,7 +89,7 @@
   async function loadAdmin() {
     adminBody().innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
     try {
-      const [m, sn, live, logins] = await Promise.all(["/api/data?c=meetings", "/api/data?c=snaps", "/api/admin/live", "/api/data?c=logins"].map((u) => adminFetch(u)));
+      const [m, sn, live, logins, st] = await Promise.all(["/api/data?c=meetings", "/api/data?c=snaps", "/api/admin/live", "/api/data?c=logins", "/api/data?c=settings"].map((u) => adminFetch(u)));
       if ([m, sn, live].some((r) => r.status === 403)) { admin.token = ""; return adminLogin("Please unlock again."); }
       admin.meetings = (await m.json()).docs;
       admin.snaps = (await sn.json()).docs;
@@ -97,6 +97,7 @@
       admin.live = liveData.live.filter((x) => x.people.some((p) => !p.left));
       admin.locked = liveData.locked || [];
       admin.logins = logins.ok ? (await logins.json()).docs.sort((a, b) => b.data.at - a.data.at) : [];
+      admin.scores = st.ok ? (await st.json()).docs.find((d) => d.id === "game-scores")?.data || {} : {};
     } catch {
       adminBody().innerHTML = `<p class="empty">Couldn't load. Check the internet.</p>`;
       return;
@@ -141,7 +142,38 @@
       <p class="a-label">Last 7 days · ${span(week.reduce((t, w) => t + w.secs, 0))}</p>
       <div class="a-bars">${week.map((w) => `<div><i style="height:${Math.max(3, Math.round((w.secs / max) * 100))}%" title="${esc(span(w.secs))}"></i><span>${w.label}</span></div>`).join("")}</div>
       ${perPerson.size ? `<p class="a-label">Time in calls</p><ul class="a-people">${[...perPerson].sort((a, b) => b[1] - a[1]).map(([n, t]) => `<li><span class="h-av">${esc((n || "?")[0].toUpperCase())}</span><span>${esc(n)}</span><b>${span(t)}</b></li>`).join("")}</ul>` : ""}
+      ${insightsHtml(docs)}
       ${admin.meetings.length ? "" : `<p class="muted small">Sessions are saved when everyone has left a call.</p>`}`;
+  }
+
+  // 30-day heatmap, the hour you call most, and all-time game scores
+  function insightsHtml(docs) {
+    const perDay = new Map();
+    const hours = new Array(24).fill(0);
+    for (const m of docs) {
+      const k = dayKey(new Date(m.start * 1000));
+      perDay.set(k, (perDay.get(k) || 0) + m.secs);
+      hours[new Date(m.start * 1000).getHours()] += m.secs;
+    }
+    const cells = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+      const secs = perDay.get(dayKey(d)) || 0;
+      const lvl = secs === 0 ? 0 : secs < 900 ? 1 : secs < 3600 ? 2 : secs < 7200 ? 3 : 4;
+      cells.push(`<i class="l${lvl}" title="${esc(d.toLocaleDateString([], { day: "numeric", month: "short" }))} · ${esc(secs ? span(secs) : "no call")}"></i>`);
+    }
+    const active = [...perDay.keys()].filter((k) => Date.now() - new Date(k).getTime() < 30 * 864e5).length;
+    const top = hours.indexOf(Math.max(...hours));
+    const hourText = (h) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" });
+    const names = { ttt: "Tic tac toe", c4: "Four in a row", rps: "Rock paper scissors" };
+    const games = Object.entries(admin.scores || {}).filter(([k]) => names[k]).map(([k, t]) => {
+      const players = Object.entries(t).filter(([n]) => n !== "draws").sort((a, b) => b[1] - a[1]);
+      return `<li><span class="icon">sports_esports</span><span>${names[k]}</span><b>${players.map(([n, w]) => `${esc(n)} ${w}`).join(" · ") || "–"}${t.draws ? ` · ${t.draws} draw${t.draws === 1 ? "" : "s"}` : ""}</b></li>`;
+    }).join("");
+    return `<p class="a-label">Last 30 days · ${active} day${active === 1 ? "" : "s"} with a call</p>
+      <div class="a-heat">${cells.join("")}</div>
+      ${docs.length ? `<div class="a-fact"><span class="icon">schedule</span><span>You call most around <b>${hourText(top)}</b></span></div>` : ""}
+      ${games ? `<p class="a-label">Games · all time</p><ul class="a-people a-games">${games}</ul>` : ""}`;
   }
 
   function chatHtml(chat) {

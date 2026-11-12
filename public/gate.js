@@ -10,7 +10,7 @@
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); window.DU_installPrompt = event; });
   window.addEventListener("appinstalled", () => { window.DU_installPrompt = null; });
 
-  const SCRIPTS = ["/app.js", "/home.js", "/tools.js", "/couple.js"];
+  const SCRIPTS = ["/app.js", "/home.js", "/tools.js", "/couple.js", "/extras.js"];
   let token = "";
 
   // Every call to the server carries the token; links that can't send headers (images,
