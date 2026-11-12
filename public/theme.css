@@ -1012,3 +1012,33 @@ input { caret-color: #4f46e5; }
   .wheel.spinning { transition-duration: .4s; }
 }
 .avatar span.photo { color: transparent; background-size: cover; background-position: center; box-shadow: 0 0 0 4px rgba(255, 255, 255, .12), 0 20px 40px -18px #000; }
+
+/* land grab */
+.tg-ic.land { background: linear-gradient(135deg, #30d158, #0a84ff); }
+.tg-game[data-kind=land] { width: min(324px, calc(100% - 16px)); }
+.land-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 8px; }
+.land-top > span { display: flex; align-items: center; gap: 8px; }
+.land-top > span.lp1 { flex-direction: row-reverse; text-align: right; }
+.land-top > span > span { display: grid; line-height: 1.1; }
+.land-top small { font-size: 11px; color: #a1a1a6; }
+.land-top b { font: 700 20px var(--font-display); font-variant-numeric: tabular-nums; }
+.land-top .lp0 b { color: var(--p0); } .land-top .lp1 b { color: var(--p1); }
+.land-face { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; font: 700 14px var(--font-body); font-style: normal; color: #fff; background: #3a3a3f; }
+.lp0 .land-face { box-shadow: 0 0 0 2px var(--p0); } .lp1 .land-face { box-shadow: 0 0 0 2px var(--p1); }
+.land-face img { width: 100%; height: 100%; object-fit: cover; }
+.land-time { font: 700 15px var(--font-body); font-style: normal; font-variant-numeric: tabular-nums; color: #fff; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .1); }
+.land-bar { height: 4px; margin: 0 14px 10px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.land-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--p0), var(--p1)); transform-origin: left; transition: transform .25s linear; }
+.g-board.land { grid-template-columns: repeat(8, 1fr); gap: 3px; padding: 0 14px; }
+.g-board.land button { aspect-ratio: 1; border-radius: 7px; background: rgba(255, 255, 255, .06); transition: background .2s, transform .15s; }
+.g-board.land button.can { background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.g-board.land button.o0 { background: var(--p0); }
+.g-board.land button.o1 { background: var(--p1); }
+.g-board.land button.new { animation: claim .3s cubic-bezier(.16, 1, .3, 1); }
+.g-board.land button.can.o0, .g-board.land button.can.o1 { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7); }
+.g-board.land button.nope { animation: nope .3s; }
+.g-board.land.over button { pointer-events: none; }
+@keyframes claim { from { transform: scale(.6); } }
+@keyframes nope { 25%, 75% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
+.g-alltime { margin: 8px 14px 0; text-align: center; font-size: 12px; color: #8e8e93; }
+.land-time:empty { visibility: hidden; }

@@ -150,7 +150,9 @@
     rps: { title: "Rock paper scissors" },
     wheel: { title: "Spin to decide", solo: true },
     breathe: { title: "Breathe together", solo: true },
+    land: { title: "Land grab" },
   };
+  const LAND = { side: 8, secs: 45 };
   const WHEEL_DEFAULT = ["Movie", "Songs", "A game", "Just talk", "Sleep call"];
   const HANDS = { rock: "Rock", paper: "Paper", scissors: "Scissors" };
   const HAND_ICON = { rock: "back_hand", paper: "front_hand", scissors: "content_cut" };
@@ -177,6 +179,7 @@
     next.v = Math.max(game?.v || 0, next.v || 0) + 1;
     next.by = me.name;
     game = next;
+    if (game.kind === "land" && !game.closed) landSeen(game);
     send("game", { g: game });
     paintGame();
   }
@@ -191,9 +194,91 @@
       kind, players, round: (again ? game.round : 0) + 1, turn: 0, closed: false,
       board: Array(GAMES[kind].size || 0).fill(""), winner: "", line: [], last: -1,
       score: again ? game.score : {}, picks: {},
-      options: game?.options || WHEEL_DEFAULT, spin: null, startedBy: me.name,
+      options: game?.options || WHEEL_DEFAULT, spin: null, startedBy: me.name, id: Date.now(),
+      cells: kind === "land" ? landStart() : [], left: LAND.secs * 1000,
     });
   }
+
+  // ---------- land grab: claim squares next to yours; take theirs when 2 of yours touch it ----------
+  // Both play at the same time, so each square carries a counter and the two boards are
+  // merged square by square (the newer claim wins) instead of one board replacing the other.
+  let landEnd = 0;
+  let landRound = "";
+  let landTick = 0;
+  let landPrev = [];
+  function landStart() {
+    const cells = Array.from({ length: LAND.side ** 2 }, () => ({ o: "", t: 0 }));
+    cells[0] = { o: "0", t: 1 };
+    cells[cells.length - 1] = { o: "1", t: 1 };
+    return cells;
+  }
+  const landKey = (g) => `${g.id}-${g.round}`;
+  const landLeft = () => Math.max(0, landEnd - Date.now());
+  const near = (i) => {
+    const n = LAND.side, r = Math.floor(i / n), c = i % n, out = [];
+    if (r) out.push(i - n); if (r < n - 1) out.push(i + n); if (c) out.push(i - 1); if (c < n - 1) out.push(i + 1);
+    return out;
+  };
+  const landCount = (g, who) => g.cells.filter((c) => c.o === who).length;
+  function canClaim(g, i, mine) {
+    const cell = g.cells[i];
+    if (cell.o === mine) return false;
+    const touching = near(i).filter((j) => g.cells[j].o === mine).length;
+    return cell.o ? touching >= 2 : touching >= 1;
+  }
+  function newer(a, b, i) {
+    if (a.t !== b.t) return a.t > b.t ? a : b;
+    if (a.o === b.o) return a;
+    return (i + game.round) % 2 ? (a.o > b.o ? a : b) : (a.o < b.o ? a : b);
+  }
+  function landSeen(g) {
+    if (landRound === landKey(g)) return;
+    landRound = landKey(g);
+    landEnd = Date.now() + Math.min(LAND.secs * 1000, Number(g.left) || LAND.secs * 1000);
+    clearInterval(landTick);
+    landTick = setInterval(landClock, 250);
+  }
+  function landClock() {
+    if (game?.kind !== "land" || game.closed || landRound !== landKey(game)) return clearInterval(landTick);
+    const left = landLeft();
+    const card = q("#tg-game");
+    const bar = q(".land-bar i", card);
+    if (bar) bar.style.transform = `scaleX(${left / (LAND.secs * 1000)})`;
+    const time = q(".land-time", card);
+    if (time) time.textContent = game.winner ? "" : `${Math.ceil(left / 1000)}s`;
+    if (left > 0 || game.winner) return;
+    q(".g-board.land", card)?.classList.add("over");
+    const st = q(".g-status", card);
+    if (st) st.textContent = "Time's up · counting";
+    clearInterval(landTick);
+    // the one who started settles the result once both boards have met
+    if (game.startedBy === me.name) setTimeout(() => {
+      if (game?.kind !== "land" || game.winner) return;
+      const [a, b] = [landCount(game, "0"), landCount(game, "1")];
+      const next = structuredClone(game);
+      next.winner = a === b ? "draw" : a > b ? "0" : "1";
+      if (next.winner !== "draw") next.score[next.players[+next.winner]] = (next.score[next.players[+next.winner]] || 0) + 1;
+      commit(next);
+    }, 1800);
+  }
+  function landTap(i) {
+    if (game?.kind !== "land" || game.winner || !landLeft()) return;
+    const mine = String(game.players.indexOf(me.name));
+    if (mine === "-1") return toast("You're watching this round");
+    if (!canClaim(game, i, mine)) {
+      const cell = q(`#tg-game [data-land="${i}"]`);
+      cell?.classList.remove("nope"); void cell?.offsetWidth; cell?.classList.add("nope");
+      return;
+    }
+    const t = Math.max(...game.cells.map((c) => c.t)) + 1;
+    game.cells[i] = { o: mine, t };
+    send("game", { g: { ...game, left: landLeft() } });
+    paintGame();
+  }
+  // keep both boards meeting while the clock runs
+  setInterval(() => {
+    if (game?.kind === "land" && !game.closed && !game.winner && landLeft() && polling && peers.size) send("game", { g: { ...game, left: landLeft() } });
+  }, 1200);
 
   function play(cell) {
     const rules = GAMES[game?.kind];
@@ -249,11 +334,18 @@
   }
 
   const validGame = (g) => g && GAMES[g.kind] && Number.isFinite(g.v) && typeof g.by === "string"
+    && (g.kind !== "land" || (Array.isArray(g.cells) && g.cells.length === LAND.side ** 2 && g.cells.every((c) => c && ["", "0", "1"].includes(c.o) && Number.isFinite(c.t))))
     && Array.isArray(g.players) && Array.isArray(g.board) && g.board.length === (GAMES[g.kind].size || 0)
     && g.picks && typeof g.picks === "object" && g.score && typeof g.score === "object" && Array.isArray(g.options);
 
   function receiveGame(g, peer) {
     if (!validGame(g)) return;
+    // land grab while the clock runs: merge the two boards square by square
+    if (game && !game.closed && !g.closed && g.kind === "land" && game.kind === "land" && landKey(g) === landKey(game) && !g.winner && !game.winner) {
+      game.cells = game.cells.map((c, i) => newer(c, g.cells[i], i));
+      game.v = Math.max(game.v, g.v);
+      return paintGame();
+    }
     send("game-ack", { v: g.v }, peer.id);
     // Both picked a hand at the same moment: keep both picks.
     if (game && !game.closed && g.kind === "rps" && game.kind === "rps" && g.round === game.round && !g.winner && !game.winner) {
@@ -267,6 +359,7 @@
     if (game && (g.v < game.v || (g.v === game.v && g.by <= game.by))) return;
     const isNew = !g.closed && (!game || game.closed || game.kind !== g.kind || game.round !== g.round);
     game = g;
+    if (g.kind === "land" && !g.closed) landSeen(g);
     if (isNew && g.startedBy !== me.name && q("#tg-game").hidden) toast(`${peer.name} started ${GAMES[g.kind].title.toLowerCase()}`);
     paintGame();
   }
@@ -276,16 +369,38 @@
     if (game && game.by === me.name && acked < game.v && polling && peers.size) send("game", { g: game });
   }, 2500);
 
+  // ---------- all-time scores, kept in Supabase (settings doc "game-scores") ----------
+  // Player one of each round writes the result, so a round is never counted twice.
+  let allTime = {};
+  const recorded = new Set();
+  getDocs("settings").then((docs) => { allTime = docs.find((d) => d.id === "game-scores")?.data || {}; }).catch(() => {});
+  async function recordResult(g) {
+    const key = `${g.kind}-${g.id}-${g.round}`;
+    if (!g.winner || g.players[0] !== me.name || recorded.has(key) || GAMES[g.kind].solo) return;
+    recorded.add(key);
+    try {
+      allTime = (await getDocs("settings")).find((d) => d.id === "game-scores")?.data || {};
+      const t = { ...(allTime[g.kind] || {}) };
+      if (g.winner === "draw") t.draws = (t.draws || 0) + 1;
+      else t[g.players[+g.winner]] = (t[g.players[+g.winner]] || 0) + 1;
+      allTime = { ...allTime, [g.kind]: t };
+      await putDoc("settings", allTime, "game-scores");
+      send("couple-sync", { c: "game-scores" });
+      paintGame();
+    } catch { /* offline: the round still counts on screen */ }
+  }
+
   let wheelShown = 0;
   let breatheTimer = 0;
   function paintGame() {
     const card = q("#tg-game");
+    if (game?.winner) recordResult(game);
     clearInterval(breatheTimer);
     if (!game || game.closed) { card.hidden = true; return; }
     const rules = GAMES[game.kind];
     const mine = game.players.indexOf(me.name);
     const name = (n) => (n === me.name ? "You" : n);
-    const scoreRow = rules.solo ? "" : `<div class="g-score">${game.players.map((n, i) => `<span class="${n === me.name ? "me" : ""}"><i class="m-${game.kind === "c4" ? `d${i}` : i ? "o" : "x"}"></i>${esc(name(n))} <b>${game.score[n] || 0}</b></span>`).join("")}</div>`;
+    const scoreRow = rules.solo || game.kind === "land" ? "" : `<div class="g-score">${game.players.map((n, i) => `<span class="${n === me.name ? "me" : ""}"><i class="m-${game.kind === "c4" ? `d${i}` : i ? "o" : "x"}"></i>${esc(name(n))} <b>${game.score[n] || 0}</b></span>`).join("")}</div>`;
     const winnerName = game.winner && game.winner !== "draw" ? game.players[+game.winner] : "";
     let status = game.winner === "draw" ? "It's a draw" : winnerName ? (winnerName === me.name ? "You won!" : `${winnerName} won`) : "";
     let middle = "";
@@ -313,6 +428,18 @@
         requestAnimationFrame(() => requestAnimationFrame(() => { const w = q(".wheel", card); if (w) { w.classList.add("spinning"); w.style.transform = `rotate(${turn}deg)`; } }));
         setTimeout(() => { wheelShown = game?.spin?.n || 0; if (game?.kind === "wheel") { const s = q(".g-status", card); if (s) { s.textContent = game.options[game.spin.pick]; s.classList.add("done"); } } }, 3700);
       }
+    } else if (game.kind === "land") {
+      const mine = String(game.players.indexOf(me.name));
+      const live = !game.winner && landLeft() > 0;
+      if (!status) status = live ? "Tap squares next to yours" : "Counting…";
+      const tone = (n, i) => (/^diya$/i.test(n) ? "#ff375f" : /^uday$/i.test(n) ? "#0a84ff" : i ? "#ff375f" : "#0a84ff");
+      const face = (n) => { const url = window.DU.faceFor?.(n); return url ? `<img src="${esc(url)}" alt="">` : esc((n || "?")[0].toUpperCase()); };
+      card.style.setProperty("--p0", tone(game.players[0], 0));
+      card.style.setProperty("--p1", tone(game.players[1], 1));
+      middle = `<div class="land-top">${game.players.map((n, i) => `<span class="lp${i}"><i class="land-face">${face(n)}</i><span><small>${esc(name(n))}</small><b>${landCount(game, String(i))}</b></span></span>`).join(`<em class="land-time">${live ? Math.ceil(landLeft() / 1000) + "s" : ""}</em>`)}</div>
+        <div class="land-bar"><i style="transform:scaleX(${landLeft() / (LAND.secs * 1000)})"></i></div>
+        <div class="g-board land${live ? "" : " over"}">${game.cells.map((c, i) => `<button data-land="${i}" class="${c.o ? `o${c.o}` : ""}${c.o && landPrev[i] !== c.o ? " new" : ""}${live && canClaim(game, i, mine) ? " can" : ""}" aria-label="Square ${i + 1}"></button>`).join("")}</div>`;
+      landPrev = game.cells.map((c) => c.o);
     } else if (game.kind === "breathe") {
       middle = `<div class="breath"><div class="breath-ring"></div><b class="breath-word">Breathe in</b></div>`;
       const word = () => { const w = q(".breath-word", card); if (w) w.textContent = (Date.now() / 1000) % 10 < 5 ? "Breathe in" : "Breathe out"; };
@@ -320,11 +447,13 @@
       setTimeout(word);
       breatheTimer = setInterval(word, 250);
     }
+    const tally = allTime[game.kind];
+    const allTimeRow = !rules.solo && tally ? `<p class="g-alltime">All time · ${game.players.map((n) => `${esc(name(n))} ${tally[n] || 0}`).join(" · ")}${tally.draws ? ` · ${tally.draws} draw${tally.draws > 1 ? "s" : ""}` : ""}</p>` : "";
     const again = game.winner ? `<button class="btn primary small-btn g-again" data-tg="g-${game.kind}"><span class="icon">replay</span>Play again</button>` : "";
     card.innerHTML = `
       <header class="g-head"><span class="cw-grip" aria-hidden="true"></span><b>${rules.title}</b><button class="icon-btn" data-tg="g-close" aria-label="Close"><span class="icon">close</span></button></header>
       ${scoreRow}${middle}
-      <p class="g-status ${game.winner || (game.kind === "wheel" && game.spin && wheelShown === game.spin.n) ? "done" : ""}" aria-live="polite">${esc(status)}</p>${again}`;
+      ${allTimeRow}<p class="g-status ${game.winner || (game.kind === "wheel" && game.spin && wheelShown === game.spin.n) ? "done" : ""}" aria-live="polite">${esc(status)}</p>${again}`;
     card.dataset.kind = game.kind;
     if (game.kind === "breathe") q(".breath-ring", card).style.animationDelay = `-${(Date.now() / 1000) % 10}s`;
     card.hidden = false;
@@ -334,6 +463,8 @@
   q("#tg-game").addEventListener("click", (event) => {
     const cell = event.target.closest("[data-cell]");
     if (cell) return play(Number(cell.dataset.cell));
+    const land = event.target.closest("[data-land]");
+    if (land) return landTap(Number(land.dataset.land));
     const hand = event.target.closest("[data-hand]");
     if (hand) return pickHand(hand.dataset.hand);
     if (event.target.closest("[data-g=spin]")) spin();
@@ -386,6 +517,8 @@
         "g-ttt": () => startGame("ttt"),
         "g-c4": () => startGame("c4"),
         "g-rps": () => startGame("rps"),
+        "g-land": () => startGame("land"),
+        land: () => startGame("land"),
         "g-close": closeGame,
         "q-next": () => ask(q("#tg-question").dataset.deck || deck),
         "q-close": () => { q("#tg-question").hidden = true; send("question", { close: true }); },
@@ -401,6 +534,10 @@
       if (message.type === "game") return receiveGame(data.g, peer);
       if (message.type === "game-ack") { if (game && data.v === game.v) acked = Math.max(acked, data.v); return; }
       if (message.type !== "couple-sync") return;
+      if (data.c === "game-scores") {
+        getDocs("settings").then((docs) => { allTime = docs.find((d) => d.id === "game-scores")?.data || {}; paintGame(); }).catch(() => {});
+        return;
+      }
       if (data.c === "settings") {
         refreshCountdown();
         if (isOpen("countdown")) { tool.docs.dates = (await getDates()) || {}; RENDER.countdown(); }
