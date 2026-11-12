@@ -341,6 +341,7 @@
       if (JSON.stringify(fresh) === JSON.stringify(avatars)) return;
       avatars = fresh;
       paintAvatars();
+      if (typeof renderAll === "function" && document.body.dataset.view === "room") renderAll();
     } catch { /* offline: keep what we have */ }
   }
   function paintAvatars() {
@@ -439,10 +440,15 @@
   window.DU = Object.assign(window.DU || {}, {
     openModal, closeModal,
     onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); },
+    faceFor(name) {
+      const key = Object.keys(avatars).find((k) => k.toLowerCase() === String(name || "").trim().toLowerCase());
+      return key && avatars[key] ? window.authUrl(avatars[key]) : "";
+    },
   });
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   // Scripts load after the page, so show the right screen now.
+  loadAvatars();
   if (document.body.dataset.view === "home") window.DU.onHome();
   else if (typeof route === "function" && document.body.dataset.view === "gate") route();
 })();

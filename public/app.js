@@ -837,6 +837,10 @@ function paintTile(tile, spec) {
   const avatar = tile.querySelector(".avatar span");
   avatar.textContent = initial(info.name);
   avatar.style.setProperty("--avatar", colorFor(info.name));
+  // Diya's and Uday's profile photos (set in Admin) replace the letter
+  const face = window.DU?.faceFor?.(info.name) || "";
+  avatar.classList.toggle("photo", Boolean(face));
+  avatar.style.backgroundImage = face ? `url("${face}")` : "";
 }
 
 function paintPin(tile, id) {

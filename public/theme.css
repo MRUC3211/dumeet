@@ -1011,3 +1011,4 @@ input { caret-color: #4f46e5; }
   .view.view-in, .info-pop, .g-board.c4 button.last::before { animation-duration: .01s !important; }
   .wheel.spinning { transition-duration: .4s; }
 }
+.avatar span.photo { color: transparent; background-size: cover; background-position: center; box-shadow: 0 0 0 4px rgba(255, 255, 255, .12), 0 20px 40px -18px #000; }
