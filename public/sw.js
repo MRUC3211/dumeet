@@ -19,3 +19,36 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+// "Call me" ring: the push has no payload; ask the server who rang this device.
+self.addEventListener("push", (event) => {
+  event.waitUntil((async () => {
+    let from = "";
+    try {
+      const sub = await self.registration.pushManager.getSubscription();
+      const res = await fetch("/api/push/latest", { method: "POST", body: JSON.stringify({ endpoint: sub?.endpoint || "" }) });
+      from = (await res.json()).from || "";
+    } catch { /* show a plain ring */ }
+    await self.registration.showNotification(from ? `${from} is calling you` : "Someone is calling you", {
+      body: "Tap to join the call on DU Meet",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: "du-ring",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [400, 200, 400, 200, 400, 200, 800],
+      data: { url: "/?room=our-room" },
+    });
+  })());
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil((async () => {
+    const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const open = tabs.find((c) => new URL(c.url).origin === location.origin);
+    if (open) { await open.focus(); open.postMessage({ type: "ring-open" }); return; }
+    await self.clients.openWindow(url);
+  })());
+});

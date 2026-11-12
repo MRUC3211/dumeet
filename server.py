@@ -43,6 +43,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+import push
 import storage
 
 # 127.0.0.1 = only this laptop. A cloud host (Render) sets HOST=0.0.0.0 so outside requests reach it.
@@ -205,6 +206,8 @@ def admin_token():
 
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
+RINGER = push.Ringer(STORE)
+last_ring = {}  # caller name -> time, so a ring can't be spammed
 COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings", "logins"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
@@ -276,6 +279,44 @@ def finish_meetings():
                                                       "chat": meeting.get("chat", [])})
         except Exception as error:  # noqa: BLE001 - history must never break a call
             print(f"Could not save meeting history: {error}")
+
+
+def wrapped(month, tz_minutes):
+    """One month of calls in numbers (totals only, no chats), for the monthly recap."""
+    shift = -tz_minutes * 60  # browser's getTimezoneOffset is minutes behind UTC
+    local = lambda t: time.gmtime(t + shift)  # noqa: E731
+    calls, chats, per_person = [], 0, {}
+    hours, weekdays = [0] * 24, [0] * 7
+    days = set()
+    for doc in STORE.list("meetings"):
+        m = doc.get("data") or {}
+        if not m.get("start") or len(m.get("people", [])) < 2:
+            continue
+        t = local(m["start"])
+        if f"{t.tm_year:04d}-{t.tm_mon:02d}" != month:
+            continue
+        secs = int(m.get("secs", 0))
+        calls.append(secs)
+        days.add(t.tm_mday)
+        hours[t.tm_hour] += secs
+        weekdays[t.tm_wday] += secs
+        chats += len(m.get("chat", []))
+        for p in m.get("people", []):
+            per_person[p.get("name", "?")] = per_person.get(p.get("name", "?"), 0) + int(p.get("secs", 0))
+    streak = best = 0
+    for day in range(1, 32):
+        streak = streak + 1 if day in days else 0
+        best = max(best, streak)
+    photos = 0
+    for doc in STORE.list("snaps"):
+        at = (doc.get("data") or {}).get("at")
+        if isinstance(at, (int, float)):
+            t = local(at / 1000)
+            photos += f"{t.tm_year:04d}-{t.tm_mon:02d}" == month
+    return {"month": month, "secs": sum(calls), "calls": len(calls), "longest": max(calls, default=0),
+            "days": sorted(days), "streak": best, "chats": chats, "photos": photos, "people": per_person,
+            "topHour": hours.index(max(hours)) if any(hours) else None,
+            "topWeekday": weekdays.index(max(weekdays)) if any(weekdays) else None}
 
 
 def youtube_title(video_id):
@@ -392,6 +433,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.poll(params)
             elif path == "/api/room":
                 self.send_json({"names": [peer.name for peer in members(params.get("room", ""))]})
+            elif path == "/api/wrapped":
+                month = params.get("m", "")
+                if len(month) != 7 or month[4] != "-" or not month.replace("-", "").isdigit():
+                    return self.send_error(400)
+                self.send_json(wrapped(month, int(params.get("tz", "0") or 0)))
+            elif path == "/api/push/key":
+                self.send_json({"key": RINGER.public_key()})
             elif path == "/api/ice":
                 self.send_json({"iceServers": ice_servers()})
             elif path == "/api/features":
@@ -436,6 +484,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.login()
         if path == "/api/admin/login":
             return self.login(admin=True) if self.logged_in() else self.send_error(401)
+        if path == "/api/push/latest":
+            # Asked by the service worker, which has no login. It must prove it is a
+            # subscribed device by sending its own (secret) push endpoint.
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > 2000:
+                return self.send_error(413)
+            try:
+                endpoint = str(json.loads(self.rfile.read(length) or b"{}").get("endpoint", ""))
+            except ValueError:
+                return self.send_error(400)
+            return self.send_json(RINGER.latest(endpoint))
         if not self.logged_in():
             return self.send_error(401)
         length = int(self.headers.get("Content-Length") or 0)
@@ -462,6 +521,8 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as error:  # noqa: BLE001
                 print(f"Storage error: {error}")
                 return self.send_error(502)
+        if path.startswith("/api/push/"):
+            return self.push_action(path, message)
         if path != "/api/send":
             return self.send_error(404)
         room, sender = message.get("room"), message.get("from")
@@ -540,6 +601,30 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     # ---- password ----
+
+    def push_action(self, path, message):
+        try:
+            if path == "/api/push/subscribe":
+                name, endpoint = str(message.get("name", "")).strip(), str(message.get("endpoint", ""))
+                if not name or not RINGER.subscribe(name, endpoint):
+                    return self.send_error(400)
+                return self.send_json({"ok": True})
+            if path == "/api/push/unsubscribe":
+                RINGER.unsubscribe(str(message.get("endpoint", "")))
+                return self.send_json({"ok": True})
+            if path == "/api/push/ring":
+                caller = str(message.get("from", "")).strip()[:40]
+                if not caller:
+                    return self.send_error(400)
+                if time.time() - last_ring.get(caller.lower(), 0) < 15:
+                    return self.send_json({"sent": 0, "wait": True})
+                last_ring[caller.lower()] = time.time()
+                host = self.headers.get("Host", "du-meet.onrender.com")
+                return self.send_json({"sent": RINGER.ring(caller, f"https://{host}")})
+        except Exception as error:  # noqa: BLE001
+            print(f"Push error: {error}")
+            return self.send_error(502)
+        return self.send_error(404)
 
     def admin_action(self, path, length):
         if not self.is_admin():

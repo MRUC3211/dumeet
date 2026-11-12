@@ -488,8 +488,6 @@
         "g-ttt": () => startGame("ttt"),
         "g-c4": () => startGame("c4"),
         "g-rps": () => startGame("rps"),
-        games: () => { q("#tg-tray .tray-main").hidden = true; q("#tg-tray .tray-games").hidden = false; },
-        "games-back": () => { q("#tg-tray .tray-main").hidden = false; q("#tg-tray .tray-games").hidden = true; },
         wyr: () => startGame("wyr"),
         tod: () => startGame("tod"),
         "g-wyr": () => startGame("wyr"),

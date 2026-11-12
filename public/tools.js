@@ -51,9 +51,15 @@
   const tray = q("#tg-tray");
   function toggleTray(open = tray.hidden) {
     tray.hidden = !open;
-    if (!open) { q(".tray-main", tray).hidden = false; q(".tray-games", tray).hidden = true; }
+    if (!open) showTrayView("main");
     q("[data-tg=tray]").setAttribute("aria-expanded", String(open));
     q("[data-tg=tray]").classList.toggle("active", open);
+  }
+
+  /** The tray has a main grid and a few sections (games, fun, relax, more). */
+  function showTrayView(name) {
+    for (const view of qa(".tray-view", tray)) view.hidden = !view.classList.contains(`tray-${name}`);
+    if (name !== "main") tray.scrollTop = 0;
   }
 
   // ---------- thinking of you ----------
@@ -1052,7 +1058,11 @@
       "media-open": () => openPlay(media.mode || "listen"),
       "media-close": () => closeMedia(true),
     })[button.dataset.tg];
-    if (handler) handler(); else window.DU.onCoupleClick?.(button);
+    const tg = button.dataset.tg;
+    if (handler) handler();
+    else if (tg.startsWith("view-")) showTrayView(tg.slice(5));
+    else if (tg === "tray-back") showTrayView("main");
+    else window.DU.onCoupleClick?.(button);
   });
   q("#tg-snap").addEventListener("click", () => { q("#tg-snap").hidden = true; if (snapState.blob) showPhoto(snapState.blob); });
 

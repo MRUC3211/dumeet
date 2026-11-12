@@ -399,6 +399,9 @@ function setOutgoing(slot, track) {
 }
 
 function localTrack(slot) {
+  // face filters / voice changer can stand in for the raw camera or mic
+  const fx = window.DU?.outTrack?.(slot);
+  if (fx) return fx;
   return [micTrack(), cameraTrack(), me.screenTrack][slot] ?? null;
 }
 
@@ -1831,6 +1834,44 @@ function icon(name, extra = "") {
 }
 
 /** Photos, videos, audio and files shared in the chat. */
+/** A voice message: play button, a little waveform that fills as it plays, and the length. */
+function voiceBubble(src, secs, seed) {
+  const box = document.createElement("div");
+  box.className = "voice-msg";
+  let h = 0;
+  for (const c of String(seed)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const bars = Array.from({ length: 28 }, () => { h = (h * 1103515245 + 12345) >>> 0; return 22 + (h % 78); });
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  box.innerHTML = `<button type="button" class="vm-play" aria-label="Play voice message"><span class="icon">play_arrow</span></button><span class="vm-wave">${bars.map((v) => `<i style="height:${v}%"></i>`).join("")}</span><span class="vm-time">${fmt(secs)}</span>`;
+  const audio = new Audio();
+  audio.preload = "none";
+  audio.src = src;
+  const icon = box.querySelector(".vm-play .icon");
+  const wave = [...box.querySelectorAll(".vm-wave i")];
+  const time = box.querySelector(".vm-time");
+  const paint = () => {
+    const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : secs || 1;
+    const done = Math.round((audio.currentTime / total) * wave.length);
+    wave.forEach((bar, i) => bar.classList.toggle("on", i < done));
+    time.textContent = fmt(audio.paused && !audio.currentTime ? secs : audio.currentTime);
+  };
+  audio.addEventListener("timeupdate", paint);
+  audio.addEventListener("ended", () => { icon.textContent = "play_arrow"; audio.currentTime = 0; paint(); box.classList.remove("playing"); });
+  box.querySelector(".vm-play").addEventListener("click", () => {
+    if (audio.paused) {
+      document.querySelectorAll(".voice-msg.playing").forEach((other) => other !== box && other.querySelector(".vm-play")?.click());
+      audio.play().catch(() => {});
+      icon.textContent = "pause"; box.classList.add("playing");
+    } else { audio.pause(); icon.textContent = "play_arrow"; box.classList.remove("playing"); }
+  });
+  box.querySelector(".vm-wave").addEventListener("click", (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : secs;
+    if (total) { audio.currentTime = ((e.clientX - r.left) / r.width) * total; paint(); }
+  });
+  return box;
+}
+
 function chatMedia(list) {
   const box = document.createElement("div");
   box.className = "chat-media";
@@ -1846,6 +1887,8 @@ function chatMedia(list) {
     } else if (type.startsWith("video/")) {
       element = document.createElement("video");
       element.src = src; element.controls = true; element.playsInline = true; element.preload = "metadata";
+    } else if (type.startsWith("audio/") && item.voice) {
+      element = voiceBubble(src, Number(item.secs) || 0, item.url);
     } else if (type.startsWith("audio/")) {
       element = document.createElement("audio");
       element.src = src; element.controls = true; element.preload = "none";
