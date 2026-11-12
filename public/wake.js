@@ -27,7 +27,7 @@
     return new RegExp(`(?:^|[\\s,.!?।])(?:${HEY.map(esc).join("|")})[\\s,]*(?:${names.map(esc).join("|")})(?=$|[\\s,.!?।])`, "i");
   }
 
-  const wanted = () => Boolean(on && !blocked && Rec && polling && me.mic
+  const wanted = () => Boolean(on && !blocked && window.DU.policy?.saathiOn !== false && Rec && polling && me.mic
     && (armed || !saathi()?.active()));
   window.DU.wakeWanted = wanted;
 

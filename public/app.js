@@ -449,6 +449,13 @@ async function pollLoop() {
     });
     try {
       const response = await fetch(`/api/poll?${params}`, { signal: controller.signal });
+      if (response.status === 503 || response.status === 403) {
+        // Admin: maintenance, or only the two of them may join
+        const why = (await response.json().catch(() => ({}))).error || "You can't join right now";
+        if (polling === controller) leaveMeeting();
+        toast(why);
+        break;
+      }
       if (!response.ok) throw new Error(`poll failed: ${response.status}`);
       const { messages } = await response.json();
       if (offline) toast("Reconnected");
@@ -632,6 +639,9 @@ function handleMessage(message) {
       break;
     case "end-call":
       if (message.from === "admin") { leaveMeeting(); toast("The call was ended"); }
+      break;
+    case "admin-cmd":
+      if (message.from === "admin") window.DU?.onAdmin?.(data || {});
       break;
     default:
       // couple features (together.js): watch/listen together, sleep, moments…

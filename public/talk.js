@@ -17,6 +17,8 @@
     dare: { title: "Truth or dare: after dark", icon: "whatshot", e: "🔥", tone: "rose", heat: true, note: "Take turns. Pick truth or dare." },
   };
   const HEAT = [["1", "Sweet"], ["2", "Flirty"], ["3", "Hot"]];
+  const maxHeat = () => Math.max(1, Math.min(3, Number(window.DU.policy?.maxHeat) || 3));   // the admin's limit
+  const heat = (v) => Math.max(1, Math.min(maxHeat(), Number(v) || 2));
 
   // the built-in deck, used when the AI can't be reached
   const DECK = {
@@ -65,7 +67,7 @@
     W().get(`talk-${kind}`) || W().open({
       id: `talk-${kind}`, title: k.title, icon: k.icon, w: 360, h: 470, tone: k.tone,
       onClose: () => { if (st.kind === kind) st.kind = ""; V().stopSpeaking(); },
-      html: `<div class="tc tc-${kind}">${k.heat ? `<div class="tc-heat" role="group" aria-label="Heat">${HEAT.map(([v, l]) => `<button data-lv="${v}">${l}</button>`).join("")}</div>` : ""}
+      html: `<div class="tc tc-${kind}">${k.heat ? `<div class="tc-heat" role="group" aria-label="Heat">${HEAT.filter(([v]) => Number(v) <= maxHeat()).map(([v, l]) => `<button data-lv="${v}">${l}</button>`).join("")}</div>` : ""}
         <div class="tc-card"><span class="tc-e" aria-hidden="true">${k.e}</span><small class="tc-n"></small><p class="tc-text"></p><small class="tc-by"></small></div>
         <div class="tc-mid"></div>
         <div class="tc-acts"><button class="btn ghost" data-tc="read" aria-label="Read aloud"><span class="icon">volume_up</span></button><button class="btn primary" data-tc="next"><span class="icon">style</span>Next card</button></div>
@@ -74,7 +76,7 @@
     const w = W().get(`talk-${kind}`);
     w.body.onclick = (e) => {
       const lv = e.target.closest("[data-lv]");
-      if (lv) { st.level = Number(lv.dataset.lv); store.set("du-talk-heat", st.level); paint(); return next(true); }
+      if (lv) { st.level = heat(lv.dataset.lv); store.set("du-talk-heat", st.level); paint(); return next(true); }
       const a = e.target.closest("[data-tc]")?.dataset.tc;
       if (a === "next") next(true);
       if (a === "read" && st.text) V().speak(st.text);
@@ -83,7 +85,7 @@
       const v = e.target.closest("[data-v]")?.dataset.v;
       if (v != null) vote(v === "1", true);
     };
-    st.level = store.get("du-talk-heat", 2);
+    st.level = heat(store.get("du-talk-heat", 2));
     if (!from && !st.text) next(true); else paint();
   }
 
@@ -164,7 +166,7 @@
       const d = message.data || {};
       if (d.t === "card" && KINDS[d.kind]) {
         if (st.kind !== d.kind || !W().get(`talk-${d.kind}`)) { st.kind = d.kind; open(d.kind, peer.name); toast(`${peer.name} opened ${KINDS[d.kind].title} ${KINDS[d.kind].e}`); }
-        Object.assign(st, { level: Number(d.level) || 2, text: String(d.text || "").slice(0, 240), n: Number(d.n) || 0, turn: Number(d.turn) || 0, td: d.td || "", votes: {}, loading: false });
+        Object.assign(st, { level: heat(d.level), text: String(d.text || "").slice(0, 240), n: Number(d.n) || 0, turn: Number(d.turn) || 0, td: d.td || "", votes: {}, loading: false });
         paint();
       }
       if (d.t === "vote" && Number(d.n) === st.n) { st.votes[peer.name] = Boolean(d.yes); paint(); }

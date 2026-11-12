@@ -636,19 +636,47 @@ ask, and keep both of them included.
                  f"Genre: {genre}.")
         so_far = "\n".join(f"{l.get('by', '?')}: {l.get('text', '')}" for l in lines[-40:] if isinstance(l, dict))
         if op == "start":
-            r = self.ask(rules + " Return JSON {\"title\": short catchy title, \"hook\": a 2-3 sentence opening "
-                         "that ends on a cliffhanger, with both of them as the main characters}.",
-                         f"Start a new {genre} story.", temperature=1.0)
-            return {"title": str(r.get("title", "Our story"))[:80], "text": str(r.get("hook", ""))[:700]}
+            r = self._story_ask(rules + " Return JSON {\"title\": short catchy title, \"text\": a 2-3 sentence "
+                                "opening that ends on a cliffhanger, with both of them as the main characters}.",
+                                f"Start a new {genre} story.", 1.0)
+            return {"title": self._pick(r, "title", "name") or "Our story", "text": self._pick(r, "text", "hook", "opening", "story")[:700]}
         if op == "end":
-            r = self.ask(rules + " Return JSON {\"text\": a satisfying 3-4 sentence ending that ties in what they "
-                         "wrote, \"title\": a better title for the whole story}.", f"Story so far:\n{so_far}",
-                         temperature=0.9)
-            return {"title": str(r.get("title", "Our story"))[:80], "text": str(r.get("text", ""))[:900]}
-        r = self.ask(rules + " Continue from their latest lines with 2-3 sentences and a surprising twist, then "
-                     "end with a short question or situation for the next person. Return JSON {\"text\": string}.",
-                     f"Story so far:\n{so_far}", temperature=0.95)
-        return {"text": str(r.get("text", ""))[:700]}
+            r = self._story_ask(rules + " Return JSON {\"text\": a satisfying 3-4 sentence ending that ties in what "
+                                "they wrote, \"title\": a better title for the whole story}.", f"Story so far:\n{so_far}", 0.9)
+            return {"title": self._pick(r, "title", "name") or "Our story", "text": self._pick(r, "text", "ending", "story")[:900]}
+        r = self._story_ask(rules + " Continue from their latest lines with 2-3 sentences and a surprising twist, then "
+                            "end with a short question or situation for the next person. Return JSON {\"text\": string}.",
+                            f"Story so far:\n{so_far}", 0.95)
+        return {"text": self._pick(r, "text", "twist", "story", "continuation")[:700]}
+
+    def _story_ask(self, system, prompt, temperature):
+        """JSON first; if the answer can't be read, ask again for plain text."""
+        try:
+            r = self.ask(system, prompt, temperature=temperature)
+            if isinstance(r, list) and r:
+                r = r[0]
+            if isinstance(r, dict) and any(isinstance(v, str) and v.strip() for v in r.values()):
+                return r
+        except ValueError as error:
+            if "Gemini said" in str(error):
+                raise
+        text = self.ask(system.split(" Return JSON")[0] + " Answer with just the story text, no title, no JSON.",
+                        prompt, as_json=False, temperature=temperature)
+        if not text:
+            raise ValueError("The storyteller went quiet, try again")
+        return {"text": text.strip().strip('"')}
+
+    @staticmethod
+    def _pick(r, *keys):
+        for k in keys:
+            v = r.get(k) if isinstance(r, dict) else None
+            if isinstance(v, str) and v.strip():
+                return v.strip()[:900]
+        if isinstance(r, dict):  # any text at all
+            for v in r.values():
+                if isinstance(v, str) and len(v.strip()) > 20:
+                    return v.strip()[:900]
+        return ""
 
     def plan(self, name, tasks, now):
         r = self.ask(
@@ -769,17 +797,16 @@ def handle(saathi, path, body, name_ok):
             level = 2
         avoid = [str(a)[:200] for a in (body.get("avoid") or [])][:40]
         return saathi.cards(kind, level, avoid)
-    if action == "story":
-        if not saathi.consented([name]):
-            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
+    if action == "story":   # a game, not Saathi listening: no consent needed
         op = body.get("op") if body.get("op") in ("start", "next", "end") else "next"
         genre = str(body.get("genre", "romantic comedy"))[:40]
         lines = [{"by": str(l.get("by", ""))[:40], "text": str(l.get("text", ""))[:600]}
                  for l in (body.get("lines") or []) if isinstance(l, dict)][-40:]
-        return saathi.story(op, genre, lines, names)
+        result = saathi.story(op, genre, lines, names)
+        if not result.get("text"):
+            raise ValueError("The storyteller went quiet, try again")
+        return result
     if action == "plan":
-        if not saathi.consented([name]):
-            raise ValueError("Agree to Saathi once first (open Saathi in a call)")
         tasks = [str(t).strip() for t in (body.get("tasks") or []) if str(t).strip()]
         if not tasks:
             raise ValueError("Add a few tasks first")

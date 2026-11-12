@@ -34,6 +34,7 @@ import json
 import os
 import queue
 import ssl
+import sys
 import threading
 import time
 import urllib.error
@@ -43,6 +44,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+import admin
 import push
 import saathi
 import storage
@@ -141,7 +143,9 @@ fails_lock = threading.Lock()
 
 
 def auth_token():
-    return hmac.new(PASSWORD.encode(), b"du-meet-login", hashlib.sha256).hexdigest()
+    # the admin's "sign out everyone" bumps the epoch, which changes every token
+    epoch = ADMIN.config.get("epoch", 0) if "ADMIN" in globals() else 0
+    return hmac.new(PASSWORD.encode(), b"du-meet-login" + (f":{epoch}".encode() if epoch else b""), hashlib.sha256).hexdigest()
 
 
 def lock_left(address, add=False):
@@ -188,6 +192,7 @@ def log_login(kind, ok, address, agent):
     try:
         STORE.put("logins", storage.new_id(), {"at": time.time(), "kind": kind, "ok": ok,
                                                "address": address, "device": device_name(agent)})
+        ADMIN.audit("security", f"{'Opened' if ok else 'Wrong password'} ({kind}) · {device_name(agent)} · {address}")
     except Exception as error:  # noqa: BLE001 - logging must never block a login
         print(f"Could not log the login: {error}")
 
@@ -207,8 +212,18 @@ def admin_token():
 
 # ---- Shared data: calendar, saved songs, meeting history ----------------------------
 STORE = storage.open_store()
+ADMIN = admin.Admin(STORE)
 RINGER = push.Ringer(STORE)
 SAATHI = saathi.Saathi(STORE, TLS)
+ALL_COLLECTIONS = ("meetings", "snaps", "logins", "calendar", "songs", "settings", "ai", "push", "admin")
+
+
+def apply_limits():
+    saathi.TOKENS.count = ADMIN.config["liveHourly"]
+    saathi.TEXTS.count = ADMIN.config["textHourly"]
+
+
+apply_limits()
 last_ring = {}  # caller name -> time, so a ring can't be spammed
 COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings", "logins"}
 MAX_DOC = 100 * 1024
@@ -230,6 +245,7 @@ def meeting_join(room, peer):
         meeting = meetings.setdefault(room, {"start": now, "empty": None, "people": [], "chat": []})
         meeting["empty"] = None
         meeting["people"].append({"id": peer.id, "name": peer.name, "joined": now, "left": None})
+    ADMIN.audit("call", f"{peer.name} joined {room}")
 
 
 def meeting_leave(room, peer):
@@ -244,6 +260,7 @@ def meeting_leave(room, peer):
                 break
         if all(person["left"] is not None for person in meeting["people"]):
             meeting["empty"] = now
+    ADMIN.audit("call", f"{peer.name} left {room}")
 
 
 def meeting_chat(room, peer, data):
@@ -447,6 +464,12 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/features":
                 self.send_json({"search": bool(YOUTUBE_API_KEY), "storage": STORE.name,
                                 "persistent": STORE.name == "Supabase"})
+            elif path == "/api/config":
+                self.send_json(ADMIN.public())
+            elif path.startswith("/api/admin/") and path != "/api/admin/live":
+                if not self.is_admin():
+                    return self.send_error(403)
+                self.admin_get(path, params)
             elif path == "/api/admin/live":
                 if not self.is_admin():
                     return self.send_error(403)
@@ -525,6 +548,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error(502)
         if path.startswith("/api/push/"):
             return self.push_action(path, message)
+        if path == "/api/usage":                 # features opened, counted by the apps
+            ADMIN.count_features(str(message.get("name", "")), message.get("counts") if isinstance(message.get("counts"), dict) else {})
+            return self.send_json({"ok": True})
         if path.startswith("/api/ai/"):
             return self.ai_action(path, message)
         if path != "/api/send":
@@ -610,12 +636,24 @@ class Handler(BaseHTTPRequestHandler):
         """Saathi, the AI friend (see saathi.py). Errors come back as {"error": text}."""
         if path == "/api/ai/forget" and not self.is_admin():
             return self.send_json({"error": "Only Admin can wipe Saathi's memory"}, 403)
+        action = path.rsplit("/", 1)[1]
+        if not ADMIN.config["saathiOn"] and action not in ("state", "about", "consent"):
+            return self.send_json({"error": "Saathi is switched off by Admin"}, 400)
+        message = message if isinstance(message, dict) else {}
+        if action == "cards" and "level" in message:   # never hotter than Admin allows
+            try:
+                message["level"] = max(1, min(int(ADMIN.config["maxHeat"]), int(message["level"])))
+            except (TypeError, ValueError):
+                message["level"] = 1
         try:
-            return self.send_json(saathi.handle(SAATHI, path, message if isinstance(message, dict) else {},
-                                                lambda name: bool(name.strip())))
+            result = saathi.handle(SAATHI, path, message, lambda name: bool(name.strip()))
+            ADMIN.count_ai(action, True)
+            return self.send_json(result)
         except ValueError as error:
+            ADMIN.count_ai(action, False)
             return self.send_json({"error": str(error)}, 400)
         except (urllib.error.URLError, OSError) as error:
+            ADMIN.count_ai(action, False)
             print(f"Saathi failed: {error}")
             return self.send_json({"error": "Couldn't reach Gemini, try again"}, 502)
 
@@ -647,16 +685,21 @@ class Handler(BaseHTTPRequestHandler):
         if not self.is_admin():
             return self.send_error(403)
         try:
-            body = json.loads(self.rfile.read(min(length, 4096)) or b"{}")
+            body = json.loads(self.rfile.read(min(length, 16384)) or b"{}")
         except ValueError:
             return self.send_error(400)
         if path == "/api/admin/unlock":          # forgive wrong passwords (all addresses)
             with fails_lock:
                 fails.clear()
+            ADMIN.audit("security", "Locked-out devices were let in")
             return self.send_json({"ok": True})
+        handled = self.admin_post(path, body)
+        if handled is not None:
+            return handled
         if path == "/api/admin/end":            # end a live call for everyone in it
             room = str(body.get("room", ""))
             deliver(room, {"type": "end-call", "from": "admin", "data": {}})
+            ADMIN.audit("admin", f"Ended the call in {room}")
             return self.send_json({"ok": True})
         if path == "/api/admin/clear":          # delete a whole collection (photos, sessions, log)
             collection = body.get("c")
@@ -672,6 +715,145 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error(502)
             return self.send_json({"ok": True})
         return self.send_error(404)
+
+    # ---- admin: what the console reads ----
+
+    def admin_get(self, path, params):
+        if path == "/api/admin/status":
+            return self.send_json(self.server_status())
+        if path == "/api/admin/config":
+            return self.send_json({"config": ADMIN.config})
+        if path == "/api/admin/logs":
+            return self.send_json({"logs": list(ADMIN.logs)[-300:], "audit": list(ADMIN.audit_log)[-300:]})
+        if path == "/api/admin/stats":
+            return self.send_json({"requests": ADMIN.stats(), "usage": ADMIN.usage_days(14),
+                                   "ai": {"liveUsed": len(saathi.TOKENS.times), "liveLimit": saathi.TOKENS.count,
+                                          "textUsed": len(saathi.TEXTS.times), "textLimit": saathi.TEXTS.count}})
+        if path == "/api/admin/peers":
+            with lock:
+                live = [{"room": room, "people": [{**p.info(), "idle": round(time.monotonic() - p.last_seen, 1),
+                                                    "waiting": p.polls} for p in people.values()]}
+                        for room, people in rooms.items()]
+            return self.send_json({"rooms": live})
+        if path == "/api/admin/push":
+            subs = [{"id": d["id"], "name": d["data"].get("name", ""), "at": d["data"].get("at", 0),
+                     "service": urlparse(d["data"].get("endpoint", "")).netloc} for d in RINGER.subscribers()]
+            return self.send_json({"devices": subs})
+        if path == "/api/admin/data":
+            c = params.get("c", "")
+            if c not in ALL_COLLECTIONS:
+                return self.send_error(400)
+            return self.send_json({"docs": [d for d in STORE.list(c) if not (c == "push" and d["id"] == "vapid")][:500]})
+        if path == "/api/admin/export":
+            out = {}
+            for c in ALL_COLLECTIONS:
+                try:
+                    out[c] = [d for d in STORE.list(c) if not (c == "push" and d["id"] == "vapid")]
+                except Exception as error:  # noqa: BLE001
+                    out[c] = {"error": str(error)}
+            ADMIN.audit("admin", "Exported all data")
+            return self.send_json({"exported": time.time(), "data": out})
+        return self.send_error(404)
+
+    def server_status(self):
+        import platform
+        try:
+            import resource
+            mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            mem_mb = round(mem / (1024 * 1024 if sys.platform == "darwin" else 1024), 1)
+        except Exception:  # noqa: BLE001
+            mem_mb = None
+        counts = {}
+        for c in ALL_COLLECTIONS:
+            try:
+                counts[c] = len([d for d in STORE.list(c) if not (c == "push" and d["id"] == "vapid")])
+            except Exception:  # noqa: BLE001
+                counts[c] = None
+        with lock:
+            room_count, peer_count = len(rooms), sum(len(p) for p in rooms.values())
+        turn = "Cloudflare" if TURN_KEY_ID and TURN_API_TOKEN else "custom" if TURN_URLS and TURN_USERNAME else "off"
+        return {
+            "started": admin.STARTED, "now": time.time(), "uptime": int(time.time() - admin.STARTED),
+            "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7], "service": os.environ.get("RENDER_SERVICE_NAME", ""),
+            "python": platform.python_version(), "memoryMb": mem_mb, "threads": threading.active_count(),
+            "storage": STORE.name, "persistent": STORE.name == "Supabase", "counts": counts,
+            "turn": turn, "youtube": bool(YOUTUBE_API_KEY), "password": bool(PASSWORD),
+            "gemini": SAATHI.health(), "liveModel": saathi.LIVE_MODEL, "textModel": saathi.TEXT_MODEL,
+            "pushDevices": len(RINGER.subscribers()), "rooms": room_count, "peers": peer_count,
+            "meetingGrace": MEETING_GRACE,
+        }
+
+    # ---- admin: what the console changes ----
+
+    def admin_post(self, path, body):
+        def peer_of(room, peer_id):
+            return find(str(room or ""), str(peer_id or ""))
+        if path == "/api/admin/config":
+            config = ADMIN.update(body.get("changes") or {})
+            apply_limits()
+            self.broadcast({"do": "policy"})
+            return self.send_json({"config": config})
+        if path == "/api/admin/signout":
+            ADMIN.sign_out_everyone()
+            self.broadcast({"do": "reload"})
+            return self.send_json({"ok": True})
+        if path == "/api/admin/kick":            # take one person out of the call
+            peer = peer_of(body.get("room"), body.get("id"))
+            if not peer:
+                return self.send_json({"error": "Not in the call any more"}, 404)
+            deliver(body["room"], {"type": "end-call", "from": "admin", "data": {}}, to=peer.id)
+            ADMIN.audit("admin", f"Took {peer.name} out of {body['room']}")
+            return self.send_json({"ok": True})
+        if path == "/api/admin/cmd":             # mute / camera off / reload / message, for one or all
+            what = str(body.get("do", ""))
+            if what not in ("mute", "camoff", "reload", "toast", "policy"):
+                return self.send_error(400)
+            data = {"do": what, "text": str(body.get("text", ""))[:300]}
+            if body.get("id"):
+                peer = peer_of(body.get("room"), body.get("id"))
+                if not peer:
+                    return self.send_json({"error": "Not in the call any more"}, 404)
+                deliver(body["room"], {"type": "admin-cmd", "from": "admin", "data": data}, to=peer.id)
+                ADMIN.audit("admin", f"{what} → {peer.name}" + (f": {data['text']}" if data["text"] else ""))
+            else:
+                self.broadcast(data)
+                ADMIN.audit("admin", f"{what} → everyone" + (f": {data['text']}" if data["text"] else ""))
+            return self.send_json({"ok": True})
+        if path == "/api/admin/ring":            # ring one person's phones
+            name = str(body.get("name", "")).strip().lower()
+            targets = [d for d in RINGER.subscribers() if d["data"].get("name", "").lower() == name]
+            host = self.headers.get("Host", "du-meet.onrender.com")
+            for doc in targets:
+                with RINGER.lock:
+                    RINGER.rings[doc["id"]] = {"from": "Admin", "at": time.time()}
+                threading.Thread(target=RINGER._send, args=(doc, f"https://{host}"), daemon=True).start()
+            ADMIN.audit("admin", f"Rang {body.get('name')} ({len(targets)} device{'s' if len(targets) != 1 else ''})")
+            return self.send_json({"sent": len(targets)})
+        if path == "/api/admin/del":             # delete one document from any collection
+            c, doc_id = body.get("c"), str(body.get("id", ""))
+            if c not in ALL_COLLECTIONS or not doc_id or (c == "push" and doc_id == "vapid") or (c == "admin" and doc_id == "config"):
+                return self.send_error(400)
+            try:
+                STORE.delete(c, doc_id)
+            except Exception as error:  # noqa: BLE001
+                print(f"Storage error: {error}")
+                return self.send_error(502)
+            ADMIN.audit("admin", f"Deleted {c}/{doc_id}")
+            return self.send_json({"ok": True})
+        return None
+
+    def broadcast(self, data):
+        with lock:
+            all_rooms = list(rooms)
+        for room in all_rooms:
+            deliver(room, {"type": "admin-cmd", "from": "admin", "data": data})
+
+    def send_response(self, code, message=None):
+        try:
+            ADMIN.request(self.path, code)
+        except Exception:  # noqa: BLE001 - stats must never break a reply
+            pass
+        super().send_response(code, message)
 
     def logged_in(self):
         if not PASSWORD:
@@ -732,6 +914,11 @@ class Handler(BaseHTTPRequestHandler):
         if peer is None:
             # First poll (or the tab was dropped while offline): join the room.
             name = params.get("name", "").strip()[:40] or "Guest"
+            if ADMIN.config["maintenance"] and not self.is_admin():
+                return self.send_json({"error": ADMIN.config["maintenanceText"]}, 503)
+            if ADMIN.config["coupleOnly"] and name.lower() not in [n.lower() for n in ADMIN.config["couple"]]:
+                ADMIN.audit("security", f"Blocked \"{name}\" from joining {room} (couple only)")
+                return self.send_json({"error": "Only the two of you can join"}, 403)
             peer = Peer(peer_id, name, params.get("mic") == "1", params.get("cam") == "1")
             with lock:
                 people = rooms.setdefault(room, {})

@@ -231,12 +231,43 @@
       </div>`;
   }
 
+  // Sections: the built-in ones here, more from admin.js (window.DU.adminTabs), grouped in a side menu.
+  const BASE_TABS = [
+    { id: "overview", label: "Overview", icon: "space_dashboard", group: "Insights", html: overviewHtml },
+    { id: "sessions", label: "Sessions", icon: "history", group: "Insights", html: sessionsHtml },
+    { id: "photos", label: "Photos", icon: "photo_library", group: "Data", html: photosHtml, badge: () => admin.snaps.length || "" },
+    { id: "security", label: "Security", icon: "shield_lock", group: "Control", html: securityHtml },
+    { id: "settings", label: "Profiles & data", icon: "manage_accounts", group: "Data", html: settingsHtml },
+  ];
+  const allTabs = () => [...BASE_TABS, ...(window.DU.adminTabs || [])];
+  const GROUPS = ["Insights", "Control", "Data", "System"];
   function renderAdmin() {
-    const tabs = [["overview", "Overview"], ["sessions", "Sessions"], ["photos", `Photos${admin.snaps.length ? ` (${admin.snaps.length})` : ""}`], ["security", "Security"], ["settings", "Settings"]];
-    adminBody().innerHTML = `
-      <div class="a-top"><div class="seg">${tabs.map(([id, label]) => `<button data-a-tab="${id}" class="${admin.tab === id ? "on" : ""}">${label}</button>`).join("")}</div>
-        <span><button class="icon-btn" data-a-refresh title="Refresh" aria-label="Refresh"><span class="icon">refresh</span></button><button class="icon-btn" data-a-lock title="Lock" aria-label="Lock admin"><span class="icon">lock</span></button></span></div>
-      <div class="a-view">${{ overview: overviewHtml, sessions: sessionsHtml, photos: photosHtml, security: securityHtml, settings: settingsHtml }[admin.tab]()}</div>`;
+    const tabs = allTabs();
+    const tab = tabs.find((t) => t.id === admin.tab) || tabs[0];
+    const scroller = q(".a-view", adminBody());
+    const keep = scroller && admin.lastTab === tab.id ? scroller.scrollTop : 0;
+    admin.lastTab = tab.id;
+    let view;
+    try { view = tab.html(); } catch (error) { console.error(error); view = `<p class="empty">This section couldn't load.</p>`; }
+    adminBody().innerHTML = `<div class="a-shell">
+      <nav class="a-nav" aria-label="Admin sections">${GROUPS.map((g) => {
+        const items = tabs.filter((t) => (t.group || "System") === g);
+        return items.length ? `<p class="a-nav-g">${g}</p>${items.map((t) => { const b = t.badge?.(); return `<button data-a-tab="${t.id}" class="${t.id === tab.id ? "on" : ""}"${t.id === tab.id ? ' aria-current="page"' : ""}><span class="icon" aria-hidden="true">${t.icon}</span><span>${t.label}</span>${b ? `<i>${b}</i>` : ""}</button>`; }).join("")}` : "";
+      }).join("")}</nav>
+      <section class="a-main">
+        <div class="a-top"><h3 class="a-h">${tab.label}</h3>
+          <span><button class="icon-btn" data-a-refresh title="Refresh" aria-label="Refresh"><span class="icon">refresh</span></button><button class="icon-btn" data-a-lock title="Lock" aria-label="Lock admin"><span class="icon">lock</span></button></span></div>
+        <div class="a-view">${view}</div>
+      </section></div>`;
+    if (keep) q(".a-view", adminBody()).scrollTop = keep;
+    const on = q(".a-nav .on", adminBody());
+    if (on && innerWidth <= 760) on.parentElement.scrollLeft = on.offsetLeft - 12;
+  }
+  function openTab(id) {
+    admin.tab = id;
+    const tab = allTabs().find((t) => t.id === id);
+    renderAdmin();
+    if (tab?.load) Promise.resolve(tab.load()).then(() => { if (admin.tab === id) renderAdmin(); }).catch(() => {});
   }
 
   function downloadText(name, text) {
@@ -250,8 +281,10 @@
   q("#admin-body").addEventListener("click", async (event) => {
     const t = event.target;
     const tab = t.closest("[data-a-tab]");
-    if (tab) { admin.tab = tab.dataset.aTab; return renderAdmin(); }
-    if (t.closest("[data-a-refresh]")) return loadAdmin();
+    if (tab) return openTab(tab.dataset.aTab);
+    if (t.closest("[data-a-refresh]")) { await loadAdmin(); return openTab(admin.tab); }
+    const extra = (window.DU.adminTabs || []).find((x) => x.id === admin.tab);
+    if (extra?.onClick && (await extra.onClick(event)) === true) return;
     if (t.closest("[data-a-lock]")) { admin.token = ""; return adminLogin(); }
     const zoom = t.closest("[data-zoom]");
     if (zoom) return window.DU.lightbox?.(zoom.dataset.zoom);
@@ -313,6 +346,17 @@
   });
 
   const ask = (title, text, ok) => window.DU.kit?.confirmBox({ title, text, ok, cancel: "Cancel" }) ?? Promise.resolve(confirm(title));
+
+  // what admin.js needs: the admin's own fetch, the loaded data, redraw and confirm
+  window.DU.admin = { fetch: adminFetch, url: adminUrl, state: admin, render: renderAdmin, reload: loadAdmin, open: openTab, ask, span, hm, day, dayKey, esc };
+  q("#admin-body").addEventListener("change", (event) => {
+    const extra = (window.DU.adminTabs || []).find((x) => x.id === admin.tab);
+    extra?.onChange?.(event);
+  });
+  q("#admin-body").addEventListener("input", (event) => {
+    const extra = (window.DU.adminTabs || []).find((x) => x.id === admin.tab);
+    extra?.onInput?.(event);
+  });
 
   // profile photos for the two of us
   q("#admin-body").addEventListener("change", async (event) => {

@@ -10,7 +10,7 @@
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); window.DU_installPrompt = event; });
   window.addEventListener("appinstalled", () => { window.DU_installPrompt = null; });
 
-  const SCRIPTS = ["/app.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/word.js", "/joy.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js", "/saathi-tools.js"];
+  const SCRIPTS = ["/app.js", "/policy.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/word.js", "/joy.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js", "/saathi-tools.js", "/admin.js"];
   let token = "";
 
   // Every call to the server carries the token; links that can't send headers (images,
@@ -19,8 +19,18 @@
   window.fetch = (input, init = {}) => {
     const url = typeof input === "string" ? input : input.url;
     if (token && url.startsWith("/api/")) init = { ...init, headers: { ...(init.headers || {}), "X-Auth": token } };
-    return nativeFetch(input, init);
+    const sent = token;
+    return nativeFetch(input, init).then((response) => {
+      // Admin signed everyone out: this token stopped working, so ask for the password again
+      if (response.status === 401 && sent && sent === token && url.startsWith("/api/") && !signedOut) {
+        signedOut = true;
+        try { window.toast?.("You were signed out. Enter the password again."); } catch { /* not loaded yet */ }
+        setTimeout(() => location.reload(), 1600);
+      }
+      return response;
+    });
   };
+  let signedOut = false;
   window.authUrl = (url) => (token && url.startsWith("/api/") ? `${url}${url.includes("?") ? "&" : "?"}k=${token}` : url);
   const nativeBeacon = navigator.sendBeacon?.bind(navigator);
   if (nativeBeacon) navigator.sendBeacon = (url, data) => nativeBeacon(window.authUrl(url), data);
