@@ -189,13 +189,13 @@
 
     <footer class="controls">
       <div class="left">
-        <button class="ctrl glass-ctrl heart-ctrl" data-tg="heart" title="Thinking of you" aria-label="Send a heart"><span class="icon" aria-hidden="true">favorite</span></button>
+        <button class="ctrl glass-ctrl chat-ctrl" data-action="chat" title="Chat" aria-label="Chat" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat_bubble</span><span id="chat-dot" class="dot" hidden></span></button>
       </div>
       <div class="center">
         <button class="ctrl" data-action="mic" aria-label="Microphone" aria-keyshortcuts="Meta+D"><span class="icon" aria-hidden="true">mic</span></button>
         <button class="ctrl" data-action="cam" aria-label="Camera" aria-keyshortcuts="Meta+E"><span class="icon" aria-hidden="true">videocam</span></button>
+        <button class="ctrl heart-ctrl" data-tg="heart" title="Thinking of you" aria-label="Send a heart"><span class="icon" aria-hidden="true">favorite</span></button>
         <button class="ctrl together-ctrl" data-tg="tray" title="Tools" aria-label="Tools" aria-expanded="false" aria-controls="tg-tray"><svg class="tools-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="8" height="8" rx="2.4"/><rect x="2.5" y="13.5" width="8" height="8" rx="2.4"/><rect x="13.5" y="13.5" width="8" height="8" rx="2.4"/><path class="spark" d="M17.5 1.2c.55 3.3 1.8 4.55 5.1 5.1-3.3.55-4.55 1.8-5.1 5.1-.55-3.3-1.8-4.55-5.1-5.1 3.3-.55 4.55-1.8 5.1-5.1z"/></svg><i class="tray-badge" hidden></i></button>
-        <button class="ctrl chat-ctrl" data-action="chat" title="Chat" aria-label="Chat" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat_bubble</span><span id="chat-dot" class="dot" hidden></span></button>
         <button class="ctrl leave" data-action="leave" title="Leave call" aria-label="Leave call"><span class="icon" aria-hidden="true">call_end</span></button>
 
         <div id="reaction-picker" role="group" aria-label="Reactions" hidden></div>
@@ -212,12 +212,14 @@
             <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
             <button role="menuitem" data-tg="polls"><span class="tg-ic poll icon">ballot</span><span><b>Polls</b><small>Ask and vote</small><i id="polls-dot" class="dot" hidden></i></span></button>
             <button role="menuitem" data-tg="mood"><span class="tg-ic mood icon">mood</span><span><b>Mood</b><small id="tray-mood">How you feel</small></span></button>
+            <button role="menuitem" data-tg="list"><span class="tg-ic olist-ic icon">checklist</span><span><b>Our list</b><small id="tray-list">Plans, buys, to-dos</small></span></button>
             <button role="menuitem" data-tg="remind"><span class="tg-ic remind icon">alarm</span><span><b>Reminder</b><small>Rings for both</small></span></button>
             <button role="menuitem" data-tg="night"><span class="tg-ic night icon">nightlight</span><span><b>Night light</b><small id="tray-night">Warm, dim screen</small></span></button>
             <button role="menuitem" data-tg="sleep" class="span-all"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
           </div>
           <div class="tray-view tray-games" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="games-back" aria-label="Back to tools"><span class="icon">arrow_back</span></button><b>Games</b><span></span></div>
+            <button role="menuitem" data-tg="zameen" class="span-all zm-tray"><span class="tg-ic zmic icon">crop_square</span><span><b>Zameen</b><small>Live · claim the most land in 1 minute</small></span></button>
             <button role="menuitem" data-tg="ttt"><span class="tg-ic game icon">grid_3x3</span><span><b>Tic-tac-toe</b><small>Best of you two</small></span></button>
             <button role="menuitem" data-tg="c4"><span class="tg-ic four icon">view_column</span><span><b>4 in a row</b><small>Drop and connect</small></span></button>
             <button role="menuitem" data-tg="rps"><span class="tg-ic rps icon">front_hand</span><span><b>Rock paper scissors</b><small>Pick in secret</small></span></button>

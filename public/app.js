@@ -515,6 +515,15 @@ function send(type, data, to) {
   sendQueue = sendQueue.then(() => fetch("/api/send", { method: "POST", body }).catch(() => {}));
 }
 
+/** Fast path: straight to the other phone when the direct channel is open, else via the server. */
+function sendFast(type, data) {
+  let direct = false;
+  for (const peer of peers.values()) {
+    if (peer.dc?.readyState === "open") { try { peer.dc.send(JSON.stringify({ type, data })); direct = true; } catch { /* full */ } }
+  }
+  if (!direct) send(type, data);
+}
+
 function sendState(data) {
   send("state", data);
 }
@@ -633,6 +642,12 @@ function addPeer(info) {
     audio: document.createElement("audio"), camTrack: null, screenTrack: null,
   };
   if (peer.hand) peer.handAt = Date.now();
+  // A direct, low-latency channel for fast things (live games). Negotiated with a fixed id,
+  // so both sides make it themselves and it rides in the first offer.
+  try {
+    peer.dc = peer.pc.createDataChannel("fast", { negotiated: true, id: 0, ordered: false, maxRetransmits: 0 });
+    peer.dc.onmessage = (event) => { try { window.DU?.onFast?.(JSON.parse(event.data), peer); } catch { /* bad message */ } };
+  } catch { peer.dc = null; }
   if (peer.screen) stageAppeared(screenId(peer.id));
   // Remote voices play through their own <audio>, so tiles can be hidden,
   // moved or put in picture-in-picture without cutting anyone's sound.

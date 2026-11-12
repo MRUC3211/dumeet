@@ -1032,7 +1032,7 @@ input { caret-color: #4f46e5; }
 .controls .ctrl.off { background: linear-gradient(180deg, #fff, #e9e9ee); color: #1d1d1f; box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .08), 0 4px 12px -6px rgba(0, 0, 0, .6); }
 .controls .ctrl.leave { background: linear-gradient(180deg, #ff6a5f 0%, #ff3b30 60%, #e0281e 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 8px 20px -8px rgba(255, 59, 48, .8); }
 .controls .ctrl.leave:hover { background: linear-gradient(180deg, #ff7b71, #ff453a 60%, #e5342a); }
-.glass-ctrl.heart-ctrl .icon { color: #ff375f; }
+.heart-ctrl .icon, .glass-ctrl.heart-ctrl .icon { color: #fff; }
 
 /* photo button: top right of the call */
 .snap-float { position: absolute; z-index: 7; top: 12px; right: 12px; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), background .2s; }
@@ -1138,3 +1138,74 @@ body.night-light video { filter: sepia(.35) brightness(.85); }
 .a-fact { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 14px; border-radius: 14px; background: color-mix(in oklab, var(--color-light) 5%, transparent); }
 .a-fact .icon { color: #0a84ff; }
 .a-games .icon { color: #bf5af2; }
+
+/* ===================== v8: Zameen ===================== */
+.tg-ic.zmic { background: linear-gradient(135deg, #0a84ff 0 50%, #ff375f 50% 100%); }
+.tg-tray .zm-tray { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.zm { position: fixed; inset: 0; z-index: 400; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); background: radial-gradient(120% 80% at 50% 0%, #1d1f2b, #0c0c0f 70%); color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; animation: fadeIn .25s ease both; }
+.zm-top { display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: center; gap: 10px; width: min(100%, 620px); margin: 0 auto; }
+.zm-p { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.zm-p.b { justify-content: flex-end; text-align: right; }
+.zm-p > div { display: grid; line-height: 1.1; }
+.zm-face { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; font: 700 16px var(--font-body); box-shadow: 0 0 0 3px var(--zc); background: var(--zc); }
+.zm-face img { width: 100%; height: 100%; object-fit: cover; }
+.zm-p.a { --zc: #0a84ff; }
+.zm-p.b { --zc: #ff375f; }
+.zm-pct { font: 800 22px/1 var(--font-display, var(--font-body)); font-variant-numeric: tabular-nums; color: var(--zc); }
+.zm-ko { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: #aeaeb2; }
+.zm-p.b .zm-ko { justify-content: flex-end; }
+.zm-ko .icon { font-size: 14px; }
+.zm-time { min-width: 70px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .1); text-align: center; font: 700 18px var(--font-body); font-variant-numeric: tabular-nums; }
+.zm-time.hot { background: #ff453a; animation: pulse-ring 1s infinite; }
+.zm-x { width: 38px; height: 38px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; display: grid; place-items: center; }
+.zm-stage { position: relative; display: grid; place-items: center; min-height: 0; min-width: 0; overflow: hidden; }
+.zm-stage canvas { position: absolute; border-radius: 14px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 30px 60px -30px #000; }
+.zm-banner { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 9px 16px; border-radius: 999px; background: rgba(0, 0, 0, .7); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font: 600 14px var(--font-body); white-space: nowrap; animation: zmBanner .3s cubic-bezier(.34, 1.4, .64, 1); pointer-events: none; }
+.zm-banner.bad { background: rgba(255, 69, 58, .9); }
+.zm-banner.good { background: rgba(48, 209, 88, .9); color: #062b10; }
+.zm-banner.gain { background: rgba(255, 214, 10, .92); color: #2b2100; }
+.zm-panel { position: absolute; inset: 0; margin: auto; width: min(90%, 340px); height: fit-content; display: grid; justify-items: center; gap: 10px; padding: 24px 20px; border-radius: 24px; background: rgba(28, 28, 30, .92); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 30px 60px -20px #000; text-align: center; animation: reveal .45s cubic-bezier(.34, 1.4, .64, 1) both; }
+.zm-panel b { font: 700 18px var(--font-body); }
+.zm-panel small { color: #aeaeb2; }
+.zm-row { display: flex; gap: 8px; width: 100%; margin-top: 6px; }
+.zm-row .btn { flex: 1; justify-content: center; }
+.zm-spin { font-size: 34px; animation: spin 1s linear infinite; color: #64d2ff; }
+.zm-big-face { position: relative; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; overflow: hidden; background: #3a3a3c; font: 800 32px var(--font-body); box-shadow: 0 0 0 4px #0a84ff; }
+.zm-big-face.win { overflow: visible; box-shadow: 0 0 0 4px #ffd60a; }
+.zm-big-face.win img { border-radius: 50%; }
+.zm-big-face img { width: 100%; height: 100%; object-fit: cover; }
+.zm-big-face i { position: absolute; right: -8px; bottom: -6px; font-size: 30px; color: #ffd60a; font-style: normal; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6)); }
+.zm-result { font-size: 22px !important; }
+.zm-score { display: flex; gap: 18px; }
+.zm-score span { color: #d2d2d7; }
+.zm-score b { font-size: 17px; }
+.zm-score span:first-child b { color: #0a84ff; }
+.zm-score span:last-child b { color: #ff375f; }
+.zm-alltime { padding: 5px 12px; border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.zm-hint { margin: 0 auto; max-width: 520px; text-align: center; font-size: 12px; color: #8e8e93; }
+@media (max-width: 30rem) { .zm-pct { font-size: 18px; } .zm-face { width: 34px; height: 34px; } .zm-time { min-width: 58px; padding: 7px 10px; font-size: 16px; } .zm-top { gap: 6px; } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes zmBanner { from { opacity: 0; transform: translateX(-50%) scale(.7); } }
+
+/* signal bars, battery, muted nudge, our list */
+.tile-name .sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-left: 6px; padding: 0; border: 0; background: none; cursor: pointer; }
+.tile-name .sig i { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, .28); }
+.tile-name .sig i:nth-child(1) { height: 5px; } .tile-name .sig i:nth-child(2) { height: 9px; } .tile-name .sig i:nth-child(3) { height: 13px; }
+.tile-name .sig[data-q="3"] i { background: #30d158; }
+.tile-name .sig[data-q="2"] i:nth-child(-n + 2) { background: #ffd60a; }
+.tile-name .sig[data-q="1"] i:nth-child(1) { background: #ff453a; }
+.tile-name .batt { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; color: #ff9f0a; font-size: 12px; font-weight: 700; }
+.tile-name .batt .icon { font-size: 15px; }
+.ctrl.nudge { animation: shake .5s 2; box-shadow: 0 0 0 3px rgba(255, 69, 58, .7) !important; }
+.tg-ic.olist-ic { background: linear-gradient(135deg, #30d158, #0a84ff); }
+.olist-form { display: flex; gap: 8px; }
+.olist-form .field { flex: 1; }
+.olist { list-style: none; margin: 14px 0 10px; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+.olist li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 8px 4px 8px 6px; border-radius: 14px; background: color-mix(in oklab, var(--color-light) 5%, transparent); animation: rise .3s var(--ease) both; }
+.olist li.oempty { display: block; padding: 10px; background: none; }
+.olist li div { display: grid; min-width: 0; }
+.olist li div span { overflow-wrap: anywhere; }
+.olist li small { color: var(--color-muted); font-size: 12px; }
+.olist li.done div span { text-decoration: line-through; opacity: .55; }
+.ocheck { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--color-muted); }
+.olist li.done .ocheck { color: #30d158; }
