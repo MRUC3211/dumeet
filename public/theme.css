@@ -1483,3 +1483,90 @@ body.night-light video { filter: sepia(.35) brightness(.85); }
 .fx-bar .fx-x { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #0a84ff; color: #fff; }
 .fx-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; pointer-events: none; }
 .tile.mirror .fx-preview { transform: scaleX(-1); }
+
+/* ======================= v10 · phone presenting ======================= */
+.pp-sheet .sheet-body { display: grid; gap: 10px; }
+.pp-pick { border: 0; display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px; border-radius: 18px; text-align: left; color: var(--color-ink); background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); transition: background .2s var(--ease), transform .2s var(--ease); }
+.pp-pick:hover { background: rgba(255, 255, 255, .09); }
+.pp-pick:active { transform: scale(.98); }
+.pp-pick b { display: block; font: 600 16px/1.3 var(--font-body); }
+.pp-pick small { display: block; margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--color-muted); }
+.pp-ic { flex: none; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; color: #fff; background: linear-gradient(160deg, #4f8dff, #4338ca); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.pp-ic.back { background: linear-gradient(160deg, #34c759, #0e8a5f); }
+.pp-note { display: flex; gap: 8px; margin: 4px 2px 0; font-size: 12.5px; line-height: 1.45; color: var(--color-muted); }
+.pp-note .icon { font-size: 17px; margin-top: 1px; }
+.pp-bar { position: fixed; left: 50%; bottom: calc(100px + var(--safe-bottom)); z-index: 60; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 999px; color: #fff; background: rgba(28, 28, 30, .72); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 0 1px rgba(255, 255, 255, .08), 0 14px 34px -12px rgba(0, 0, 0, .7); animation: ppIn .35s var(--ease); }
+@keyframes ppIn { from { opacity: 0; transform: translate(-50%, 12px); } }
+.pp-btn { border: 0; background: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #fff; }
+.pp-btn:hover { background: rgba(255, 255, 255, .1); }
+.pp-count { min-width: 64px; text-align: center; font: 600 13px/1 var(--font-body); font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, .85); }
+.pp-stop { border: 0; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px 0 12px; margin-left: 4px; border-radius: 999px; font: 600 14px/1 var(--font-body); color: #fff; background: var(--color-off); }
+.pp-stop .icon { font-size: 19px; }
+
+/* ======================= v10 · dark mode for the light pages =======================
+   html[data-theme=dark] is set from the system setting (or the home toggle). */
+html[data-theme=dark] { color-scheme: dark; }
+html[data-theme=dark] :is(#gate, #home, #lobby, #left, .sheet.light) {
+  color-scheme: dark;
+  --color-paper: #000; --color-paper-2: #1c1c1e; --color-paper-3: #2c2c2e;
+  --color-ink: #f5f5f7; --color-ink-2: #d2d2d7; --color-muted: #98989f; --color-rule: #38383c;
+  --color-shade: #0d0d0f; --color-light: #fff;
+  --color-accent: #0a84ff; --color-accent-hi: #409cff; --color-accent-deep: #0066d6; --color-focus: #64a8ff;
+  --glass: rgba(44, 44, 48, .62);
+  --glass-hi: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  --shadow-card: 0 24px 60px -24px rgba(0, 0, 0, .9);
+  --color-off: #ff453a; --color-off-hi: #ff6961;
+}
+html[data-theme=dark] body:is([data-view=gate], [data-view=home], [data-view=lobby], [data-view=left]) { background: #000; color: #f5f5f7; }
+html[data-theme=dark] #home { background: radial-gradient(ellipse 80% 50% at 50% -8%, #0f1e3a 0%, rgba(0, 0, 0, 0) 62%), #000; }
+html[data-theme=dark] #lobby { background: #000; }
+html[data-theme=dark] #left { background: radial-gradient(ellipse 70% 50% at 50% 0, #0f1e3a, #000 65%); }
+html[data-theme=dark] .aura i { opacity: .28; }
+html[data-theme=dark] .aura i:nth-child(3) { opacity: .18; }
+html[data-theme=dark] .sheet.light { background: #1c1c1e; box-shadow: 0 40px 100px -30px rgba(0, 0, 0, .9), 0 0 0 1px rgba(255, 255, 255, .07); }
+html[data-theme=dark] .sheet.light .field { background: #2c2c2e; color: #f5f5f7; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+html[data-theme=dark] .sheet.light .seg { background: #2c2c2e; }
+html[data-theme=dark] .sheet.light .seg button.on { background: #48484a; color: #fff; }
+html[data-theme=dark] #home-status.waiting { background: rgba(48, 209, 88, .14); box-shadow: 0 0 0 1px rgba(48, 209, 88, .35); color: #4ade80; }
+html[data-theme=dark] :is(.glass, .btn.ghost.glass) { background: linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .05)); color: #f5f5f7; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .06), 0 6px 18px -8px rgba(0, 0, 0, .8); }
+html[data-theme=dark] :is(.glass, .btn.ghost.glass):hover { background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)); color: #fff; }
+.theme-btn .icon { transition: transform .4s var(--ease); }
+.theme-btn:active .icon { transform: rotate(-30deg); }
+html[data-theme=dark] .gate { background: radial-gradient(ellipse 70% 60% at 50% 0%, #0f1e3a 0%, #000 60%); }
+html[data-theme=dark] .gate-field { background: #1c1c1e; box-shadow: 0 0 0 1px #38383c, 0 8px 24px -12px rgba(0, 0, 0, .8); }
+html[data-theme=dark] .gate-error { color: #ff6961; }
+/* dark: cards and text on the light pages */
+html[data-theme=dark] .hero h1 { color: #f5f5f7; }
+html[data-theme=dark] :is(.eyebrow-pill, .join-pill, .features li, .lobby-side, .left-card, .h-item) { background: #1c1c1e; box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 20px 50px -30px rgba(0, 0, 0, .9); }
+html[data-theme=dark] #name-input:focus-visible { background: #2c2c2e; }
+html[data-theme=dark] :is(.as-line b, .admin-lock h3, .a-streak b, .a-stats b) { color: #f5f5f7; }
+html[data-theme=dark] :is(.who, .install-steps li, .a-people li, .a-chat li, .a-face) { background: #2c2c2e; color: #f5f5f7; }
+html[data-theme=dark] .a-snap figcaption { background: #2c2c2e; color: #d2d2d7; }
+html[data-theme=dark] :is(.a-log li small, .a-log time, .a-face small) { color: #98989f; }
+html[data-theme=dark] .a-face-pic i { background: #48484a; color: #fff; }
+html[data-theme=dark] .a-alert { background: rgba(255, 159, 10, .14); color: #ffb340; }
+html[data-theme=dark] .admin-lock-ic { background: linear-gradient(145deg, #3a3a3f, #5a5a60); }
+html[data-theme=dark] .install-btn { background: rgba(255, 255, 255, .08); color: #f5f5f7; }
+.brand { white-space: nowrap; }
+@media (max-width: 420px) {
+  #home .nav-actions .btn { padding-inline: 12px; }
+  #home [data-home=admin] > span:not(.icon) { display: none; }
+}
+html[data-theme=dark] .alerts-line { background: rgba(255, 255, 255, .07); color: #d2d2d7; }
+html[data-theme=dark] .alerts-line.can:hover { background: rgba(10, 132, 255, .18); }
+/* dark: admin + history */
+html[data-theme=dark] :is(.h-summary div, .a-stats div, .a-snap) { background: #2c2c2e; }
+html[data-theme=dark] .a-streak { background: linear-gradient(135deg, rgba(255, 149, 0, .2), rgba(255, 55, 95, .16)); }
+html[data-theme=dark] :is(.a-streak span, .a-stats span, .a-bars span, .a-label, .a-chat small) { color: #98989f; }
+html[data-theme=dark] .a-live { background: rgba(48, 209, 88, .14); color: #4ade80; }
+html[data-theme=dark] .a-live small { color: #86d9a0; }
+html[data-theme=dark] .a-alert small { color: #e0a050; }
+html[data-theme=dark] .a-log li:nth-child(odd) { background: rgba(255, 255, 255, .04); }
+html[data-theme=dark] .a-log li > .icon { background: rgba(10, 132, 255, .18); color: #64a8ff; }
+html[data-theme=dark] .a-log li.bad > .icon { background: rgba(255, 69, 58, .18); color: #ff6961; }
+html[data-theme=dark] :is(.a-stats b.warn, .admin-error) { color: #ff6961; }
+html[data-theme=dark] .sheet.light .seg button { color: #98989f; }
+html[data-theme=dark] .sheet.light .icon-btn { color: #d2d2d7; }
+html[data-theme=dark] .sheet.light .field::placeholder { color: #8e8e93; }
+html[data-theme=dark] .h-dur { background: rgba(10, 132, 255, .18); color: #64a8ff; }
+html[data-theme=dark] .h-av { color: #1d1d1f; }

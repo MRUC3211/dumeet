@@ -451,6 +451,24 @@
     presenceTimer = setTimeout(refreshPresence, 8000);
   }
 
+  // ---------- theme: Auto (device) → Light → Dark ----------
+  const THEMES = { system: ["contrast", "Theme: follows your device", "Theme follows your device"], light: ["light_mode", "Theme: light", "Light theme"], dark: ["dark_mode", "Theme: dark", "Dark theme"] };
+  function paintTheme() {
+    const button = q("[data-home=theme]");
+    if (!button || !window.duTheme) return;
+    const [icon, label] = THEMES[window.duTheme.pick()] || THEMES.system;
+    button.querySelector(".icon").textContent = icon;
+    button.title = button.ariaLabel = label;
+  }
+  function cycleTheme() {
+    const order = ["system", "light", "dark"];
+    const next = order[(order.indexOf(window.duTheme.pick()) + 1) % order.length];
+    window.duTheme.set(next);
+    paintTheme();
+    toast(THEMES[next][2]);
+  }
+  paintTheme();
+
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-home]");
     if (button) {
@@ -460,6 +478,7 @@
         join: quickJoin,
         who: () => askWho(false),
         other: () => openModal(q("#m-other")),
+        theme: cycleTheme,
       })[button.dataset.home]?.();
     }
     const who = event.target.closest("[data-who]");

@@ -6,6 +6,24 @@
   <title>DU Meet</title>
   <meta name="description" content="DU Meet: private video meetings with chat, shared music, calendar and more.">
   <meta name="theme-color" content="#f5f5f7">
+  <script>
+    // Theme: follows the phone/laptop setting unless you pick Light or Dark on the home page.
+    (() => {
+      const media = matchMedia("(prefers-color-scheme: dark)");
+      const pick = () => { try { return localStorage.getItem("du-theme") || "system"; } catch { return "system"; } };
+      const apply = () => {
+        const mode = pick();
+        const dark = mode === "dark" || (mode === "system" && media.matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.themePick = mode;
+        const view = document.body?.dataset.view;
+        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", view === "room" ? "#0b0b0d" : dark ? "#000000" : "#f5f5f7");
+      };
+      media.addEventListener?.("change", apply);
+      window.duTheme = { apply, pick, set(mode) { try { localStorage.setItem("du-theme", mode); } catch {} apply(); } };
+      apply();
+    })();
+  </script>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/logo.svg?v=5" type="image/svg+xml">
   <link rel="icon" href="/icons/icon-192.png?v=5" type="image/png" sizes="192x192">
@@ -42,6 +60,7 @@
     <header class="nav">
       <div class="brand"><span class="logo-mark brandmark" aria-hidden="true"></span><span>DU Meet</span></div>
       <div class="nav-actions">
+        <button class="btn ghost glass theme-btn" data-home="theme" title="Theme: follows your device" aria-label="Theme: follows your device"><span class="icon" aria-hidden="true">contrast</span></button>
         <button class="btn ghost glass" data-home="wrapped" title="Your month" aria-label="Your month"><span class="icon" aria-hidden="true">auto_awesome</span><span class="hide-sm">Wrapped</span></button>
         <button class="btn ghost glass" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span><span>Admin</span></button>
         <button class="btn ghost glass" data-home="other" title="Other meeting" aria-label="Other meeting"><span class="icon" aria-hidden="true">add_link</span><span class="hide-sm">Other meeting</span></button>

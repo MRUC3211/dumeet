@@ -90,6 +90,7 @@ function showView(id) {
     view.hidden = !show;
   }
   document.body.dataset.view = id;
+  window.duTheme?.apply(); // status bar colour follows the screen
   window.scrollTo(0, 0);
 }
 
@@ -366,7 +367,9 @@ function fillSelect(select, devices, current, fallback) {
 
 async function toggleScreenShare() {
   if (me.screenTrack) return stopScreenShare();
-  if (!navigator.mediaDevices.getDisplayMedia) return toast("Screen sharing is not supported in this browser");
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    return window.DU?.phonePresent ? window.DU.phonePresent() : toast("Screen sharing is not supported in this browser");
+  }
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 } });
     me.screenTrack = stream.getVideoTracks()[0];
@@ -848,9 +851,9 @@ function paintTile(tile, spec) {
     video.disablePictureInPicture = isMe;
   } else {
     tile.classList.add("screen");
-    tile.classList.toggle("own-screen", isMe);
+    tile.classList.toggle("own-screen", isMe && !me.phoneShow); // phone slides show you what they see
     tile.querySelector(".name").textContent = isMe ? "You are presenting" : `${info.name} (presentation)`;
-    showTrack(video, isMe ? null : info.screenTrack);
+    showTrack(video, isMe ? (me.phoneShow ? me.screenTrack : null) : info.screenTrack);
   }
   const avatar = tile.querySelector(".avatar span");
   avatar.textContent = initial(info.name);
@@ -972,8 +975,8 @@ function refreshLocal() {
   $("#more-menu [data-action=record]").classList.toggle("danger", me.rec);
 
   const display = Boolean(navigator.mediaDevices?.getDisplayMedia);
-  for (const button of document.querySelectorAll(".share-btn")) button.hidden = !display;
-  $("#more-menu [data-action=record]").hidden = !display || !window.MediaRecorder;
+  for (const button of document.querySelectorAll(".share-btn")) button.hidden = !display && !HTMLCanvasElement.prototype.captureStream;
+  $("#more-menu [data-action=record]").hidden = !window.MediaRecorder || !(display || HTMLCanvasElement.prototype.captureStream);
   $("#more-menu [data-action=fullscreen]").hidden = !document.fullscreenEnabled;
   $("#more-menu [data-action=pip]").hidden = !("documentPictureInPicture" in window) && !document.pictureInPictureEnabled;
 
@@ -1307,6 +1310,119 @@ function clearCaptions() {
 
 // ---------- Recording ----------
 //
+/** The call as a video track, for phones: draws the tiles you can see onto a canvas. */
+function callCanvas() {
+  const portrait = innerHeight > innerWidth;
+  const canvas = Object.assign(document.createElement("canvas"), { width: portrait ? 720 : 1280, height: portrait ? 1280 : 720 });
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height, GAP = 12;
+  const draw = () => {
+    ctx.fillStyle = "#0b0b0d";
+    ctx.fillRect(0, 0, W, H);
+    const tiles = [...document.querySelectorAll(".stage .tile")].filter((t) => t.offsetParent && t.offsetWidth > 40);
+    const screen = tiles.find((t) => t.classList.contains("screen") && t.querySelector("video")?.videoWidth);
+    const cams = tiles.filter((t) => t !== screen && !t.classList.contains("screen")).slice(0, 3);
+    const boxes = [];
+    if (screen) {
+      // the presentation gets the big slot, cameras sit beside (landscape) or under it (portrait)
+      const strip = cams.length ? (portrait ? H * 0.3 : W * 0.26) : 0;
+      boxes.push([screen, GAP, GAP, portrait ? W - GAP * 2 : W - strip - GAP * (cams.length ? 3 : 2), portrait ? H - strip - GAP * (cams.length ? 3 : 2) : H - GAP * 2]);
+      cams.forEach((tile, i) => {
+        const n = cams.length;
+        if (portrait) {
+          const w = (W - GAP * (n + 1)) / n;
+          boxes.push([tile, GAP + i * (w + GAP), H - strip - GAP, w, strip]);
+        } else {
+          const h = (H - GAP * (n + 1)) / n;
+          boxes.push([tile, W - strip - GAP, GAP + i * (h + GAP), strip, h]);
+        }
+      });
+    } else {
+      const list = cams.length ? cams : tiles.slice(0, 4);
+      const n = Math.max(1, list.length);
+      const cols = portrait ? (n > 2 ? 2 : 1) : Math.min(n, 2);
+      const rows = Math.ceil(n / cols);
+      const tw = (W - GAP * (cols + 1)) / cols, th = (H - GAP * (rows + 1)) / rows;
+      list.forEach((tile, i) => boxes.push([tile, GAP + (i % cols) * (tw + GAP), GAP + Math.floor(i / cols) * (th + GAP), tw, th]));
+    }
+    boxes.forEach(([tile, x, y, tw, th]) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(x, y, tw, th, 18) : ctx.rect(x, y, tw, th);
+      ctx.clip();
+      ctx.fillStyle = "#1c1c1f";
+      ctx.fillRect(x, y, tw, th);
+      const video = tile.querySelector("video");
+      let name = tile.querySelector(".tile-name .name")?.textContent?.trim() || "";
+      if (name === "You") name = me.name || name; // the saved video is watched later, so use real names
+      if (name === "You are presenting") name = me.name ? `${me.name} (presentation)` : "Presentation";
+      if (video?.srcObject && video.readyState >= 2 && video.videoWidth && !video.hidden && getComputedStyle(video).display !== "none") {
+        const contain = tile.classList.contains("screen");
+        const scale = (contain ? Math.min : Math.max)(tw / video.videoWidth, th / video.videoHeight);
+        const vw = video.videoWidth * scale, vh = video.videoHeight * scale;
+        const mirror = getComputedStyle(video).transform.startsWith("matrix(-1");
+        ctx.save();
+        if (mirror) { ctx.translate(x + tw, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
+        ctx.drawImage(video, x + (tw - vw) / 2, y + (th - vh) / 2, vw, vh);
+        ctx.restore();
+      } else {
+        const avatar = tile.querySelector(".avatar span");
+        ctx.fillStyle = (avatar && getComputedStyle(avatar).getPropertyValue("--avatar").trim()) || colorFor(name || "?");
+        ctx.beginPath();
+        ctx.arc(x + tw / 2, y + th / 2, Math.min(tw, th) * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = (avatar && getComputedStyle(avatar).color) || "#fff";
+        ctx.font = `600 ${Math.round(Math.min(tw, th) * 0.13)}px Inter, -apple-system, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(avatar?.textContent?.trim() || initial(name || "?"), x + tw / 2, y + th / 2 + 2);
+      }
+      if (name) {
+        ctx.font = "600 22px Inter, -apple-system, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        const w = ctx.measureText(name).width + 28;
+        ctx.fillStyle = "rgba(0,0,0,.5)";
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x + 14, y + th - 52, w, 38, 19) : ctx.rect(x + 14, y + th - 52, w, 38);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.fillText(name, x + 28, y + th - 33);
+      }
+      ctx.restore();
+    });
+  };
+  draw();
+  const timer = setInterval(draw, 1000 / 24);
+  const stream = canvas.captureStream(24);
+  const track = stream.getVideoTracks()[0];
+  const stop = track.stop.bind(track);
+  track.stop = () => { clearInterval(timer); stop(); };
+  return { getVideoTracks: () => [track], getTracks: () => [track] };
+}
+
+/** Phones: offer the finished recording to the share sheet (save to Photos / Files), or download it. */
+async function savePhoneRecording(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  const size = blob.size > 1e6 ? `${(blob.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(blob.size / 1e3))} KB`;
+  const ok = await window.DU?.kit?.confirmBox?.({
+    title: "Recording ready",
+    text: `Your call recording (${size}) is ready. Save it now, it is not kept anywhere else.`,
+    ok: "Save video", cancel: "Discard",
+  });
+  if (ok === false) return toast("Recording discarded");
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name });
+      return toast("Recording shared");
+    } catch (error) {
+      if (error?.name === "AbortError") return savePhoneRecording(blob, name); // closed the share sheet: ask again
+    }
+  }
+  download(blob, name);
+  toast("Recording saved to your Downloads");
+}
+
 // Records this tab (the meeting as you see it) plus everyone's voices, and
 // saves a .webm file on your computer when you stop. Everyone sees a
 // "Recording" badge while it runs.
@@ -1317,13 +1433,18 @@ let recordingMix = null; // { destination, sources: Map(id -> node) }
 async function toggleRecording() {
   if (recorder) return recorder.stop();
   let display;
-  try {
-    display = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: "browser", frameRate: 30 },
-      audio: false, preferCurrentTab: true, selfBrowserSurface: "include",
-    });
-  } catch {
-    return; // cancelled
+  const phone = !navigator.mediaDevices?.getDisplayMedia;
+  if (phone) {
+    display = callCanvas(); // phones can't capture the screen, so draw the call ourselves
+  } else {
+    try {
+      display = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser", frameRate: 30 },
+        audio: false, preferCurrentTab: true, selfBrowserSurface: "include",
+      });
+    } catch {
+      return; // cancelled
+    }
   }
   audioContext ??= new AudioContext();
   recordingMix = { destination: audioContext.createMediaStreamDestination(), sources: new Map() };
@@ -1333,8 +1454,9 @@ async function toggleRecording() {
     if (track) recordingAddAudio(peer.id, track);
   }
   const stream = new MediaStream([display.getVideoTracks()[0], ...recordingMix.destination.stream.getAudioTracks()]);
-  const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
-    .find((t) => MediaRecorder.isTypeSupported(t));
+  const types = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
+  if (phone) types.unshift("video/mp4;codecs=avc1,mp4a", "video/mp4"); // plays in the phone's gallery
+  const type = types.find((t) => MediaRecorder.isTypeSupported(t));
   const chunks = [];
   const started = new Date();
   recorder = new MediaRecorder(stream, type ? { mimeType: type } : {});
@@ -1350,8 +1472,13 @@ async function toggleRecording() {
     sendState({ rec: false });
     renderAll();
     const extension = (type ?? "").includes("mp4") ? "mp4" : "webm";
-    download(new Blob(chunks, { type: type ?? "video/webm" }), `DU Meet ${room} ${stamp(started)}.${extension}`);
-    toast("Recording saved to your Downloads");
+    const blob = new Blob(chunks, { type: (type ?? "video/webm").split(";")[0] });
+    const name = `DU Meet ${stamp(started)}.${extension}`;
+    if (!phone) {
+      download(blob, `DU Meet ${room} ${stamp(started)}.${extension}`);
+      return toast("Recording saved to your Downloads");
+    }
+    savePhoneRecording(blob, name.replace(/[\\/:*?"<>|]/g, "-"));
   };
   display.getVideoTracks()[0].onended = () => recorder?.stop(); // browser's "Stop sharing"
   recorder.start(1000);
