@@ -19,6 +19,7 @@
     el.innerHTML = `<header class="ar-top">
         <b class="ar-title">${esc(title)}</b><small class="ar-status" aria-live="polite"></small>
         <div class="ar-tools"></div>
+        <button class="ar-max" data-gw-max aria-label="Full screen"><span class="icon" aria-hidden="true">open_in_full</span></button>
         <button class="ar-x" aria-label="Leave game"><span class="icon" aria-hidden="true">close</span></button>
       </header>
       <div class="ar-body">${html}</div>
@@ -89,6 +90,78 @@
       await putDoc("settings", { ...all, [kind]: t }, "game-scores");
     } catch { /* offline */ }
   }
+
+
+  // ---------- games open as a window: move it by the top bar, resize from the corner ----------
+
+  const WIN_KEY = "du-game-win";
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function defaultBox() {
+    const vw = innerWidth, vh = innerHeight;
+    if (vw < 640) { const w = vw - 12; return { x: 6, y: 6, w, h: Math.min(vh - 100, w + 250) }; }
+    const h = Math.min(vh - 32, 700), w = Math.min(vw - 32, Math.round(h * 0.8));
+    return { x: vw - w - 16, y: 16, w, h };
+  }
+  function fit(b, sizing) {
+    const vw = innerWidth, vh = innerHeight;
+    let w = clamp(b.w, Math.min(280, vw - 8), vw - 8), h = clamp(b.h, Math.min(320, vh - 8), vh - 8);
+    if (sizing) { w = Math.min(w, vw - b.x - 4); h = Math.min(h, vh - b.y - 4); }
+    return { x: clamp(b.x, 4, vw - w - 4), y: clamp(b.y, 4, vh - h - 4), w, h };
+  }
+  const saved = () => { try { return JSON.parse(localStorage.getItem(WIN_KEY)); } catch { return null; } };
+  const save = (b) => { try { localStorage.setItem(WIN_KEY, JSON.stringify(b)); } catch { /* private mode */ } };
+
+  function windowize(el) {
+    if (el.classList.contains("gw")) return;
+    el.classList.add("gw");
+    let box = fit(saved() || defaultBox());
+    const put = () => Object.assign(el.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px` });
+    put();
+    const grip = document.createElement("button");
+    grip.className = "gw-grip";
+    grip.setAttribute("aria-label", "Resize");
+    grip.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15H15V5M15 15L6 6M1 11V1H11"/></svg>`;
+    el.append(grip);
+    const head = el.querySelector(".ar-top, .pl-top, .zm-top");
+    const drag = (e, sizing) => {
+      if (e.button || el.classList.contains("gw-full")) return;
+      e.preventDefault();
+      const t = e.currentTarget, x0 = e.clientX, y0 = e.clientY, b0 = { ...box };
+      t.setPointerCapture?.(e.pointerId);
+      const move = (ev) => {
+        const dx = ev.clientX - x0, dy = ev.clientY - y0;
+        if (!sizing && Math.hypot(dx, dy) < 4 && !el.classList.contains("gw-moving")) return;
+        el.classList.add(sizing ? "gw-sizing" : "gw-moving");
+        box = fit(sizing ? { ...b0, w: b0.w + dx, h: b0.h + dy } : { ...b0, x: b0.x + dx, y: b0.y + dy }, sizing);
+        put();
+      };
+      const up = () => {
+        t.removeEventListener("pointermove", move);
+        t.removeEventListener("pointerup", up);
+        t.removeEventListener("pointercancel", up);
+        el.classList.remove("gw-sizing", "gw-moving");
+        save(box);
+      };
+      t.addEventListener("pointermove", move);
+      t.addEventListener("pointerup", up);
+      t.addEventListener("pointercancel", up);
+    };
+    grip.addEventListener("pointerdown", (e) => drag(e, true));
+    head?.addEventListener("pointerdown", (e) => { if (!e.target.closest("button, input, a, select, textarea")) drag(e, false); });
+    const full = () => {
+      el.classList.toggle("gw-full");
+      const b = el.querySelector("[data-gw-max] .icon");
+      if (b) b.textContent = el.classList.contains("gw-full") ? "close_fullscreen" : "open_in_full";
+    };
+    head?.addEventListener("dblclick", (e) => { if (!e.target.closest("button")) full(); });
+    el.querySelector("[data-gw-max]")?.addEventListener("click", full);
+    const refit = () => { if (!el.isConnected) return removeEventListener("resize", refit); box = fit(box); put(); };
+    addEventListener("resize", refit);
+  }
+  // every game frame (ours, and Pictionary / Reaction race / Zameen) becomes a window
+  new MutationObserver((list) => {
+    for (const r of list) for (const n of r.addedNodes) if (n.nodeType === 1 && n.matches(".ar, .pl, .zm")) windowize(n);
+  }).observe(document.body, { childList: true });
 
   // ---------- small sounds ----------
 

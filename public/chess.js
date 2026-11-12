@@ -244,9 +244,20 @@
     const legalNow = myTurn() ? legal(G.s) : [];
     const targets = G.sel >= 0 ? legalNow.filter((m) => m.from === G.sel) : [];
     const checkSq = inCheck(G.s) ? kingSq(G.s.b, G.s.turn) : -1;
-    let html = "";
-    for (let i = 0; i < 64; i++) {
-      const sq = G.flip ? 63 - i : i;
+    // squares are built once (per orientation) and updated in place, so a finger that is
+    // touching a square never loses it (iPhone drops a touch whose element is replaced)
+    if (board.dataset.flip !== String(G.flip) || board.children.length !== 64) {
+      let html = "";
+      for (let i = 0; i < 64; i++) {
+        const sq = G.flip ? 63 - i : i;
+        const r = sq >> 3, c = sq & 7;
+        html += `<div class="cs-sq ${(r + c) % 2 ? "d" : "l"}" data-sq="${sq}" role="gridcell">${i % 8 === 0 ? `<i class="cs-r">${8 - r}</i>` : ""}${i >= 56 ? `<i class="cs-f">${FILES[c]}</i>` : ""}</div>`;
+      }
+      board.innerHTML = html;
+      board.dataset.flip = String(G.flip);
+    }
+    for (const cell of board.children) {
+      const sq = Number(cell.dataset.sq);
       const r = sq >> 3, c = sq & 7;
       const p = G.s.b[sq];
       const cls = ["cs-sq", (r + c) % 2 ? "d" : "l"];
@@ -254,12 +265,21 @@
       if (sq === G.sel) cls.push("sel");
       if (sq === checkSq) cls.push("check");
       const t = targets.find((m) => m.to === sq);
-      if (t) cls.push(p || t.ep ? "cap" : "dot");
-      const fileLbl = i >= 56 ? `<i class="cs-f">${FILES[c]}</i>` : "";
-      const rankLbl = i % 8 === 0 ? `<i class="cs-r">${8 - r}</i>` : "";
-      html += `<div class="${cls.join(" ")}" data-sq="${sq}" role="gridcell" aria-label="${sqName(sq)}${p ? ` ${colorOf(p) === "w" ? "white" : "black"} ${p.toLowerCase()}` : ""}">${rankLbl}${fileLbl}${p ? `<span class="cs-pc ${colorOf(p)}${myTurn() && colorOf(p) === myColor() ? " mine" : ""}">${GLYPH[p.toLowerCase()]}&#xFE0E;</span>` : ""}</div>`;
+      if (t) cls.push(p || t.ep ? "to-x" : "to");
+      cell.className = cls.join(" ");
+      cell.setAttribute("aria-label", `${sqName(sq)}${p ? ` ${colorOf(p) === "w" ? "white" : "black"} ${p.toLowerCase()}` : ""}`);
+      let pc = cell.querySelector(".cs-pc");
+      if (!p) { pc?.remove(); continue; }
+      if (!pc || pc.dataset.p !== p) {
+        pc?.remove();
+        pc = document.createElement("span");
+        pc.dataset.p = p;
+        pc.textContent = `${GLYPH[p.toLowerCase()]}\uFE0E`;
+        cell.append(pc);
+      }
+      pc.className = `cs-pc ${colorOf(p)}${myTurn() && colorOf(p) === myColor() ? " mine" : ""}`;
+      pc.style.transform = "";
     }
-    board.innerHTML = html;
     if (anim) animate(board, anim);
     paintBars();
     paintMoves();
@@ -272,13 +292,16 @@
     if (!pc) return;
     const sign = G.flip ? -1 : 1;
     const dx = ((m.from & 7) - (m.to & 7)) * sign, dy = ((m.from >> 3) - (m.to >> 3)) * sign;
-    pc.style.transition = "none";
-    pc.style.transform = `translate(${dx * 100}%, ${dy * 100}%)`;
-    pc.style.zIndex = "3";
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      pc.style.transition = "transform .18s cubic-bezier(.2,.8,.2,1)";
-      pc.style.transform = "";
-    }));
+    pc.classList.add("slide");
+    pc.animate([{ transform: `translate(${dx * 100}%, ${dy * 100}%)` }, { transform: "none" }], { duration: 180, easing: "cubic-bezier(.25,.8,.25,1)" })
+      .finished.then(() => pc.classList.remove("slide"), () => {});
+    // castling: the rook slides too
+    if (m.castle) {
+      const row = m.to >> 3, rookTo = row * 8 + ((m.to & 7) === 6 ? 5 : 3), rookFrom = row * 8 + ((m.to & 7) === 6 ? 7 : 0);
+      const rk = board.querySelector(`[data-sq="${rookTo}"] .cs-pc`);
+      const rdx = ((rookFrom & 7) - (rookTo & 7)) * sign;
+      rk?.animate([{ transform: `translate(${rdx * 100}%, 0)` }, { transform: "none" }], { duration: 180, easing: "cubic-bezier(.25,.8,.25,1)" });
+    }
   }
 
   function material() {
@@ -349,48 +372,70 @@
 
   // ---------- moving ----------
 
+  function squareAt(board, x, y) {
+    const r = board.getBoundingClientRect();
+    const fx = Math.floor(((x - r.left) / r.width) * 8), fy = Math.floor(((y - r.top) / r.height) * 8);
+    if (fx < 0 || fx > 7 || fy < 0 || fy > 7) return -1;
+    const i = fy * 8 + fx;
+    return G.flip ? 63 - i : i;
+  }
+
   function bindBoard(board) {
     board.addEventListener("pointerdown", (e) => {
-      const cell = e.target.closest("[data-sq]");
-      if (!cell || !G || G.over) return;
-      const sq = Number(cell.dataset.sq);
-      if (G.sel >= 0 && sq !== G.sel && tryMove(G.sel, sq)) return;
+      if (!G || G.over || (e.pointerType === "mouse" && e.button)) return;
+      const sq = squareAt(board, e.clientX, e.clientY);
+      if (sq < 0) return;
+      e.preventDefault();
       const p = G.s.b[sq];
-      if (myTurn() && p && colorOf(p) === myColor()) {
-        G.sel = sq;
-        render();
-        const pc = board.querySelector(`[data-sq="${sq}"] .cs-pc`);
-        if (pc && e.isPrimary) startDrag(e, pc, sq);
-      } else if (G.sel >= 0) { G.sel = -1; render(); }
+      const own = myTurn() && p && colorOf(p) === myColor();
+      // a square the selected piece can go to: move there (slides)
+      if (G.sel >= 0 && sq !== G.sel && !own) {
+        if (!tryMove(G.sel, sq)) { G.sel = -1; render(); }
+        return;
+      }
+      if (!own) return;
+      const wasSel = G.sel === sq;
+      G.sel = sq;
+      render();
+      const pc = board.querySelector(`[data-sq="${sq}"] .cs-pc`);
+      if (pc) startDrag(e, board, pc, sq, wasSel);
     });
   }
 
-  function startDrag(e, pc, from) {
-    const rect = pc.getBoundingClientRect();
-    const ghost = pc.cloneNode(true);
-    ghost.classList.add("cs-ghost");
-    Object.assign(ghost.style, { width: `${rect.width}px`, height: `${rect.height}px`, fontSize: getComputedStyle(pc).fontSize });
-    let moved = false;
-    const x0 = e.clientX, y0 = e.clientY;
-    const place = (ev) => { ghost.style.transform = `translate(${ev.clientX - rect.width / 2}px, ${ev.clientY - rect.height / 2}px) scale(1.12)`; };
-    const move = (ev) => {
-      if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) { moved = true; document.body.append(ghost); pc.style.opacity = ".25"; }
-      if (moved) place(ev);
+  function startDrag(e, board, pc, from, wasSel) {
+    board.setPointerCapture?.(e.pointerId);
+    const cell = pc.parentElement.getBoundingClientRect();
+    const cx = cell.left + cell.width / 2, cy = cell.top + cell.height / 2;
+    let moved = false, hover = null;
+    const follow = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 5) return;
+      if (!moved) { moved = true; pc.classList.add("lift"); }
+      pc.style.transform = `translate(${ev.clientX - cx}px, ${ev.clientY - cy}px) scale(1.12)`;
+      const sq = squareAt(board, ev.clientX, ev.clientY);
+      const cellNow = sq >= 0 ? board.querySelector(`[data-sq="${sq}"]`) : null;
+      if (cellNow !== hover) { hover?.classList.remove("hover"); hover = cellNow; hover?.classList.add("hover"); }
     };
-    const up = (ev) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      if (!moved) return;
-      ghost.remove();
-      pc.style.opacity = "";
-      const cell = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.(".cs-board [data-sq]");
-      const to = cell ? Number(cell.dataset.sq) : -1;
+    const done = (ev) => {
+      board.removeEventListener("pointermove", follow);
+      board.removeEventListener("pointerup", done);
+      board.removeEventListener("pointercancel", done);
+      hover?.classList.remove("hover");
+      pc.classList.remove("lift");
+      if (!moved) {
+        // tapping the selected piece again puts it down
+        if (wasSel && ev.type === "pointerup") { G.sel = -1; render(); }
+        return;
+      }
+      const to = ev.type === "pointerup" ? squareAt(board, ev.clientX, ev.clientY) : -1;
       if (to >= 0 && to !== from && tryMove(from, to, true)) return;
+      // not a legal square: glide back
+      const t = pc.style.transform;
+      pc.style.transform = "";
+      if (t) pc.animate([{ transform: t }, { transform: "none" }], { duration: 160, easing: "ease-out" });
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
+    board.addEventListener("pointermove", follow);
+    board.addEventListener("pointerup", done);
+    board.addEventListener("pointercancel", done);
   }
 
   function tryMove(from, to, dragged = false) {

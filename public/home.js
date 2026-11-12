@@ -165,7 +165,7 @@
     const active = [...perDay.keys()].filter((k) => Date.now() - new Date(k).getTime() < 30 * 864e5).length;
     const top = hours.indexOf(Math.max(...hours));
     const hourText = (h) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
-    const names = { ttt: "Tic tac toe", c4: "Four in a row", rps: "Rock paper scissors", zm: "Zameen", pict: "Pictionary", race: "Reaction race", chess: "Chess", ludo: "Ludo", chk: "Checkers", sea: "Sea battle", dots: "Dots & boxes", memo: "Memory match" };
+    const names = { ttt: "Tic tac toe", c4: "Four in a row", rps: "Rock paper scissors", zm: "Zameen", pict: "Pictionary", race: "Reaction race", chess: "Chess", ludo: "Ludo", memo: "Memory match" };
     const games = Object.entries(admin.scores || {}).filter(([k]) => names[k]).map(([k, t]) => {
       const players = Object.entries(t).filter(([n]) => n !== "draws").sort((a, b) => b[1] - a[1]);
       return `<li><span class="icon">sports_esports</span><span>${names[k]}</span><b>${players.map(([n, w]) => `${esc(n)} ${w}`).join(" · ") || "–"}${t.draws ? ` · ${t.draws} draw${t.draws === 1 ? "" : "s"}` : ""}</b></li>`;
