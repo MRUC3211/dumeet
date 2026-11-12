@@ -129,6 +129,7 @@
           <button class="icon-btn" data-tg="timer-stop" aria-label="Finish"><span class="icon">stop</span></button>
         </div>
         <button class="meet-chip" data-action="info" aria-label="Meeting details" aria-expanded="false" aria-controls="info-pop"><span class="icon" aria-hidden="true">info</span><span class="chip-more"><span class="clock"></span><i aria-hidden="true"></i><span id="meet-elapsed">0:00</span></span></button>
+<button class="snap-float snap-ctrl" data-tg="snap" title="Take a photo" aria-label="Take a photo of the call"><span class="icon" aria-hidden="true">photo_camera</span></button>
         <div id="info-pop" class="info-pop" role="dialog" aria-label="Meeting details" hidden>
           <div class="info-grid">
             <div><span>Meeting time</span><b id="meeting-timer" class="timer">0:00</b></div>
@@ -187,15 +188,14 @@
     </div>
 
     <footer class="controls">
-      <div class="left"></div>
+      <div class="left">
+        <button class="ctrl glass-ctrl heart-ctrl" data-tg="heart" title="Thinking of you" aria-label="Send a heart"><span class="icon" aria-hidden="true">favorite</span></button>
+      </div>
       <div class="center">
         <button class="ctrl" data-action="mic" aria-label="Microphone" aria-keyshortcuts="Meta+D"><span class="icon" aria-hidden="true">mic</span></button>
         <button class="ctrl" data-action="cam" aria-label="Camera" aria-keyshortcuts="Meta+E"><span class="icon" aria-hidden="true">videocam</span></button>
-        <button class="ctrl heart-ctrl" data-tg="heart" title="Thinking of you" aria-label="Send a heart"><span class="icon" aria-hidden="true">favorite</span></button>
-        <button class="ctrl snap-ctrl" data-tg="snap" title="Take a photo" aria-label="Take a photo of the call"><span class="icon" aria-hidden="true">photo_camera</span></button>
         <button class="ctrl together-ctrl" data-tg="tray" title="Tools" aria-label="Tools" aria-expanded="false" aria-controls="tg-tray"><svg class="tools-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="8" height="8" rx="2.4"/><rect x="2.5" y="13.5" width="8" height="8" rx="2.4"/><rect x="13.5" y="13.5" width="8" height="8" rx="2.4"/><path class="spark" d="M17.5 1.2c.55 3.3 1.8 4.55 5.1 5.1-3.3.55-4.55 1.8-5.1 5.1-.55-3.3-1.8-4.55-5.1-5.1 3.3-.55 4.55-1.8 5.1-5.1z"/></svg><i class="tray-badge" hidden></i></button>
         <button class="ctrl chat-ctrl" data-action="chat" title="Chat" aria-label="Chat" aria-expanded="false" aria-controls="panel"><span class="icon" aria-hidden="true">chat_bubble</span><span id="chat-dot" class="dot" hidden></span></button>
-        <button class="ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_horiz</span></button>
         <button class="ctrl leave" data-action="leave" title="Leave call" aria-label="Leave call"><span class="icon" aria-hidden="true">call_end</span></button>
 
         <div id="reaction-picker" role="group" aria-label="Reactions" hidden></div>
@@ -218,6 +218,9 @@
           <button role="menuitem" data-tg="sleep" class="span-all"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
         </div>
 
+      </div>
+      <div class="right">
+        <button class="ctrl glass-ctrl" data-action="more" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="icon" aria-hidden="true">more_horiz</span></button>
         <div id="more-menu" class="menu" role="menu" aria-label="More options" hidden>
           <button role="menuitem" data-action="people"><span class="icon" aria-hidden="true">group</span><span class="label">People</span><span id="people-count" class="menu-count">1</span></button>
           <button role="menuitem" data-action="reactions"><span class="icon" aria-hidden="true">mood</span><span class="label">Reactions</span></button>
@@ -230,7 +233,6 @@
           <button role="menuitem" data-action="settings"><span class="icon" aria-hidden="true">settings</span><span class="label">Settings</span></button>
         </div>
       </div>
-      <div class="right"></div>
     </footer>
     <div id="reactions" aria-hidden="true"></div>
     <div id="audio-sinks" hidden></div>
@@ -393,12 +395,11 @@
         <button class="btn outline" data-action="share">Stop presenting</button>
       </div>
       <div class="hand-badge"><span class="icon" aria-hidden="true">back_hand</span></div>
-      <div class="mic-off"><span class="icon" aria-hidden="true">mic_off</span></div>
       <div class="tile-actions">
         <button class="tile-btn tile-flip" data-action="flip" title="Switch camera" aria-label="Switch camera"><span class="icon" aria-hidden="true">cameraswitch</span></button>
         <button class="tile-btn" data-tile-action="pin" title="Pin" aria-label="Pin"><span class="icon" aria-hidden="true">keep</span></button>
       </div>
-      <div class="tile-name"><span class="icon pin-mark" aria-hidden="true">keep</span><span class="name"></span></div>
+      <div class="tile-name"><span class="icon pin-mark" aria-hidden="true">keep</span><span class="name"></span><span class="mic-off"><span class="icon" aria-hidden="true">mic_off</span></span></div>
     </div>
   </template>
 
