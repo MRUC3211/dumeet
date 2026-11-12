@@ -1012,6 +1012,19 @@ let audioContext = null;
 const meters = new Map(); // id -> { analyser, samples }
 let speakerChangedAt = 0;
 
+// When each person last spoke clearly (so Saathi knows who said "mute me").
+const spokeAt = new Map();
+/** Name of whoever spoke most recently within `ms`, or "" if nobody did. */
+function whoSpokeLast(ms = 8000) {
+  let best = "", at = Date.now() - ms;
+  for (const [id, t] of spokeAt) {
+    if (t <= at) continue;
+    const name = id === me.id ? me.name : peers.get(id)?.name;
+    if (name) { best = name; at = t; }
+  }
+  return best;
+}
+
 function watchAudio(id, track) {
   try {
     audioContext ??= new AudioContext();
@@ -1035,6 +1048,7 @@ setInterval(() => {
     const micOn = id === me.id ? me.mic : peers.get(id)?.mic;
     const speaking = micOn && loudness > 0.03;
     tileOf(id)?.classList.toggle("speaking", speaking);
+    if (speaking && loudness > 0.05) spokeAt.set(id, Date.now());
     if (speaking && id !== me.id && loudness > loudestLevel) {
       loudest = id;
       loudestLevel = loudness;

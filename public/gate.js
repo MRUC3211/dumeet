@@ -10,7 +10,7 @@
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); window.DU_installPrompt = event; });
   window.addEventListener("appinstalled", () => { window.DU_installPrompt = null; });
 
-  const SCRIPTS = ["/app.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/word.js", "/joy.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js"];
+  const SCRIPTS = ["/app.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/word.js", "/joy.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js", "/saathi-tools.js"];
   let token = "";
 
   // Every call to the server carries the token; links that can't send headers (images,

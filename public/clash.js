@@ -144,7 +144,10 @@
     paint();
   }
 
-  const msg = (t) => { const m = G && q(".cl-msg", G.el); if (m) { m.textContent = t; m.classList.remove("pop"); void m.offsetWidth; m.classList.add("pop"); } };
+  const msg = (t) => {
+    const m = G && q(".cl-msg", G.el); if (m) { m.textContent = t; m.classList.remove("pop"); void m.offsetWidth; m.classList.add("pop"); }
+    if (G && t) A.event(`Colour clash: ${t.replace(/\bYou\b/g, me.name).replace(/\byou pick\b/g, `${me.name} picks`).replace(/ — play it or pass/, "")} (cards left: ${G.names.map((n, i) => `${n} ${G.hands[i].length}`).join(", ")})`);
+  };
 
   function paint() {
     if (!G) return;

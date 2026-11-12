@@ -112,19 +112,21 @@
   window.DU.saathiTools.push(
     { name: "open_feature", description: "Open a game or tool in their video-call app. " + Object.entries(FEATURES).map(([k, v]) => `${k} = ${v}`).join("; "),
       parameters: { type: "OBJECT", properties: { feature: { type: "STRING", enum: Object.keys(FEATURES) } }, required: ["feature"] },
-      run: (a) => { const b = document.querySelector(`#tg-tray [data-tg="${CSS.escape(String(a.feature))}"]`); if (!b) return { error: "Not found" }; b.click(); return { opened: FEATURES[a.feature] }; } },
+      run: (a) => {
+        const k = String(a.feature);
+        // games start for both at once (no setup screen to tap through)
+        if (window.DU.arena?.has(k)) return window.DU.arena.startQuick(k);
+        const b = document.querySelector(`#tg-tray [data-tg="${CSS.escape(k)}"]`);
+        if (!b) return { error: "Not found" };
+        b.click();
+        return { opened: FEATURES[k] };
+      } },
     { name: "power_nap", description: "Start (or cancel with 0) a power nap timer for both of them; a gentle alarm wakes them.",
       parameters: { type: "OBJECT", properties: { minutes: { type: "NUMBER", description: "5 to 60, or 0 to cancel" } }, required: ["minutes"] },
       run: (a) => { const m = Math.max(0, Math.min(60, Math.round(Number(a.minutes) || 0))); window.DU.nap?.(m); return { minutes: m }; } },
     { name: "play_sound", description: "Play a calm background sound for both, or stop it.",
       parameters: { type: "OBJECT", properties: { sound: { type: "STRING", enum: ["rain", "thunder", "waves", "stream", "forest", "wind", "fire", "night", "cafe", "train", "fan", "chimes", "bowl", "heart", "white", "brown", "stop"] } }, required: ["sound"] },
       run: (a) => { const k = a.sound === "stop" ? "" : String(a.sound); window.DU.sounds?.play(k); return { playing: k || "nothing" }; } },
-    { name: "camera", description: "Turn the camera of the person asking on or off, or flip between front and back camera.",
-      parameters: { type: "OBJECT", properties: { action: { type: "STRING", enum: ["on", "off", "flip"] } }, required: ["action"] },
-      run: async (a) => {
-        if (a.action === "flip") { await flipCamera(); return { flipped: true }; }
-        await setCamera(a.action === "on"); return { camera: me.cam ? "on" : "off" };
-      } },
     { name: "send_chat_message", description: "Send a text message in the call's chat, from the person asking (e.g. a link, an address, a note to keep).",
       parameters: { type: "OBJECT", properties: { text: { type: "STRING" } }, required: ["text"] },
       run: (a) => {

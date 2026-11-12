@@ -96,6 +96,7 @@
     q(".md-msg", M.el).textContent = who < 0 ? `Time's up! It was ${Q.ans}` : who === mine() ? "Point to you! ⚡" : `${M.names[who]} was faster`;
     A.sound(who === mine() ? "good" : "tick");
     A.setDuel({ turn: who, scores: M.scores });
+    A.event(`Maths duel, sum ${r + 1}: ${Q.text} = ${Q.ans}. ${who < 0 ? "Nobody got it in time" : `${M.names[who]} got it first`}. Score ${M.names[0]} ${M.scores[0]} – ${M.scores[1]} ${M.names[1]}`);
     setTimeout(next, 1400);
   }
 

@@ -68,7 +68,10 @@
     const f = S && q(".sl-face", S.el);
     if (f) f.innerHTML = Array.from({ length: 9 }, (_, i) => `<i${PIPS[v].includes(i) ? ' class="on"' : ""}></i>`).join("");
   }
-  const msg = (t) => { const m = S && q(".sl-msg", S.el); if (m) m.textContent = t; };
+  const msg = (t) => {
+    const m = S && q(".sl-msg", S.el); if (m) m.textContent = t;
+    if (t && !/^Tap /.test(t)) A.event(`Snakes & ladders: ${t.replace(/\bYou\b/g, me.name)}`);
+  };
 
   function paint() {
     if (!S) return;

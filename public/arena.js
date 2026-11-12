@@ -64,7 +64,18 @@
     });
   }
 
+  // What happens in a game, in words, for Saathi (and her live commentary).
+  const events = [];
+  function event(text) {
+    const line = String(text || "").trim();
+    if (!line) return;
+    events.push({ at: Date.now(), kind: cur?.kind || "", text: line });
+    if (events.length > 30) events.shift();
+    window.DU.saathi?.gameEvent?.(line);
+  }
+
   function over(kind, names, winner, detail, again) {
+    event(`Game over: ${winner < 0 ? "draw" : `${names[winner]} wins`}${detail ? ` (${detail.replace(/\bYou\b/, me.name)})` : ""}`);
     live(false);
     const mine = names.indexOf(me.name);
     const title = winner < 0 ? "It's a draw" : winner === mine ? "You win! 🎉" : `${esc(names[winner])} wins`;
@@ -236,5 +247,31 @@
     onCoupleLeave(...args) { prev.leave?.(...args); close(); },
   });
 
-  window.DU.arena = { open, close, status, tools, panel, live, duel, setDuel, over, sound, rand, shuffle, register, faceHtml, esc, q, other, current: () => cur };
+  /** Start a game for both right away (no setup screen): used when Saathi starts one. */
+  function startQuick(kind, opts = {}) {
+    const game = games[kind];
+    if (!game) return { error: "No such game" };
+    if (!other()) return { error: "The partner isn't in the call" };
+    window.DU.kit.toggleTray(false);
+    (game.quick || game.start)(opts);
+    return { started: kind };
+  }
+  /** The game on screen, in words: whose turn, scores, and the game's own description. */
+  function describe() {
+    if (!cur) return null;
+    const text = (sel) => [...cur.el.querySelectorAll(sel)].map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean);
+    const players = [...cur.el.querySelectorAll(".ar-pl")].map((p) => ({
+      name: q(".ar-pn b", p)?.textContent === "You" ? me.name : q(".ar-pn b", p)?.textContent,
+      score: q(".ar-score", p)?.textContent || "", note: q(".ar-sub", p)?.textContent || "", turn: p.classList.contains("turn"),
+    }));
+    const own = games[cur.kind]?.describe?.();
+    return {
+      game: cur.kind, title: q(".ar-title", cur.el)?.textContent, status_for_this_phone: q(".ar-status", cur.el)?.textContent, players,
+      ...(own || { screen: text(".ar-body").join(" ").slice(0, 1200) }),
+      popup: text(".ar-panel:not([hidden])").join(" ").slice(0, 300) || undefined,
+      recent: events.filter((e) => e.kind === cur.kind).slice(-8).map((e) => e.text),
+    };
+  }
+  window.DU.arena = { open, close, status, tools, panel, live, duel, setDuel, over, sound, rand, shuffle, register, faceHtml, esc, q, other, current: () => cur,
+    event, events, startQuick, describe, has: (k) => Boolean(games[k]), kinds: () => Object.keys(games) };
 })();

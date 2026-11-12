@@ -497,25 +497,86 @@
   const toolList = () => (window.DU.saathiTools || []).filter((t) => t && t.name && typeof t.run === "function");
   const toolDecls = () => toolList().map(({ name, description, parameters }) => (parameters ? { name, description, parameters } : { name, description }));
   const TOOL_HINT = () => (toolList().length
-    ? "\n\nYou are inside their video-call app and can use it for them with your tools: their shared task lists "
-      + "(add, tick off, remove, read out), habits, 'Our list', reminders, the calendar, the timer, opening games and tools, "
-      + "power naps, calm sounds, the story game, the camera and the chat. "
-      + "When they ask for one of these, call the tool straight away, then confirm in a few words. When a task "
-      + "list question comes up, read it with the tool first. Only use tools when they ask. "
+    ? "\n\nYOU ARE INSIDE THEIR VIDEO-CALL APP AND CAN CONTROL IT WITH YOUR TOOLS. Never say you can't see, "
+      + "can't access or can't do something in the app before trying the right tool. "
+      + "call_info gives the call time, people, mics and cameras. game_state shows the game (the whole chess board and "
+      + "moves). screen reads what's open on someone's phone and can press any button there, so every card, game and "
+      + "window works by voice. microphone and camera mute/unmute and turn video on/off. start_game starts a game for "
+      + "both; chess_move plays a move someone says. commentary on = you hear each move live and commentate. "
+      + "see_video lets you see their cameras. There are also tools for tasks, habits, 'Our list', reminders, the "
+      + "calendar, the timer, power naps, calm sounds, the story game, chat, and opening any feature. "
+      + "Two people share the call: for things on one person's phone (mic, camera, screen, their chess move) pass "
+      + "their name as person when you know who asked; if you don't, leave it empty and the app uses whoever just spoke. "
+      + "Call the tool straight away, then confirm in a few words. Only use tools when they ask. "
       + "You can also search the web for facts, news, scores or weather. When they say bye, thanks that's all, "
       + "or tell you to go, say a short bye and call leave_call. "
       + `Right now it is ${new Date().toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" })} `
       + `(date ${new Date().toLocaleDateString("en-CA")}).`
     : "");
+  // A tool marked `personal` acts on one person's own phone (their mic, camera, screen, their
+  // move in a game). Saathi runs on the host's phone, so for the partner it's passed over the
+  // call and their phone runs it and sends the result back.
+  const names = () => people();
+  function personFor(tool, args) {
+    const said = String(args.person || "").trim().toLowerCase();
+    const list = names();
+    const named = said && (list.find((n) => n.toLowerCase() === said)
+      || (/(^|\b)(me|my|mine|i|mujhe|mera|meri|mere)\b/.test(said) ? "" : list.find((n) => said.includes(n.toLowerCase()) || n.toLowerCase().includes(said))));
+    if (named) return named;
+    // nobody named: whoever was just talking asked for it
+    return (typeof whoSpokeLast === "function" && whoSpokeLast(10000)) || me.name;
+  }
+  const waiting = new Map();
+  function runOnPartner(name, call, args) {
+    const peer = [...peers.values()].find((p) => p.name === name);
+    if (!peer) return Promise.resolve({ error: `${name} isn't in the call` });
+    const id = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+    send("ai", { act: "do", id, name: call.name, args }, peer.id);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { waiting.delete(id); resolve({ error: `${name}'s phone didn't answer` }); }, 9000);
+      waiting.set(id, (result) => { clearTimeout(timer); resolve(result); });
+    });
+  }
+  async function runLocal(name, args) {
+    const tool = toolList().find((t) => t.name === name);
+    if (!tool) return { error: "No such tool" };
+    try { return await tool.run(args || {}); } catch (error) { return { error: error.message || "Failed" }; }
+  }
+  async function dispatch(call) {
+    const tool = toolList().find((t) => t.name === call.name);
+    const args = { ...(call.args || {}) };
+    if (!tool) return { error: "No such tool" };
+    if (!tool.personal) return runLocal(call.name, args);
+    const who = personFor(tool, args);
+    args.person = who;
+    const result = who === me.name ? await runLocal(call.name, args) : await runOnPartner(who, call, args);
+    if (result && typeof result === "object" && !result.person) result.person = who;
+    return result;
+  }
   async function runTools(live, calls) {
     const responses = [];
     for (const call of calls) {
-      const tool = toolList().find((t) => t.name === call.name);
-      let result;
-      try { result = tool ? await tool.run(call.args || {}, call) : { error: "No such tool" }; } catch (error) { result = { error: error.message || "Failed" }; }
+      const result = await dispatch(call);
+      live.lastActive = Date.now();
       responses.push({ id: call.id, name: call.name, response: typeof result === "object" && result ? result : { result: String(result ?? "done") } });
     }
     if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+  }
+
+  // ---------- live game commentary: moves are told to Saathi as they happen ----------
+  let lastFeed = 0, feedQueue = [], feedTimer = 0;
+  function gameEvent(text) {
+    const live = S.live;
+    if (!live?.ready || !live.commentary) return;
+    feedQueue.push(String(text).slice(0, 200));
+    clearTimeout(feedTimer);
+    // gather quick moves together; at most one nudge every 3 s
+    feedTimer = setTimeout(() => {
+      if (S.live !== live || !feedQueue.length) return;
+      const lines = feedQueue.splice(0).slice(-4).join("; ");
+      lastFeed = Date.now();
+      say(live, `(App, game update: ${lines}. Commentate in one short, lively line like a sports commentator. Don't repeat the move list.)`);
+    }, Math.max(600, 3000 - (Date.now() - lastFeed)));
   }
 
   function kickoff(live) {
@@ -922,6 +983,11 @@
     ask: (text) => { if (S.live) giveAsk(S.live, text); else S.earlyAsk = { text, at: Date.now() }; },
     active: () => Boolean(S.live || S.remote),
     end: () => { if (S.live) endVoice("ended"); else if (S.remote) tell({ act: "end" }); },
+    gameEvent,
+    runTool: (name, args = {}) => dispatch({ name, args }), // what a tool call does (also handy for checking)
+    host: () => (S.live ? me.name : S.remote ? [...peers.values()].find((p) => p.id === S.remote.host)?.name || "" : ""),
+    see: (on) => { if (!S.live) return null; if (Boolean(on) !== S.seeing) toggleSee(); return S.seeing; },
+    commentary: (on) => { if (!S.live) return null; S.live.commentary = Boolean(on); return S.live.commentary; },
     name: aiName,
   };
   window.DU.saathiTools ||= [];
@@ -956,6 +1022,15 @@
         paintOrb();
         break;
       case "end": if (S.live) endVoice("ended"); break;
+      case "do": {
+        // only the phone running Saathi may ask this phone to do things
+        if (!S.remote || S.remote.host !== peer.id) break;
+        const tool = toolList().find((t) => t.name === d.name && t.personal);
+        (tool ? runLocal(d.name, { ...(d.args || {}), person: me.name }) : Promise.resolve({ error: "Not allowed" }))
+          .then((result) => send("ai", { act: "done", id: d.id, result }, peer.id));
+        break;
+      }
+      case "done": waiting.get(d.id)?.(d.result && typeof d.result === "object" ? d.result : { result: "done" }); waiting.delete(d.id); break;
       case "waking": wakeState.theirs = Number(d.at) || Date.now(); wakeState.theirName = peer.name || ""; break;
       case "turn": if (S.live) giveTurn(String(d.who)); break;
       case "see": if (S.live) toggleSee(peer.name); break;

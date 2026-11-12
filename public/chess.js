@@ -478,9 +478,75 @@
     const key = posKey(G.s);
     G.keys[key] = (G.keys[key] || 0) + 1;
     A.sound(notation.includes("+") || notation.includes("#") ? "check" : m.cap ? "capture" : "move");
+    tellMove(m, notation, moverIdx);
     render(anim ? m : null);
     checkEnd(key);
   }
+
+  // ---------- for Saathi: moves in words, the position, and moves said out loud ----------
+  const PIECE = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+  function tellMove(m, notation, moverIdx) {
+    const who = `${G.names[moverIdx]} (${moverIdx ? "black" : "white"})`;
+    const what = m.castle ? `castled ${m.castle === "K" ? "kingside" : "queenside"}`
+      : `moved ${PIECE[m.p.toLowerCase()]} ${sqName(m.from)} to ${sqName(m.to)}${m.cap ? `, taking a ${PIECE[(m.ep ? "p" : m.cap).toLowerCase()] || "piece"}` : ""}${m.promo ? `, promoting to ${PIECE[m.promo.toLowerCase()]}` : ""}`;
+    const tail = notation.endsWith("#") ? " Checkmate!" : notation.endsWith("+") ? " Check!" : "";
+    A.event(`${who} ${what} (${notation}).${tail}`);
+  }
+  function describe() {
+    if (!G) return null;
+    const rows = [];
+    for (let r = 0; r < 8; r++) rows.push(`${8 - r}: ${G.s.b.slice(r * 8, r * 8 + 8).map((p) => p || ".").join(" ")}`);
+    const material = (c) => G.s.b.filter((p) => p && colorOf(p) === c).reduce((n, p) => n + VAL[p.toLowerCase()], 0);
+    const moves = [];
+    G.hist.forEach((h, i) => { if (i % 2 === 0) moves.push(`${i / 2 + 1}. ${h.san}`); else moves[moves.length - 1] += ` ${h.san}`; });
+    return {
+      white: G.names[0], black: G.names[1], over: G.over,
+      to_move: `${G.names[idx(G.s.turn)]} (${G.s.turn === "w" ? "white" : "black"})`,
+      in_check: inCheck(G.s), moves: moves.join(" ") || "no moves yet",
+      board: `${rows.join("\n")}\n   a b c d e f g h  (uppercase = white, lowercase = black)`,
+      material: { white: material("w"), black: material("b") },
+      clocks: G.tc.base ? { white: clockText(timeLeft(0)), black: clockText(timeLeft(1)) } : "no clock",
+      legal_moves_now: legal(G.s).length,
+    };
+  }
+  const WORDS = { knight: "n", horse: "n", ghoda: "n", ghora: "n", bishop: "b", oont: "b", unt: "b", camel: "b", rook: "r", castle: "r", haathi: "r", hathi: "r", elephant: "r",
+    queen: "q", rani: "q", wazir: "q", vazir: "q", king: "k", raja: "k", badshah: "k", pawn: "p", pyada: "p", pyaada: "p", sipahi: "p" };
+  /** A move said out loud: "e4", "Nf3", "knight to f3", "e2 e4", "castle kingside". */
+  function voiceMove(text) {
+    if (!G || G.over) return { error: "No chess game running" };
+    if (!myTurn()) return { error: `It's ${G.names[idx(G.s.turn)]}'s turn` };
+    const raw = String(text || "").toLowerCase().trim();
+    const list = legal(G.s);
+    const clean = (x) => x.toLowerCase().replace(/[+#x=\s-]/g, "").replace(/^0/, "o");
+    let pick = list.filter((m) => clean(san(G.s, m, list)) === clean(raw));
+    if (!pick.length && /castl|o-o|0-0/.test(raw)) pick = list.filter((m) => m.castle === (/queen|long|o-o-o|0-0-0|bada/.test(raw) ? "Q" : "K"));
+    if (!pick.length) {
+      const sqs = [...raw.matchAll(/([a-h])\s?([1-8])/g)].map((x) => (8 - Number(x[2])) * 8 + FILES.indexOf(x[1]));
+      const word = Object.keys(WORDS).find((w) => raw.includes(w));
+      const kind = word ? WORDS[word] : (raw.match(/^([nbrqk])[a-h]/) || [])[1];
+      const promo = (raw.match(/(?:=|promot\w*\s*(?:to)?\s*)(queen|rook|bishop|knight|q|r|b|n)/) || [])[1];
+      if (sqs.length >= 2) pick = list.filter((m) => m.from === sqs[0] && m.to === sqs[1]);
+      else if (sqs.length === 1) pick = list.filter((m) => m.to === sqs[0] && (!kind || m.p.toLowerCase() === kind) && (kind || m.p.toLowerCase() === "p" || list.filter((x) => x.to === sqs[0]).length === 1));
+      if (pick.length > 1 && pick.every((m) => m.promo)) pick = pick.filter((m) => m.promo.toLowerCase() === (WORDS[promo] || promo || "q"));
+    }
+    if (!pick.length) return { error: `"${text}" isn't a legal move here`, some_legal_moves: list.slice(0, 30).map((m) => san(G.s, m, list)) };
+    if (pick.length > 1) return { error: "Which one?", options: pick.map((m) => san(G.s, m, list)) };
+    const notation = san(G.s, pick[0], list);
+    play(pick[0], true, true);
+    return { played: notation };
+  }
+  /** Start at once for both (Saathi): clock "3+2" | "5+0" | "10+0" | "none", side w | b | random. */
+  function quick(opts = {}) {
+    const other = A.other()?.name;
+    if (!other) return;
+    const tc = TCS.some((t) => t.id === opts.clock) ? opts.clock : setup.tc;
+    const white = opts.white && [me.name, other].includes(opts.white) ? opts.white
+      : opts.side === "w" ? me.name : opts.side === "b" ? other : (A.rand(2) ? me.name : other);
+    const names = white === me.name ? [me.name, other] : [other, me.name];
+    begin(names, tc);
+    send(K, { t: "start", names, tc });
+  }
+  window.DU.chessMove = voiceMove;
 
   function checkEnd(key) {
     const moves = legal(G.s);
@@ -598,6 +664,8 @@
 
   A.register(K, {
     start,
+    quick,
+    describe,
     onMsg,
     cleanup() { if (G) clearInterval(G.timer); G = null; },
   });
