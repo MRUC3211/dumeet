@@ -1,6 +1,5 @@
 // DU Meet · Our diary (runs on Saathi, see saathi.py): one page per day, written by
-// Saathi from that day's calls, chat, study time and the one line each of you leaves
-// after a call.
+// Saathi from that day's calls, chat and study time.
 // Uses globals from app.js (me, prefs, peers, polling, toast).
 
 (() => {
@@ -133,52 +132,7 @@
     if (event.target.closest("[data-diary]")) openDiary();
   });
 
-  // ---------- one line for the diary after a call ----------
-
-  let together = 0;
-  setInterval(() => { if (polling && peers.size) together += 5; }, 5000);
-
-  const MOODS = ["😍", "😊", "😌", "😴", "😢", "😤"];
-  function showLine() {
-    const host = q("#left .left-card");
-    q(".dl", host)?.remove();
-    if (together < 120 || !myName()) return;
-    const box = document.createElement("form");
-    box.className = "dl";
-    box.innerHTML = `<b>How was today's call?</b>
-      <div class="dl-moods" role="radiogroup" aria-label="Mood">${MOODS.map((m) => `<button type="button" role="radio" aria-checked="false" data-mood="${m}">${m}</button>`).join("")}</div>
-      <input class="field" maxlength="300" placeholder="One line for our diary (optional)" aria-label="One line for our diary">
-      <button class="btn primary">Save to our diary</button>`;
-    let mood = "";
-    box.addEventListener("click", (event) => {
-      const pick = event.target.closest("[data-mood]");
-      if (!pick) return;
-      mood = pick.dataset.mood;
-      for (const b of box.querySelectorAll("[data-mood]")) b.setAttribute("aria-checked", String(b === pick));
-    });
-    box.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const text = q("input", box).value.trim();
-      if (!mood && !text) return toast("Pick a mood or write a line");
-      q(".btn", box).disabled = true;
-      try {
-        await api("diary-line", { mood, text });
-        box.innerHTML = `<p class="dl-done"><span class="icon" aria-hidden="true">check_circle</span>Saved. Saathi will add it to today's page.</p>
-          <button type="button" class="btn outline" data-diary><span class="icon" aria-hidden="true">auto_stories</span>Open our diary</button>`;
-      } catch (error) {
-        toast(error.message);
-        q(".btn", box).disabled = false;
-      }
-    });
-    host.querySelector(".left-actions").before(box);
-  }
-
   // ---------- hooks ----------
 
-  const prev = { leave: window.DU.onLeave, join: window.DU.onJoin };
-  Object.assign(window.DU, {
-    onJoin(...args) { together = 0; q("#left .dl")?.remove(); prev.join?.(...args); },
-    onLeave(...args) { prev.leave?.(...args); showLine(); together = 0; },
-    openDiary,
-  });
+  Object.assign(window.DU, { openDiary });
 })();

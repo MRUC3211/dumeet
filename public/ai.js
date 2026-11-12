@@ -701,7 +701,12 @@
       <button class="sa-card-btn end" data-orb="end" aria-label="Send ${esc(name)} away"><span class="icon" aria-hidden="true">call_end</span></button></div>
       <p class="sa-cap" aria-live="polite"></p>
       ${mode === "faisla" ? `<div class="sa-turns">${people().map((n) => `<button data-turn="${esc(n)}">${esc(n)}'s turn</button>`).join("")}<button data-turn="verdict" class="v"><span class="icon" aria-hidden="true">gavel</span>Verdict</button></div><div class="sa-turn-bar"><i></i><span></span></div>` : ""}`;
-    (q(".main-area") || document.body).append(orb);
+    document.body.append(orb);
+    // move it anywhere; drag an edge or pinch to make it smaller or bigger
+    window.DU.win?.make(orb, {
+      key: "du-saathi-card", grip: false, edges: true, pinch: true, autoH: true, minW: 240, minH: 76,
+      def: () => { const w = Math.min(380, innerWidth - 24); return { x: (innerWidth - w) / 2, y: innerWidth < 720 ? 58 : 14, w, h: null }; },
+    });
     orb.addEventListener("click", (event) => {
       const action = event.target.closest("[data-orb]")?.dataset.orb;
       const turn = event.target.closest("[data-turn]")?.dataset.turn;

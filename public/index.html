@@ -235,7 +235,7 @@
             <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
             <button role="menuitem" data-tg="list"><span class="tg-ic olist-ic icon">checklist</span><span><b>Our list</b><small id="tray-list">Plans, buys, to-dos</small></span></button>
             <button role="menuitem" data-tg="study"><span class="tg-ic studyt icon">menu_book</span><span><b>Study together</b><small>Focus timer + quiz</small></span></button>
-            <button role="menuitem" data-tg="mood"><span class="tg-ic mood icon">mood</span><span><b>Mood</b><small id="tray-mood">How you feel</small></span></button>
+            <button role="menuitem" data-tg="view-date" class="tray-go"><span class="tg-ic dateic icon">wine_bar</span><span><b>Date night</b><small>Dinner, stars, cook together</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-relax" class="tray-go"><span class="tg-ic relax icon">spa</span><span><b>Relax</b><small>Sounds, sleep, calm</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-more" class="tray-go"><span class="tg-ic moretools icon">apps</span><span><b>More</b><small>Timer, polls, reminders</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
           </div>
@@ -256,19 +256,38 @@
           </div>
           <div class="tray-view tray-fun" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Fun</b><span></span></div>
-            <button role="menuitem" data-tg="filters"><span class="tg-ic filt icon">face_retouching_natural</span><span><b>Face filters</b><small id="tray-filter">On your camera</small></span></button>
-            <button role="menuitem" data-tg="voicefx"><span class="tg-ic vfx icon">graphic_eq</span><span><b>Voice changer</b><small id="tray-voice">Funny voices</small></span></button>
-            <button role="menuitem" data-tg="throw"><span class="tg-ic throw icon">sports_handball</span><span><b>Throw</b><small>At their screen</small></span></button>
-            <button role="menuitem" data-tg="nudge"><span class="tg-ic nudge icon">vibration</span><span><b>Nudge</b><small>Shake their phone</small></span></button>
+            <button role="menuitem" data-tg="filters"><span class="tg-ic filt icon">face_retouching_natural</span><span><b>Face filters</b><small id="tray-filter">17 funny looks</small></span></button>
+            <button role="menuitem" data-tg="voicefx"><span class="tg-ic vfx icon">graphic_eq</span><span><b>Voice changer</b><small id="tray-voice">17 voices</small></span></button>
+            <button role="menuitem" data-tg="throw"><span class="tg-ic throw icon">sports_handball</span><span><b>Throw</b><small>Tomato, chappal, knife…</small></span></button>
+            <button role="menuitem" data-tg="nudge"><span class="tg-ic nudge icon">vibration</span><span><b>Nudge</b><small>Tap again and again</small></span></button>
+            <button role="menuitem" data-tg="celebrate"><span class="tg-ic celeb icon">celebration</span><span><b>Celebrate</b><small>Fireworks on both screens</small></span></button>
+            <button role="menuitem" data-tg="soundboard"><span class="tg-ic sboard icon">campaign</span><span><b>Soundboard</b><small>Drumroll, airhorn, ta-da</small></span></button>
+            <button role="menuitem" data-tg="booth"><span class="tg-ic boothic icon">photo_camera</span><span><b>Photo booth</b><small>3 photos, one strip</small></span></button>
+            <button role="menuitem" data-tg="love"><span class="tg-ic loveic icon">favorite</span><span><b>Love meter</b><small>How much? Let's see</small></span></button>
+            <button role="menuitem" data-tg="secret"><span class="tg-ic secretic icon">mail_lock</span><span><b>Secret note</b><small>They scratch to read</small></span></button>
             <button role="menuitem" data-tg="hold"><span class="tg-ic hold icon">back_hand</span><span><b>Hold hands</b><small>Feel the heartbeat</small></span></button>
-            <button role="menuitem" data-tg="ring-now"><span class="tg-ic ringic icon">ring_volume</span><span><b>Ring</b><small>Call their phone</small></span></button>
           </div>
           <div class="tray-view tray-relax" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Relax</b><span></span></div>
-            <button role="menuitem" data-tg="sounds"><span class="tg-ic snd icon">water_drop</span><span><b>Sounds</b><small id="tray-sound">Rain, waves, fire</small></span></button>
+            <button role="menuitem" data-tg="sounds"><span class="tg-ic snd icon">water_drop</span><span><b>Sounds</b><small id="tray-sound">16 calm sounds</small></span></button>
             <button role="menuitem" data-tg="breathe"><span class="tg-ic breathe icon">air</span><span><b>Breathe</b><small>One calm minute</small></span></button>
+            <button role="menuitem" data-tg="guided"><span class="tg-ic calmic icon">self_improvement</span><span><b>Guided calm</b><small>5 minutes, eyes closed</small></span></button>
+            <button role="menuitem" data-tg="lullaby"><span class="tg-ic lullic icon">music_note</span><span><b>Lullaby</b><small id="tray-lull">Soft music box</small></span></button>
+            <button role="menuitem" data-tg="sleeptimer"><span class="tg-ic stimer icon">timelapse</span><span><b>Sleep timer</b><small id="tray-timer2">Fade out, then sleep</small></span></button>
             <button role="menuitem" data-tg="night"><span class="tg-ic night icon">nightlight</span><span><b>Night light</b><small id="tray-night">Warm, dim screen</small></span></button>
             <button role="menuitem" data-tg="sleep"><span class="tg-ic sleep icon">bedtime</span><span><b>Sleep call</b><small>Dark screen, voice only</small></span></button>
+            <button role="menuitem" data-tg="stretch"><span class="tg-ic stretchic icon">accessibility_new</span><span><b>Stretch break</b><small>4 minutes, together</small></span></button>
+            <button role="menuitem" data-tg="eyes"><span class="tg-ic eyesic icon">visibility</span><span><b>Eye rest</b><small id="tray-eyes">20-20-20 for your eyes</small></span></button>
+            <button role="menuitem" data-tg="grat"><span class="tg-ic gratic icon">volunteer_activism</span><span><b>Three good things</b><small>Gratitude, together</small></span></button>
+          </div>
+          <div class="tray-view tray-date" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Date night</b><span></span></div>
+            <button role="menuitem" data-tg="ideas"><span class="tg-ic ideasic icon">lightbulb</span><span><b>Date ideas</b><small>26 things to do</small></span></button>
+            <button role="menuitem" data-tg="candle"><span class="tg-ic candleic icon">local_fire_department</span><span><b>Candle-light dinner</b><small>Warm light, soft music</small></span></button>
+            <button role="menuitem" data-tg="stars"><span class="tg-ic starsic icon">nights_stay</span><span><b>Stargazing</b><small>Wish on a shooting star</small></span></button>
+            <button role="menuitem" data-tg="cook"><span class="tg-ic cookic icon">skillet</span><span><b>Cook together</b><small>Same recipe, step by step</small></span></button>
+            <button role="menuitem" data-tg="likely"><span class="tg-ic likelyic icon">group</span><span><b>Who's more likely</b><small>Answer in secret</small></span></button>
+            <button role="menuitem" data-tg="bucket"><span class="tg-ic bucketic icon">checklist</span><span><b>Our bucket list</b><small>Dreams to do together</small></span></button>
           </div>
           <div class="tray-view tray-more" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>More</b><span></span></div>

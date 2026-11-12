@@ -1,4 +1,4 @@
-// DU Meet · small things during a call: mood on your tile, reminders that ring for both,
+// DU Meet · small things during a call: reminders that ring for both,
 // a warm night light, and a data saver for weak mobile networks.
 // Uses globals from app.js (send, peers, me, toast, tileOf, polling) and window.DU hooks.
 
@@ -16,48 +16,6 @@
     const close = () => { closeModal(modal); setTimeout(() => modal.remove(), 400); };
     modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest("[data-modal-close]")) setTimeout(() => modal.remove(), 400); });
     return { modal, close };
-  }
-
-  // ---------- mood ----------
-
-  const MOODS = [
-    ["happy", "😊", "Happy"], ["loved", "🥰", "Loved"], ["missing", "🥺", "Missing you"], ["sleepy", "😴", "Sleepy"],
-    ["busy", "📚", "Busy"], ["excited", "🥳", "Excited"], ["tired", "😮‍💨", "Tired"], ["upset", "😔", "Upset"],
-    ["unwell", "🤒", "Not well"], ["angry", "😤", "Annoyed"],
-  ];
-  const moods = new Map(); // peer id -> mood key
-  let myMood = store.get("du-mood", "");
-
-  function paintMoods() {
-    const all = new Map(moods);
-    if (myMood && me.id) all.set(me.id, myMood);
-    for (const tile of document.querySelectorAll("#grid .tile")) {
-      const key = all.get(tile.dataset.id);
-      const mood = MOODS.find((m) => m[0] === key);
-      let badge = tile.querySelector(".mood-badge");
-      if (!mood) { badge?.remove(); continue; }
-      if (!badge) { badge = document.createElement("div"); badge.className = "mood-badge"; tile.append(badge); }
-      if (badge.dataset.key !== key) { badge.dataset.key = key; badge.innerHTML = `<span>${mood[1]}</span><small>${mood[2]}</small>`; }
-    }
-    const tray = q("#tray-mood");
-    const mine = MOODS.find((m) => m[0] === myMood);
-    if (tray) tray.textContent = mine ? `${mine[1]} ${mine[2]}` : "How you feel";
-  }
-  setInterval(() => { if (polling) paintMoods(); }, 1500);
-
-  function openMood() {
-    window.DU.kit.toggleTray(false);
-    const { modal, close } = sheet("How are you feeling?", `<div class="mood-grid">${MOODS.map(([k, e, l]) => `<button data-mood="${k}" class="${k === myMood ? "on" : ""}"><span>${e}</span><small>${l}</small></button>`).join("")}</div>
-      ${myMood ? `<button class="btn ghost wide" data-mood="">Clear my mood</button>` : ""}`);
-    modal.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-mood]");
-      if (!b) return;
-      myMood = b.dataset.mood;
-      store.set("du-mood", myMood);
-      send("mood", { m: myMood });
-      paintMoods();
-      close();
-    });
   }
 
   // ---------- reminders (ring on both phones) ----------
@@ -306,7 +264,6 @@
   Object.assign(window.DU, {
     onCoupleClick(button) {
       const run = {
-        mood: openMood,
         list: openList,
         remind: openRemind,
         night: () => { store.set("du-night", !store.get("du-night", false)); paintNight(); },
@@ -316,13 +273,6 @@
     },
     onCouple(message, peer) {
       const data = message.data || {};
-      if (message.type === "mood") {
-        const before = moods.get(peer.id);
-        if (data.m) moods.set(peer.id, String(data.m)); else moods.delete(peer.id);
-        const mood = MOODS.find((m) => m[0] === data.m);
-        if (mood && before !== data.m) toast(`${peer.name} is feeling ${mood[2].toLowerCase()} ${mood[1]}`);
-        return paintMoods();
-      }
       if (message.type === "batt") {
         const before = batteries.get(peer.id);
         const l = Math.max(0, Math.min(100, Number(data.l) || 0)), c = Boolean(data.c);
@@ -349,14 +299,12 @@
     onCouplePeer(...args) {
       prev.peer?.(...args);
       setTimeout(() => {
-        if (myMood) send("mood", { m: myMood });
         if (reminders.length) send("remind", { list: reminders });
         shareBattery();
       }, 1800);
     },
     onCoupleLeave(...args) {
       prev.leave?.(...args);
-      moods.clear();
       batteries.clear();
       lineStats.clear();
       stopHush();
