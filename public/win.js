@@ -55,7 +55,7 @@
       if (!edges) return "";
       const r = el.getBoundingClientRect();
       let s = "";
-      if (e.clientY > r.bottom - EDGE) s += "s";
+      if (edges !== "ew" && e.clientY > r.bottom - EDGE) s += "s";
       if (e.clientX > r.right - EDGE) s += "e";
       else if (e.clientX < r.left + EDGE) s += "w";
       return s;

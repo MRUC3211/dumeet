@@ -702,10 +702,17 @@
       <p class="sa-cap" aria-live="polite"></p>
       ${mode === "faisla" ? `<div class="sa-turns">${people().map((n) => `<button data-turn="${esc(n)}">${esc(n)}'s turn</button>`).join("")}<button data-turn="verdict" class="v"><span class="icon" aria-hidden="true">gavel</span>Verdict</button></div><div class="sa-turn-bar"><i></i><span></span></div>` : ""}`;
     document.body.append(orb);
-    // move it anywhere; drag an edge or pinch to make it smaller or bigger
+    // it always opens at the top, centred, with the same shape; it can be moved, and on a
+    // computer its width can be changed by dragging the left or right edge
+    const wide = matchMedia("(pointer: fine)").matches && innerWidth >= 720;
     window.DU.win?.make(orb, {
-      key: "du-saathi-card", grip: false, edges: true, pinch: true, autoH: true, minW: 240, minH: 76,
-      def: () => { const w = Math.min(380, innerWidth - 24); return { x: (innerWidth - w) / 2, y: innerWidth < 720 ? 58 : 14, w, h: null }; },
+      grip: false, edges: wide ? "ew" : false, pinch: false, autoH: true, minW: 300, minH: 76,
+      def: () => {
+        const w = Math.min(wide ? 400 : 420, innerWidth - 24);
+        const tile = document.querySelector("#grid .tile")?.getBoundingClientRect();
+        const y = wide ? 14 : Math.max(12, Math.round((tile?.top ?? 0) + 58));
+        return { x: Math.round((innerWidth - w) / 2), y, w, h: null };
+      },
     });
     orb.addEventListener("click", (event) => {
       const action = event.target.closest("[data-orb]")?.dataset.orb;
@@ -741,6 +748,8 @@
     const cap = q(".sa-cap", orb);
     cap.textContent = S.cap;
     cap.hidden = !S.cap;
+    cap.scrollTop = cap.scrollHeight; // always show the newest words
+    cap.classList.toggle("more", cap.scrollHeight > cap.clientHeight + 2);
   }
   function paintTurn() {
     if (!orb) return;
