@@ -546,3 +546,12 @@ button:disabled { cursor: default; }
   .reaction { animation: fade-out 2.5s linear forwards; animation-duration: 2.5s !important; }
   @keyframes fade-out { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 }
+
+/* Host: badge next to their name, and their "remove from call" button */
+.host-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: .02em; vertical-align: 1px;
+  color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.people .kick-btn .icon { color: #e5484d; }
+.people .kick-btn:hover { background: color-mix(in srgb, #e5484d 14%, transparent); }

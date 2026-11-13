@@ -387,7 +387,15 @@ class Peer:
 
 
 rooms = {}  # meeting code -> {peer id -> Peer}
+hosts = {}  # meeting code -> peer id of the host (whoever joined first)
+banned = {}  # meeting code -> {"ids": set, "names": set} removed by the host
 lock = threading.Lock()
+
+
+def is_banned(room, peer_id, name):
+    with lock:
+        ban = banned.get(room)
+        return bool(ban) and (peer_id in ban["ids"] or name.lower() in ban["names"])
 
 
 def members(room):
@@ -414,9 +422,18 @@ def remove(room, peer):
         if people.get(peer.id) is not peer:
             return
         del people[peer.id]
+        new_host = None
         if not people:
             del rooms[room]
+            hosts.pop(room, None)
+            banned.pop(room, None)
+        elif hosts.get(room) == peer.id:
+            # The host left: the person who has been here longest takes over.
+            new_host = next(iter(people.values()))
+            hosts[room] = new_host.id
     deliver(room, {"type": "leave", "id": peer.id})
+    if new_host:
+        deliver(room, {"type": "host", "id": new_host.id})
     meeting_leave(room, peer)
 
 
@@ -568,6 +585,20 @@ class Handler(BaseHTTPRequestHandler):
         kind, data = message.get("type"), message.get("data")
         if kind == "bye":
             remove(room, peer)
+        elif kind == "kick":
+            # Only the host may take someone out, and they can't come back to this meeting.
+            target = find(room, str(message.get("to") or ""))
+            with lock:
+                allowed = hosts.get(room) == peer.id
+            if not allowed or target is None or target is peer:
+                return self.send_error(403)
+            with lock:
+                ban = banned.setdefault(room, {"ids": set(), "names": set()})
+                ban["ids"].add(target.id)
+                ban["names"].add(target.name.lower())
+            deliver(room, {"type": "end-call", "from": "host", "data": {}}, to=target.id)
+            remove(room, target)
+            ADMIN.audit("call", f"{peer.name} removed {target.name} from {room}")
         elif kind == "state":
             # Mic, camera, presenting and recording: remembered so that people who
             # join later see the right state.
@@ -922,12 +953,15 @@ class Handler(BaseHTTPRequestHandler):
             if ADMIN.config["coupleOnly"] and name.lower() not in [n.lower() for n in ADMIN.config["couple"]]:
                 ADMIN.audit("security", f"Blocked \"{name}\" from joining {room} (couple only)")
                 return self.send_json({"error": "Only the two of you can join"}, 403)
+            if is_banned(room, peer_id, name):
+                return self.send_json({"error": "The host removed you from this meeting"}, 403)
             peer = Peer(peer_id, name, params.get("mic") == "1", params.get("cam") == "1")
             with lock:
                 people = rooms.setdefault(room, {})
                 others = [p.info() for p in people.values()]
                 people[peer_id] = peer
-            peer.inbox.put({"type": "welcome", "peers": others})
+                host = hosts.setdefault(room, peer_id)
+            peer.inbox.put({"type": "welcome", "peers": others, "host": host})
             deliver(room, {"type": "join", "peer": peer.info()}, exclude=peer_id)
             meeting_join(room, peer)
 

@@ -51,6 +51,7 @@ let room = null;            // meeting code, e.g. "abc-defg-hij"
 let polling = null;         // AbortController of the poll loop while in a meeting
 let joinedAt = 0;
 const peers = new Map();    // id -> { id, name, mic, cam, hand, screen, rec, cc, pc, pendingIce, audio, camTrack, screenTrack }
+let hostId = null;          // who joined first; only they can remove people
 let openPanel = null;       // "info" | "people" | "chat" | "polls" | null
 let unread = 0;
 let unreadPolls = 0;
@@ -491,6 +492,7 @@ function leaveMeeting() {
   me.hand = false;
   me.cc = false;
   pinnedId = null;
+  hostId = null;
   activeSpeaker = null;
   stageOrder.length = 0;
   meters.clear();
@@ -549,6 +551,8 @@ function handleMessage(message) {
       // Also arrives again after a reconnect, so start from a clean slate.
       for (const id of [...peers.keys()]) removePeer(id);
       for (const info of message.peers) callPeer(addPeer(info));
+      hostId = message.host ?? null;
+      refreshPeople();
       sendState({ mic: me.mic, cam: me.cam, hand: me.hand, screen: Boolean(me.screenTrack), rec: me.rec, cc: me.cc });
       break;
     case "join":
@@ -645,6 +649,12 @@ function handleMessage(message) {
       break;
     case "end-call":
       if (message.from === "admin") { leaveMeeting(); toast("The call was ended"); }
+      if (message.from === "host") { leaveMeeting(); toast("The host removed you from the call"); }
+      break;
+    case "host":
+      hostId = message.id;
+      if (hostId === me.id) toast("You're the host now. You can remove people from the call.");
+      refreshPeople();
       break;
     case "admin-cmd":
       if (message.from === "admin") window.DU?.onAdmin?.(data || {});
@@ -2200,15 +2210,31 @@ function refreshPeople() {
     name.className = "person-name";
     name.textContent = isMe ? `${person.name} (You)` : person.name;
     if (person.screen) name.append(Object.assign(document.createElement("small"), { textContent: " · presenting" }));
+    if (person.id === hostId) name.append(Object.assign(document.createElement("span"), { className: "host-badge", textContent: "Host" }));
     item.append(avatar, name);
     if (person.hand) item.append(icon("back_hand", "hand-icon"));
     const pin = personButton(pinnedId === person.id ? "keep_off" : "keep", pinnedId === person.id ? `Unpin ${person.name}` : `Pin ${person.name}`, "pin", person.id);
     item.append(pin);
     if (!isMe && person.mic) item.append(personButton("mic", `Mute ${person.name} for everyone`, "mute", person.id));
     else item.append(icon(person.mic ? "mic" : "mic_off"));
+    if (!isMe && hostId === me.id) {
+      const kick = personButton("person_remove", `Remove ${person.name} from the call`, "kick", person.id);
+      kick.classList.add("kick-btn");
+      item.append(kick);
+    }
     return item;
   }));
   $("#people-count").textContent = everyone.length;
+}
+
+async function removePerson(id) {
+  const who = peers.get(id)?.name ?? "this person";
+  const text = `${who} will leave the call right away and can't join this meeting again.`;
+  const ask = window.DU?.kit?.confirmBox;
+  const ok = ask ? await ask({ title: `Remove ${who}?`, text, ok: "Remove", cancel: "Cancel" }) : confirm(`Remove ${who}? ${text}`);
+  if (!ok || !peers.has(id) || hostId !== me.id) return;
+  send("kick", {}, id);
+  toast(`Removed ${who}`);
 }
 
 function personButton(iconName, label, action, id) {
@@ -2227,6 +2253,7 @@ $("#people-list").addEventListener("click", (event) => {
   if (!button) return;
   const { personAction, id } = button.dataset;
   if (personAction === "pin") togglePin(id);
+  if (personAction === "kick") removePerson(id);
   if (personAction === "mute") {
     send("mute-request", {}, id);
     toast(`Asked ${peers.get(id)?.name ?? "them"} to mute`);
