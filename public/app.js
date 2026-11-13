@@ -1149,22 +1149,22 @@ async function openDocumentPip() {
       <div class="avatar"><span></span></div>
       <div class="tile-name"><span class="name"></span></div>
     </div>
-    <div class="pip-controls">
-      <button class="ctrl" data-action="mic"><span class="icon">mic</span></button>
-      <button class="ctrl" data-action="cam"><span class="icon">videocam</span></button>
-      <button class="ctrl" data-action="hand" title="Raise hand"><span class="icon">back_hand</span></button>
-      <button class="ctrl" data-action="pip-back" title="Back to the meeting"><span class="icon">open_in_new</span></button>
-      <button class="ctrl leave" data-action="leave" title="Leave call"><span class="icon">call_end</span></button>
-    </div>`;
+    <div class="pip-controls"></div>`;
+  // the same buttons as the call bar, in the same order, plus one to go back to the tab
+  const bar = doc.querySelector(".pip-controls");
+  for (const real of mainCtrls()) bar.append(doc.importNode(real, true));
+  bar.insertAdjacentHTML("beforeend", `<button class="ctrl" data-pip="back" title="Back to the meeting" aria-label="Back to the meeting"><span class="icon" aria-hidden="true">open_in_new</span></button>`);
+  bar.append(bar.querySelector(".leave"));
   doc.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-action]");
+    const button = event.target.closest(".pip-controls .ctrl");
     if (!button) return;
-    if (button.dataset.action === "pip-back") {
-      closePip();
-      window.focus();
-    } else {
-      actions[button.dataset.action]();
-    }
+    event.preventDefault();
+    const i = [...bar.querySelectorAll(".ctrl:not([data-pip])")].indexOf(button);
+    const real = mainCtrls()[i];
+    // chat and the tools tray open in the meeting tab, so go back there first
+    const back = button.dataset.pip === "back" || /^(chat|more)$/.test(button.dataset.action || "") || button.dataset.tg === "tray";
+    if (back) { closePip(); window.focus(); }
+    if (real) setTimeout(() => { real.click(); setTimeout(updatePip, 50); }, back ? 80 : 0);
   });
   win.addEventListener("pagehide", () => {
     pip = null;
@@ -1173,6 +1173,9 @@ async function openDocumentPip() {
   pip = { win, video: doc.querySelector("video"), stage: doc.querySelector(".pip-stage"), avatar: doc.querySelector(".avatar span"), name: doc.querySelector(".name") };
   updatePip();
 }
+
+// the call bar's own buttons (chat, mic, camera, heart, tools, leave)
+const mainCtrls = () => [...document.querySelectorAll("footer.controls .left > .ctrl, footer.controls .center > .ctrl")];
 
 function updatePip() {
   if (pip) {
@@ -1185,18 +1188,15 @@ function updatePip() {
     pip.name.textContent = target.name;
     pip.avatar.textContent = initial(target.person?.name ?? target.name);
     pip.avatar.style.setProperty("--avatar", colorFor(target.person?.name ?? target.name));
-    for (const button of pip.win.document.querySelectorAll("[data-action]")) {
-      const action = button.dataset.action;
-      if (action === "mic") {
-        button.classList.toggle("off", !me.mic);
-        button.querySelector(".icon").textContent = me.mic ? "mic" : "mic_off";
-      } else if (action === "cam") {
-        button.classList.toggle("off", !me.cam);
-        button.querySelector(".icon").textContent = me.cam ? "videocam" : "videocam_off";
-      } else if (action === "hand") {
-        button.classList.toggle("active", me.hand);
-      }
-    }
+    // copy each real button's state (mic/camera off, unread chat dot…) onto its twin
+    const twins = [...pip.win.document.querySelectorAll(".pip-controls .ctrl:not([data-pip])")];
+    mainCtrls().forEach((real, i) => {
+      const twin = twins[i];
+      if (!twin) return;
+      twin.className = real.className;
+      twin.innerHTML = real.innerHTML;
+      for (const a of ["aria-label", "aria-pressed", "title"]) real.hasAttribute(a) ? twin.setAttribute(a, real.getAttribute(a)) : twin.removeAttribute(a);
+    });
   } else if (document.pictureInPictureElement === $("#pip-video")) {
     const { track } = pipTarget();
     if (track) showTrack($("#pip-video"), track);
@@ -2359,6 +2359,7 @@ function linkify(parent, text) {
 const scrollChat = () => { $("#chat-messages").scrollTop = $("#chat-messages").scrollHeight; };
 const refreshUnread = () => {
   $("#chat-dot").hidden = unread === 0;
+  updatePip();
   $("#polls-dot").hidden = unreadPolls === 0;
 };
 
