@@ -125,7 +125,7 @@
     { name: "start_game",
       description: "Start a game for both of them straight away. Chess can take a clock and who plays white.",
       parameters: { type: "OBJECT", properties: {
-        game: { type: "STRING", enum: ["chess", "ludo", "snl", "quiz", "clash", "maths", "memo", "dots", "chain", "emoji"], description: "snl = Snakes & ladders, clash = Colour clash cards, memo = Memory match, dots = Dots & boxes, chain = Word chain, emoji = Emoji riddles" },
+        game: { type: "STRING", enum: ["chess", "ludo", "snl", "quiz", "clash", "maths", "memo", "dots", "chain", "emoji", "knowme", "match"], description: "snl = Snakes & ladders, clash = Colour clash cards, memo = Memory match, dots = Dots & boxes, chain = Word chain, emoji = Emoji riddles, knowme = How well do you know me (couple quiz), match = This or that (match %)" },
         clock: { type: "STRING", enum: ["3+2", "5+0", "10+0", "none"] },
         white: { type: "STRING", description: "Chess: who plays white (a name)" },
       }, required: ["game"] },
