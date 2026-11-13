@@ -230,8 +230,9 @@
             <button role="menuitem" data-tg="saathi" class="span-all sa-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Hey Lord</b><small>Say “Hey Lord” or tap · ask anything, open games, add tasks</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch</b><small>YouTube, in sync</small></span></button>
             <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen</b><small>Our songs</small></span></button>
-            <button role="menuitem" data-tg="view-us" class="tray-go span-all us-go"><span class="tg-ic usic icon">favorite</span><span><b>Us 💞</b><small>Love jar, letters, mood, dreams</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-games" class="tray-go"><span class="tg-ic game icon">sports_esports</span><span><b>Games</b><small>Play together</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
+            <button role="menuitem" data-tg="view-party" class="tray-go"><span class="tg-ic partyic icon">nightlife</span><span><b>Party 🪩</b><small>Disco, lights, dance-off, hype</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
+            <button role="menuitem" data-tg="view-pranks" class="tray-go"><span class="tg-ic prankic icon">sentiment_very_satisfied</span><span><b>Pranks 😈</b><small>Crack, bug, quake, boo</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-fun" class="tray-go"><span class="tg-ic fun icon">celebration</span><span><b>Fun</b><small>Filters, throw, nudge</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
             <button role="menuitem" data-tg="story"><span class="tg-ic storyic icon">auto_stories</span><span><b>Story time</b><small>Make a story with AI</small></span></button>
@@ -241,24 +242,29 @@
             <button role="menuitem" data-tg="view-relax" class="tray-go"><span class="tg-ic relax icon">spa</span><span><b>Relax</b><small>Sounds, power nap, calm</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-more" class="tray-go"><span class="tg-ic moretools icon">apps</span><span><b>More</b><small>Timer, polls, reminders</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
           </div>
-          <div class="tray-view tray-us" hidden>
-            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Us 💞</b><span></span></div>
-            <div class="us-fxrow span-all" role="group" aria-label="Send to your partner">
-              <button role="menuitem" data-tg="us-fx-hug"><span aria-hidden="true">🫂</span>Hug</button>
-              <button role="menuitem" data-tg="us-fx-kiss"><span aria-hidden="true">💋</span>Kiss</button>
-              <button role="menuitem" data-tg="us-fx-miss"><span aria-hidden="true">🥺</span>Miss you</button>
-              <button role="menuitem" data-tg="us-fx-love"><span aria-hidden="true">❤️</span>Love you</button>
-            </div>
-            <button role="menuitem" data-tg="us-journey" class="span-all"><span class="tg-ic usic icon">favorite</span><span><b>Our journey</b><small id="us-sub-journey">Days together, anniversary, milestones</small></span></button>
-            <button role="menuitem" data-tg="us-jar"><span class="tg-ic jaric icon">local_florist</span><span><b>Love jar</b><small id="us-sub-jar">Sweet notes for each other</small></span></button>
-            <button role="menuitem" data-tg="us-letters"><span class="tg-ic letteric icon">mail</span><span><b>Open when…</b><small id="us-sub-letters">Sealed for the right moment</small></span></button>
-            <button role="menuitem" data-tg="us-mood"><span class="tg-ic mood icon">mood</span><span><b>Mood check-in</b><small>Feelings &amp; love battery</small></span></button>
-            <button role="menuitem" data-tg="us-bucket"><span class="tg-ic bucket icon">checklist</span><span><b>Bucket list</b><small id="us-sub-bucket">Dreams to do together</small></span></button>
-            <button role="menuitem" data-tg="knowme"><span class="tg-ic knowic icon">psychology_alt</span><span><b>Know me?</b><small>How well do you know me</small></span></button>
-            <button role="menuitem" data-tg="match"><span class="tg-ic matchic icon">compare_arrows</span><span><b>This or that</b><small>See your match %</small></span></button>
+          <div class="tray-view tray-party" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Party 🪩</b><span></span></div>
+            <button role="menuitem" data-tg="pt-party" class="span-all pt-hero"><span class="tg-ic partyic icon">nightlife</span><span><b>Disco party</b><small>Pick a beat · plays on both screens till you stop</small></span></button>
+            <button role="menuitem" data-tg="pt-lights"><span class="tg-ic lightic icon">lightbulb</span><span><b>Light show</b><small>Rainbow, strobe, lava…</small></span></button>
+            <button role="menuitem" data-tg="pt-dance"><span class="tg-ic danceic icon">music_note</span><span><b>Dance-off</b><small>6 moves, then vote</small></span></button>
+            <button role="menuitem" data-tg="pt-hype"><span class="tg-ic hypeic icon">local_fire_department</span><span><b>Hype meter</b><small>Tap together to 100%</small></span></button>
+            <button role="menuitem" data-tg="pt-rain"><span class="tg-ic rainic icon">water_drop</span><span><b>Make it rain</b><small>Money, pizza, roses…</small></span></button>
+          </div>
+          <div class="tray-view tray-pranks" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Pranks 😈</b><span></span></div>
+            <button role="menuitem" data-tg="pk-crack"><span class="tg-ic crackic icon">broken_image</span><span><b>Cracked screen</b><small>Their screen “breaks”</small></span></button>
+            <button role="menuitem" data-tg="pk-bug"><span class="tg-ic bugic icon">pest_control</span><span><b>Bug on screen</b><small>They have to squash it</small></span></button>
+            <button role="menuitem" data-tg="pk-quake"><span class="tg-ic quakeic icon">vibration</span><span><b>Earthquake</b><small>Shake their whole screen</small></span></button>
+            <button role="menuitem" data-tg="pk-flip"><span class="tg-ic flipic icon">screen_rotation</span><span><b>Flip it</b><small>Upside down for 6 s</small></span></button>
+            <button role="menuitem" data-tg="pk-boo" class="span-all"><span class="tg-ic booic icon">sentiment_stressed</span><span><b>Boo!</b><small>A ghost jumps out</small></span></button>
+            <p class="tray-tip span-all"><span class="icon" aria-hidden="true">mood</span>Only happens on your partner's screen. Be nice 😇</p>
           </div>
           <div class="tray-view tray-games" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Games</b><span></span></div>
+            <button role="menuitem" data-tg="tug"><span class="tg-ic tugic icon">sports_kabaddi</span><span><b>Tug of war</b><small>Tap fastest, pull the rope</small></span></button>
+            <button role="menuitem" data-tg="ttl"><span class="tg-ic ttlic icon">theater_comedy</span><span><b>Two truths & a lie</b><small>Spot each other's lie</small></span></button>
+            <button role="menuitem" data-tg="hang"><span class="tg-ic hangic icon">spellcheck</span><span><b>Hangman</b><small>Guess the secret word</small></span></button>
+            <button role="menuitem" data-tg="typing"><span class="tg-ic typeic icon">keyboard</span><span><b>Typing race</b><small>Same sentence, who's faster</small></span></button>
             <button role="menuitem" data-tg="zameen" class="span-all zm-tray"><span class="tg-ic zmic icon">crop_square</span><span><b>Zameen</b><small>Live · claim the most land in 1 minute</small></span></button>
             <button role="menuitem" data-tg="knowme"><span class="tg-ic knowic icon">psychology_alt</span><span><b>Know me?</b><small>Guess each other's answers</small></span></button>
             <button role="menuitem" data-tg="match"><span class="tg-ic matchic icon">compare_arrows</span><span><b>This or that</b><small>Pick in secret · match %</small></span></button>
@@ -284,6 +290,10 @@
           </div>
           <div class="tray-view tray-fun" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Fun</b><span></span></div>
+            <button role="menuitem" data-tg="pt-sounds"><span class="tg-ic sndic icon">graphic_eq</span><span><b>Soundboard</b><small>Air horn, drum roll, ba-dum-tss</small></span></button>
+            <button role="menuitem" data-tg="pt-shout"><span class="tg-ic shoutic icon">campaign</span><span><b>Shout</b><small>Giant text on both screens</small></span></button>
+            <button role="menuitem" data-tg="pt-8ball"><span class="tg-ic ballic icon">help</span><span><b>Magic 8-ball</b><small>Ask it anything</small></span></button>
+            <button role="menuitem" data-tg="pt-tickle"><span class="tg-ic tickleic icon">sentiment_very_satisfied</span><span><b>Tickle</b><small>Make their screen giggle</small></span></button>
             <button role="menuitem" data-tg="filters"><span class="tg-ic filt icon">face_retouching_natural</span><span><b>Face filters</b><small id="tray-filter">17 funny looks</small></span></button>
             <button role="menuitem" data-tg="voicefx"><span class="tg-ic vfx icon">graphic_eq</span><span><b>Voice changer</b><small id="tray-voice">17 voices</small></span></button>
             <button role="menuitem" data-tg="throw"><span class="tg-ic throw icon">sports_handball</span><span><b>Throw</b><small>Tomato, chappal, knife…</small></span></button>
@@ -295,6 +305,10 @@
           </div>
           <div class="tray-view tray-relax" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Relax</b><span></span></div>
+            <button role="menuitem" data-tg="mo-rainy"><span class="tg-ic rainyic icon">umbrella</span><span><b>Rainy window</b><small>Rain, drops & thunder</small></span></button>
+            <button role="menuitem" data-tg="mo-aqua"><span class="tg-ic aquaic icon">set_meal</span><span><b>Aquarium</b><small>Tap to feed the fish</small></span></button>
+            <button role="menuitem" data-tg="mo-fire"><span class="tg-ic fireic icon">fireplace</span><span><b>Fireplace</b><small>Crackling and warm</small></span></button>
+            <button role="menuitem" data-tg="mo-bubbles"><span class="tg-ic bubbleic icon">bubble_chart</span><span><b>Bubble wrap</b><small>Pop pop pop</small></span></button>
             <button role="menuitem" data-tg="sounds"><span class="tg-ic snd icon">water_drop</span><span><b>Sounds</b><small id="tray-sound">16 calm sounds</small></span></button>
             <button role="menuitem" data-tg="breathe"><span class="tg-ic breathe icon">air</span><span><b>Breathe</b><small>One calm minute</small></span></button>
             <button role="menuitem" data-tg="guided"><span class="tg-ic calmic icon">self_improvement</span><span><b>Guided calm</b><small>5 minutes, eyes closed</small></span></button>
@@ -306,6 +320,10 @@
           </div>
           <div class="tray-view tray-date" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Date night</b><span></span></div>
+            <button role="menuitem" data-tg="mo-kiss"><span class="tg-ic kissic icon">favorite</span><span><b>Kiss cam</b><small>Stadium style 💋</small></span></button>
+            <button role="menuitem" data-tg="mo-slow"><span class="tg-ic slowic icon">music_note</span><span><b>Slow dance</b><small>Soft waltz, pink light</small></span></button>
+            <button role="menuitem" data-tg="mo-rose"><span class="tg-ic roseic icon">local_florist</span><span><b>Send a flower</b><small>It blooms on their screen</small></span></button>
+            <button role="menuitem" data-tg="mo-lantern"><span class="tg-ic lanternic icon">emoji_objects</span><span><b>Sky lantern</b><small>Send a wish up together</small></span></button>
             <button role="menuitem" data-tg="deep"><span class="tg-ic deepic icon">psychology</span><span><b>Deep talks</b><small>AI questions to know each other</small></span></button>
             <button role="menuitem" data-tg="spicy"><span class="tg-ic spicyic icon">local_fire_department</span><span><b>Spicy talks</b><small>Romance &amp; intimacy · 3 heat levels</small></span></button>
             <button role="menuitem" data-tg="never"><span class="tg-ic neveric icon">front_hand</span><span><b>Never have I ever</b><small>Answer in secret, then reveal</small></span></button>
@@ -323,6 +341,10 @@
           </div>
           <div class="tray-view tray-focus" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Productivity</b><span></span></div>
+            <button role="menuitem" data-tg="f2-water"><span class="tg-ic wateric icon">water_drop</span><span><b>Water reminder</b><small>Rings for both of you</small></span></button>
+            <button role="menuitem" data-tg="f2-lock"><span class="tg-ic lockic icon">lock_clock</span><span><b>Focus lock-in</b><small>Know if they leave the app</small></span></button>
+            <button role="menuitem" data-tg="f2-cards"><span class="tg-ic cardsic icon">style</span><span><b>Flashcards</b><small>Study or quiz each other</small></span></button>
+            <button role="menuitem" data-tg="f2-lofi"><span class="tg-ic lofiic icon">headphones</span><span><b>Lo-fi music</b><small id="f2-lofi-sub">Soft beats to study to</small></span></button>
             <button role="menuitem" data-tg="tasks" class="span-all"><span class="tg-ic focusic icon">task_alt</span><span><b>Today's tasks</b><small>Your lists · tick by tap or tell Hey Lord</small></span></button>
             <button role="menuitem" data-tg="habits"><span class="tg-ic habitic icon">local_fire_department</span><span><b>Habits</b><small>Daily streaks</small></span></button>
             <button role="menuitem" data-tg="planday"><span class="tg-ic planic icon">auto_awesome</span><span><b>Plan my day</b><small>AI makes a timetable</small></span></button>
@@ -331,6 +353,10 @@
           </div>
           <div class="tray-view tray-more" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>More</b><span></span></div>
+            <button role="menuitem" data-tg="pt-toss"><span class="tg-ic tossic icon">casino</span><span><b>Coin & dice</b><small>Same result on both</small></span></button>
+            <button role="menuitem" data-tg="pt-pick"><span class="tg-ic pickic icon">shuffle</span><span><b>Random picker</b><small>Who pays? What to eat?</small></span></button>
+            <button role="menuitem" data-tg="pt-score"><span class="tg-ic scoreic icon">scoreboard</span><span><b>Scoreboard</b><small>Keep score of anything</small></span></button>
+            <button role="menuitem" data-tg="pt-rate"><span class="tg-ic rateic icon">star_rate</span><span><b>Rate it</b><small>Both rate 1–10, then reveal</small></span></button>
             <button role="menuitem" data-tg="wake" class="span-all wk-tray"><span class="sa-orb mini live" aria-hidden="true"><i></i></span><span><b>Hey Lord</b><small id="tray-wake">On · just say “Hey Lord”</small></span><span class="wk-sw" aria-hidden="true"><i></i></span></button>
             <button role="menuitem" data-tg="calendar"><span class="tg-ic cal icon">calendar_month</span><span><b>Calendar</b><small>Opens for both</small></span></button>
             <button role="menuitem" data-tg="timer-open"><span class="tg-ic study icon">timer</span><span><b>Timer</b><small>Study or focus</small></span></button>

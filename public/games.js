@@ -116,7 +116,7 @@
         <div class="wc-letter"><small>Next word starts with</small><b></b><i class="wc-bar"><i></i></i></div>
         <form class="wc-form"><input class="field" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a word…" aria-label="Your word"><button class="btn primary">Go</button></form>
         <p class="wc-msg" aria-live="polite"></p><ul class="wc-words"></ul>
-        <p class="wc-tip">Real words only, no repeats. Think a word is fake? Tap ✋ on it to challenge.</p></div>`;
+        <p class="wc-tip">Real English words only (checked in the dictionary), no repeats.</p></div>`;
       q(".wc-form", el).addEventListener("submit", (e) => { e.preventDefault(); submit(); });
       q(".wc-words", el).addEventListener("click", (e) => { const b = e.target.closest("[data-ch]"); if (b) challenge(Number(b.dataset.ch), true); });
       turnStart();
@@ -143,8 +143,33 @@
       if (w.length < 3) { msg.textContent = "At least 3 letters"; return; }
       if (w[0] !== lastLetter()) { msg.textContent = `It has to start with “${lastLetter().toUpperCase()}”`; A.sound("bad"); return; }
       if (C.words.some((x) => x.w === w)) { msg.textContent = "Already used! Try another"; A.sound("bad"); return; }
-      send(K, { t: "word", w, turn: C.turn, n: C.words.length });
-      add(w, C.turn);
+      if (C.checking) return;
+      // only real words: checked against the dictionary on the server
+      C.checking = true;
+      const btn = q(".wc-form .btn", C.el), n = C.words.length, turn = C.turn;
+      btn.disabled = true; msg.textContent = "Checking the dictionary…";
+      isWord(w).then((ok) => {
+        if (!C || C.over || C.words.length !== n || C.turn !== turn) return;
+        btn.disabled = false;
+        if (ok === false) {
+          msg.textContent = `“${w}” isn't in the dictionary. Try a real word!`;
+          A.sound("bad");
+          input.select();
+          return;
+        }
+        send(K, { t: "word", w, turn: C.turn, n: C.words.length });
+        add(w, C.turn);
+      }).finally(() => { if (C) C.checking = false; });
+    }
+    const known = new Map();
+    async function isWord(w) {
+      if (known.has(w)) return known.get(w);
+      try {
+        const r = await fetch(`/api/word?w=${encodeURIComponent(w)}`);
+        const ok = r.ok ? (await r.json()).ok : null;
+        if (ok !== null) known.set(w, ok);
+        return ok;
+      } catch { return null; } // offline: let it through, the partner can still challenge
     }
     function add(w, who) {
       if (!C || who !== C.turn) return;

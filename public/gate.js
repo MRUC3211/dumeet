@@ -10,7 +10,7 @@
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); window.DU_installPrompt = event; });
   window.addEventListener("appinstalled", () => { window.DU_installPrompt = null; });
 
-  const SCRIPTS = ["/app.js", "/policy.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/deck.js", "/bank.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/games.js", "/couplegames.js", "/word.js", "/joy.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js", "/notes.js", "/us.js", "/saathi-tools.js", "/admin.js"];
+  const SCRIPTS = ["/app.js", "/policy.js", "/win.js", "/voice.js", "/home.js", "/tools.js", "/deck.js", "/bank.js", "/couple.js", "/extras.js", "/zameen.js", "/ring.js", "/fun.js", "/play.js", "/fx.js", "/present.js", "/ai.js", "/wake.js", "/daily.js", "/study.js", "/arena.js", "/chess.js", "/ludo.js", "/memory.js", "/snl.js", "/quiz.js", "/clash.js", "/maths.js", "/games.js", "/couplegames.js", "/games2.js", "/word.js", "/joy.js", "/party.js", "/moments.js", "/calm.js", "/date.js", "/talk.js", "/story.js", "/focus.js", "/focus2.js", "/notes.js", "/saathi-tools.js", "/admin.js"];
   let token = "";
 
   // Every call to the server carries the token; links that can't send headers (images,

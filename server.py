@@ -48,6 +48,7 @@ import admin
 import push
 import saathi
 import storage
+import words
 
 # 127.0.0.1 = only this laptop. A cloud host (Render) sets HOST=0.0.0.0 so outside requests reach it.
 HOST = os.environ.get("HOST", "127.0.0.1")
@@ -483,6 +484,8 @@ class Handler(BaseHTTPRequestHandler):
                 if params["c"] in ADMIN_COLLECTIONS and not self.is_admin():
                     return self.send_error(403)
                 self.send_json({"docs": STORE.list(params["c"])[:300]})
+            elif path == "/api/word":
+                self.send_json({"ok": words.check(params.get("w", ""))})
             elif path == "/api/title":
                 video_id = params.get("v", "")
                 if not video_id.replace("-", "").replace("_", "").isalnum() or len(video_id) != 11:

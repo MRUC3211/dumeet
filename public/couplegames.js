@@ -130,7 +130,7 @@
         ? `${g === mine() ? "You know" : `${G.names[g]} knows`} ${s === mine() ? "you" : G.names[s]} so well! 💞`
         : `${s === mine() ? "You" : G.names[s]} said “${ans}”. ${g === mine() ? "Now you know 😄" : `${G.names[g]} missed it`}`;
       A.sound(right ? "good" : "bad");
-      if (right) window.DU.us?.burst(["💗", "✨"], 10);
+      if (right) window.DU.party?.burst(["💗", "✨"], 10);
       A.setDuel({ turn: -1, scores: G.scores });
       A.event(`Know me ${r + 1}: “${t.q}” ${G.names[s]} said ${ans}; ${G.names[g]} ${right ? "guessed right" : "missed"}. Score ${G.scores[0]} – ${G.scores[1]}`);
       clearTimeout(G.wait);
@@ -229,7 +229,7 @@
       q(".tt-msg", M.el).textContent = same ? "Same pick! 💞" : "Opposites attract 😄";
       q(".tt-meter i", M.el).style.width = `${Math.round((M.same / (r + 1)) * 100)}%`;
       A.sound(same ? "good" : "tick");
-      if (same) window.DU.us?.burst(["💞", "✨"], 8);
+      if (same) window.DU.party?.burst(["💞", "✨"], 8);
       A.setDuel({ turn: -1, scores: [M.same, M.same] });
       A.event(`This or that: ${opts.join(" vs ")}. ${M.names[0]}: ${opts[a]}, ${M.names[1]}: ${opts[b]}`);
       clearTimeout(M.wait);
@@ -241,7 +241,7 @@
       const pct = Math.round((M.same / M.ids.length) * 100);
       const verdict = pct >= 85 ? "Soulmates. Same brain, two bodies 💘" : pct >= 65 ? "A perfect match 💞" : pct >= 45 ? "Different enough to stay exciting ✨" : "Opposites attract! Never a boring day 😄";
       A.sound("win");
-      window.DU.us?.burst(["💘", "💞", "✨"], 22);
+      window.DU.party?.burst(["💘", "💞", "✨"], 22);
       A.event(`This or that finished: ${pct}% match`);
       const p = A.panel(`<div class="tt-end"><div class="tt-ring" style="--p:${pct}"><b>${pct}%</b><small>match</small></div><b class="ar-ptitle">${verdict}</b>
         <ul class="tt-log">${M.log.map((l) => `<li class="${l.same ? "same" : ""}"><span>${l.e}</span>${l.same ? `Both: ${esc(l.a)}` : `${esc(l.a)} · ${esc(l.b)}`}</li>`).join("")}</ul>
