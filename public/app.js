@@ -1519,19 +1519,48 @@ async function toggleRecording() {
     renderAll();
     const extension = (type ?? "").includes("mp4") ? "mp4" : "webm";
     const blob = new Blob(chunks, { type: (type ?? "video/webm").split(";")[0] });
-    const name = `DU Meet ${stamp(started)}.${extension}`;
-    if (!phone) {
-      download(blob, `DU Meet ${room} ${stamp(started)}.${extension}`);
-      return toast("Recording saved to your Downloads");
-    }
-    savePhoneRecording(blob, name.replace(/[\\/:*?"<>|]/g, "-"));
+    uploadRecording(blob, started, extension, phone);
   };
   display.getVideoTracks()[0].onended = () => recorder?.stop(); // browser's "Stop sharing"
   recorder.start(1000);
   me.rec = true;
   sendState({ rec: true });
   renderAll();
-  toast("Recording started. Everyone in the meeting can see this.");
+  toast("Recording started. Everyone can see it is on; it saves to the admin panel.");
+}
+
+// Recordings go to the admin panel: uploaded encrypted, only the admin can open them.
+// If the upload can't happen (too long, or offline), the file is saved to the device
+// instead so nothing is ever lost.
+async function uploadRecording(blob, started, extension, phone) {
+  const fallback = () => {
+    const name = `DU Meet ${room} ${stamp(started)}.${extension}`;
+    if (phone) savePhoneRecording(blob, name.replace(/[\\/:*?"<>|]/g, "-"));
+    else download(blob, name);
+  };
+  const people = [me.name, ...[...peers.values()].map((p) => p.name)];
+  try {
+    const up = await fetch("/api/media", {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "video/webm", "X-Recording": "1" },
+      body: blob,
+    });
+    if (up.status === 413) { fallback(); return toast("Recording too long for the admin panel — saved to your device"); }
+    if (!up.ok) throw new Error("upload failed");
+    const { url } = await up.json();
+    await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ c: "recordings", data: {
+        url, by: me.name, room, people, at: started.getTime(),
+        secs: Math.round((Date.now() - started.getTime()) / 1000), size: blob.size, type: blob.type,
+      } }),
+    });
+    toast("Recording saved to the admin panel");
+  } catch {
+    fallback();
+    toast("Couldn't upload the recording — saved to your device");
+  }
 }
 
 function recordingAddAudio(id, track) {

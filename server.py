@@ -45,6 +45,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import admin
+import cryptostore
 import push
 import saathi
 import storage
@@ -203,7 +204,7 @@ def log_login(kind, ok, address, agent):
 # their chat, call stats and the photos taken with the camera button. Nobody else can
 # read those, even with the site password.
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
-ADMIN_COLLECTIONS = {"meetings", "snaps", "logins"}   # readable only with the admin token
+ADMIN_COLLECTIONS = {"meetings", "snaps", "logins", "recordings"}   # readable only with the admin token
 CLIENT_WRITE_BLOCKED = {"meetings", "logins"}         # written only by the server
 
 
@@ -216,7 +217,7 @@ STORE = storage.open_store()
 ADMIN = admin.Admin(STORE)
 RINGER = push.Ringer(STORE)
 SAATHI = saathi.Saathi(STORE, TLS)
-ALL_COLLECTIONS = ("meetings", "snaps", "logins", "calendar", "songs", "settings", "ai", "push", "admin")
+ALL_COLLECTIONS = ("meetings", "snaps", "recordings", "logins", "calendar", "songs", "settings", "ai", "push", "admin")
 
 
 def apply_limits():
@@ -226,9 +227,10 @@ def apply_limits():
 
 apply_limits()
 last_ring = {}  # caller name -> time, so a ring can't be spammed
-COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "settings", "logins"}
+COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
+MAX_RECORDING = 80 * 1024 * 1024    # call recordings uploaded to the admin panel (bigger ones save to the device)
 MEDIA_TYPES = ("image/", "audio/", "video/", "application/pdf", "text/plain")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
 
@@ -396,6 +398,36 @@ def is_banned(room, peer_id, name):
     with lock:
         ban = banned.get(room)
         return bool(ban) and (peer_id in ban["ids"] or name.lower() in ban["names"])
+
+
+def add_ban(room, peer_id, name):
+    with lock:
+        ban = banned.setdefault(room, {"ids": set(), "names": set()})
+        if peer_id:
+            ban["ids"].add(peer_id)
+        if name:
+            ban["names"].add(name.lower())
+
+
+def ban_list():
+    with lock:
+        return [{"room": room, "names": sorted(b["names"])} for room, b in banned.items() if b["names"] or b["ids"]]
+
+
+def unban(room, name=None):
+    """Let a removed person back in. No name clears the whole room's block."""
+    with lock:
+        ban = banned.get(room)
+        if not ban:
+            return
+        if name is None:
+            banned.pop(room, None)
+            return
+        low = name.lower()
+        ban["names"].discard(low)
+        ban["ids"] = {i for i in ban["ids"] if find(room, i) is None or find(room, i).name.lower() != low}
+        if not ban["names"] and not ban["ids"]:
+            banned.pop(room, None)
 
 
 def members(room):
@@ -592,10 +624,7 @@ class Handler(BaseHTTPRequestHandler):
                 allowed = hosts.get(room) == peer.id
             if not allowed or target is None or target is peer:
                 return self.send_error(403)
-            with lock:
-                ban = banned.setdefault(room, {"ids": set(), "names": set()})
-                ban["ids"].add(target.id)
-                ban["names"].add(target.name.lower())
+            add_ban(room, target.id, target.name)
             deliver(room, {"type": "end-call", "from": "host", "data": {}}, to=target.id)
             remove(room, target)
             ADMIN.audit("call", f"{peer.name} removed {target.name} from {room}")
@@ -626,6 +655,11 @@ class Handler(BaseHTTPRequestHandler):
             if params["c"] in ADMIN_COLLECTIONS and not self.is_admin():
                 return self.send_error(403)
             try:
+                if params["c"] in ("snaps", "recordings"):
+                    doc = STORE.get(params["c"], params["id"])
+                    url = str((doc or {}).get("data", {}).get("url", ""))
+                    if url.startswith("/api/media/"):
+                        STORE.delete_media(url.rsplit("/", 1)[1])
                 STORE.delete(params["c"], params["id"])
             except Exception as error:  # noqa: BLE001
                 print(f"Storage error: {error}")
@@ -637,12 +671,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def upload_media(self, length):
         kind = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-        if length > MAX_MEDIA:
+        recording = self.headers.get("X-Recording") == "1"
+        if length > (MAX_RECORDING if recording else MAX_MEDIA):
             return self.send_error(413)
         if not kind.startswith(MEDIA_TYPES):
             return self.send_error(415)
-        # Photos from the camera button are private: only the admin can open them.
-        media_id = ("p" if self.headers.get("X-Private") == "1" else "") + storage.new_id()
+        # Photos from the camera button and call recordings are private: only the admin
+        # can open them. A "p" prefix makes /api/media/<id> admin-only; "pr" marks a recording.
+        prefix = "pr" if recording else ("p" if self.headers.get("X-Private") == "1" else "")
+        media_id = prefix + storage.new_id()
         try:
             STORE.put_media(media_id, self.rfile.read(length), kind)
         except Exception as error:  # noqa: BLE001
@@ -742,7 +779,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 for doc in STORE.list(collection):
                     STORE.delete(collection, doc["id"])
-                    if collection == "snaps" and str(doc["data"].get("url", "")).startswith("/api/media/"):
+                    if collection in ("snaps", "recordings") and str(doc["data"].get("url", "")).startswith("/api/media/"):
                         STORE.delete_media(doc["data"]["url"].rsplit("/", 1)[1])
             except Exception as error:  # noqa: BLE001
                 print(f"Storage error: {error}")
@@ -768,7 +805,7 @@ class Handler(BaseHTTPRequestHandler):
                 live = [{"room": room, "people": [{**p.info(), "idle": round(time.monotonic() - p.last_seen, 1),
                                                     "waiting": p.polls} for p in people.values()]}
                         for room, people in rooms.items()]
-            return self.send_json({"rooms": live})
+            return self.send_json({"rooms": live, "bans": ban_list()})
         if path == "/api/admin/push":
             subs = [{"id": d["id"], "name": d["data"].get("name", ""), "at": d["data"].get("at", 0),
                      "service": urlparse(d["data"].get("endpoint", "")).netloc} for d in RINGER.subscribers()]
@@ -815,6 +852,7 @@ class Handler(BaseHTTPRequestHandler):
             "gemini": SAATHI.health(), "liveModel": saathi.LIVE_MODEL, "textModel": saathi.TEXT_MODEL,
             "pushDevices": len(RINGER.subscribers()), "rooms": room_count, "peers": peer_count,
             "meetingGrace": MEETING_GRACE,
+            "mediaEncryption": cryptostore.enabled(), "encryptionKey": cryptostore.KEY_SOURCE,
         }
 
     # ---- admin: what the console changes ----
@@ -831,13 +869,26 @@ class Handler(BaseHTTPRequestHandler):
             ADMIN.sign_out_everyone()
             self.broadcast({"do": "reload"})
             return self.send_json({"ok": True})
-        if path == "/api/admin/kick":            # take one person out of the call
-            peer = peer_of(body.get("room"), body.get("id"))
+        if path == "/api/admin/kick":            # take one person out of the call (and block re-join)
+            room = str(body.get("room", ""))
+            peer = peer_of(room, body.get("id"))
             if not peer:
                 return self.send_json({"error": "Not in the call any more"}, 404)
-            deliver(body["room"], {"type": "end-call", "from": "admin", "data": {}}, to=peer.id)
-            ADMIN.audit("admin", f"Took {peer.name} out of {body['room']}")
+            name = peer.name
+            if body.get("ban", True):
+                add_ban(room, peer.id, name)
+            deliver(room, {"type": "end-call", "from": "admin", "data": {}}, to=peer.id)
+            remove(room, peer)
+            ADMIN.audit("admin", f"Removed {name} from {room}" + (" (blocked)" if body.get("ban", True) else ""))
             return self.send_json({"ok": True})
+        if path == "/api/admin/bans":            # who the host/admin has removed
+            return self.send_json({"bans": ban_list()})
+        if path == "/api/admin/unban":           # let a removed person back in
+            room = str(body.get("room", ""))
+            name = body.get("name")
+            unban(room, str(name) if name else None)
+            ADMIN.audit("admin", f"Allowed {name or 'everyone'} back into {room}")
+            return self.send_json({"ok": True, "bans": ban_list()})
         if path == "/api/admin/cmd":             # mute / camera off / reload / message, for one or all
             what = str(body.get("do", ""))
             if what not in ("mute", "camoff", "reload", "toast", "policy", "rounds"):
@@ -868,6 +919,11 @@ class Handler(BaseHTTPRequestHandler):
             if c not in ALL_COLLECTIONS or not doc_id or (c == "push" and doc_id == "vapid") or (c == "admin" and doc_id == "config"):
                 return self.send_error(400)
             try:
+                if c in ("snaps", "recordings"):
+                    doc = STORE.get(c, doc_id)
+                    url = str((doc or {}).get("data", {}).get("url", ""))
+                    if url.startswith("/api/media/"):
+                        STORE.delete_media(url.rsplit("/", 1)[1])
                 STORE.delete(c, doc_id)
             except Exception as error:  # noqa: BLE001
                 print(f"Storage error: {error}")

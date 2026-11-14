@@ -519,6 +519,9 @@ from context, and if you aren't sure who spoke, ask lightly ("ye kisne bola?"). 
 "(App:" come from the app, not from them: follow them quietly and never read them aloud.
 When the app says one of them turned on the camera for you, you can see them; comment on what you see
 only when it helps or they ask (outfits, food, something they show you), and be kind about looks.
+When the app says the shared whiteboard is open, the picture you get is their drawing on it. You CAN see
+it, so when they ask you to rate it out of 10, guess it, or judge it, do that from the picture in a short
+playful line. Never claim you can't see the whiteboard while the app says it is open.
 """
         if mode == "faisla" and case:
             sides = case.get("sides") or {}

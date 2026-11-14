@@ -65,7 +65,12 @@
               <button class="btn ghost small-btn" data-x="cmd" data-do="reload" data-room="${esc(r.room)}" data-id="${esc(p.id)}"><span class="icon">refresh</span>Reload app</button>
               <button class="btn ghost small-btn danger-text" data-x="kick" data-room="${esc(r.room)}" data-id="${esc(p.id)}" data-name="${esc(p.name)}"><span class="icon">person_remove</span>Take out</button>
             </div></li>`).join("")}</ul></div>`).join("");
+        const bans = (D.peers.bans || []).filter((b) => b.names.length);
+        const bansCard = bans.length ? card("Removed from calls", `<p class="muted small">These people were taken out and can't rejoin until you let them back in.</p>
+          <ul class="a-bans">${bans.map((b) => b.names.map((n) => `<li><span class="h-av">${esc((n || "?")[0].toUpperCase())}</span><div class="a-pinfo"><b>${esc(n)}</b><small>blocked from <b>${esc(b.room)}</b></small></div>
+            <button class="btn ghost small-btn" data-x="unban" data-room="${esc(b.room)}" data-name="${esc(n)}"><span class="icon">person_add</span>Allow back</button></li>`).join("")).join("")}</ul>`) : "";
         return `${people || `<div class="empty-art"><span class="icon">videocam_off</span><p>Nobody is in a call right now.</p></div>`}
+          ${bansCard}
           ${card("Message everyone in a call", `<form class="a-inline" data-form="announce"><input class="field" name="t" maxlength="300" placeholder="Shows on their screen right away" required><button class="btn primary">Send</button></form>`)}
           ${card("Ring a phone", `<p class="muted small">Rings their phone like an incoming call, even when the app is closed (needs notifications on).</p>
             <div class="a-row-btns">${(D.config?.couple || ["Uday", "Diya"]).map((n) => `<button class="btn outline" data-x="ring" data-name="${esc(n)}"><span class="icon">ring_volume</span>Ring ${esc(n)}</button>`).join("")}</div>`)}
@@ -77,7 +82,8 @@
         const x = b.dataset.x, room = b.dataset.room, id = b.dataset.id;
         try {
           if (x === "end") { if (!(await A().ask("End this call?", "Everyone in it is taken out.", "End call"))) return true; await post("/api/admin/end", { room }); toast("Call ended"); }
-          if (x === "kick") { if (!(await A().ask(`Take ${b.dataset.name} out?`, "They leave the call. They can join again.", "Take out"))) return true; await post("/api/admin/kick", { room, id }); toast(`${b.dataset.name} was taken out`); }
+          if (x === "kick") { if (!(await A().ask(`Remove ${b.dataset.name}?`, "They leave the call right away and can't rejoin this meeting until you allow them back.", "Remove"))) return true; await post("/api/admin/kick", { room, id }); toast(`${b.dataset.name} was removed`); }
+          if (x === "unban") { await post("/api/admin/unban", { room, name: b.dataset.name }); toast(`${b.dataset.name} can join again`); }
           if (x === "cmd") { await post("/api/admin/cmd", { room, id, do: b.dataset.do }); toast("Done"); }
           if (x === "all") { await post("/api/admin/cmd", { do: b.dataset.do }); toast("Sent to everyone"); }
           if (x === "ring") { const r = await post("/api/admin/ring", { name: b.dataset.name }); toast(r.sent ? `Ringing ${b.dataset.name} (${r.sent} device${r.sent > 1 ? "s" : ""})` : `${b.dataset.name} has no phone set up for ringing`); }
@@ -362,6 +368,43 @@
         if (!(await A().ask("Remove this device?", "It stops ringing for calls until ringing is turned on again on it.", "Remove"))) return true;
         try { await post("/api/admin/del", { c: "push", id: del.dataset.delPush }); D.push = D.push.filter((d) => d.id !== del.dataset.delPush); toast("Removed"); } catch (err) { toast(err.message); }
         A().render();
+        return true;
+      },
+    },
+
+    // ---------------- Recordings ----------------
+    {
+      id: "recordings", label: "Recordings", icon: "smart_display", group: "Data",
+      badge: () => (D.recs?.length) || "",
+      load: async () => { D.recs = (await get("/api/data?c=recordings")).docs; },
+      html() {
+        if (!D.recs) return loading;
+        if (!D.recs.length) return `<div class="empty-art"><span class="icon">videocam_off</span><p>Call recordings show up here. They are stored encrypted — only you, here in the admin panel, can watch or download them.</p></div>`;
+        const dur = (s) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
+        return `<p class="muted small"><span class="icon" style="vertical-align:-3px">lock</span> Encrypted in storage. Only you can watch or download them here.</p>
+          <div class="a-recs">${D.recs.map((d) => {
+            const r = d.data, url = esc(A().url(r.url));
+            const ext = (r.type || "").includes("mp4") ? "mp4" : "webm";
+            const who = esc(r.by || "") + (r.people && r.people.length > 1 ? ` · ${esc(r.people.join(", "))}` : "");
+            const meta = [r.at ? when(Math.round(r.at / 1000)) : "", r.secs ? dur(r.secs) : "", r.size ? `${(r.size / 1e6).toFixed(1)} MB` : ""].filter(Boolean).join(" · ");
+            return `<div class="a-rec"><video controls preload="metadata" playsinline src="${url}"></video>
+              <div class="a-rec-info"><b>${who}</b><small>${esc(meta)}</small></div>
+              <div class="a-rec-acts">
+                <a class="btn outline small-btn" href="${url}" download="DU Meet ${esc(r.at ? A().dayKey(new Date(r.at)) : "recording")}.${ext}"><span class="icon">download</span>Download</a>
+                <button class="btn ghost small-btn danger-text" data-rec-del="${esc(d.id)}"><span class="icon">delete</span>Delete</button>
+              </div></div>`;
+          }).join("")}</div>`;
+      },
+      async onClick(e) {
+        const del = e.target.closest("[data-rec-del]");
+        if (!del) return false;
+        if (!(await A().ask("Delete this recording?", "It is deleted for good.", "Delete"))) return true;
+        try {
+          await post("/api/admin/del", { c: "recordings", id: del.dataset.recDel });
+          D.recs = D.recs.filter((x) => x.id !== del.dataset.recDel);
+          toast("Deleted");
+          A().render();
+        } catch (err) { toast(err.message); }
         return true;
       },
     },

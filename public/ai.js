@@ -605,6 +605,8 @@
   function onServer(live, msg) {
     if (msg.setupComplete) {
       live.ready = true;
+      clearInterval(live.visionTimer);
+      live.visionTimer = setInterval(() => visionTick(live), 1200);
       setOrb({ status: "listening" });
       if (live.pending) return; // the "Hey Lord" request is still being said
       kickoff(live);
@@ -704,6 +706,7 @@
     if (!live) return;
     S.live = null;
     clearInterval(live.seeTimer);
+    clearInterval(live.visionTimer);
     clearInterval(live.idleTimer);
     S.seeing = false;
     stopTurn();
@@ -750,17 +753,48 @@
     const live = S.live;
     if (!live) return;
     S.seeing = !S.seeing;
-    clearInterval(live.seeTimer);
     if (S.seeing) {
       say(live, `(App: ${by} turned on the cameras for you. From now on you get a picture of the call every couple of seconds; each person's name is written on their part of the picture. Say one short, fun line about what you see, then carry on.)`);
       sendFrame(live);
-      live.seeTimer = setInterval(() => sendFrame(live), 1500);
       toast(`${aiName()} can see the call now`);
     } else {
       say(live, "(App: The cameras are off for you now; you can't see them any more.)");
       toast(`${aiName()} can't see any more`);
     }
     setOrb({});
+  }
+
+  // The live camera feed and the shared whiteboard both become pictures the AI can see.
+  // Cameras only go when someone turned "see" on (privacy); the whiteboard, being a shared
+  // drawing both people opened, goes automatically whenever it is open so the AI can judge it.
+  function boardCanvas() {
+    const c = document.querySelector(".whiteboard-tile .wb-main");
+    return c && c.offsetParent && c.width ? c : null;
+  }
+  function visionTick(live) {
+    if (!live.ready || live.ws?.readyState !== 1) return;
+    const board = boardCanvas();
+    if (board && !live.boardOn) {
+      live.boardOn = true;
+      say(live, "(App: The shared whiteboard is now open, and the picture you receive is their drawing on it. When they ask you to look at, judge, score or guess the drawing, use what you see — never say you can't see the whiteboard.)");
+    } else if (!board && live.boardOn) {
+      live.boardOn = false;
+      say(live, "(App: The whiteboard is closed now.)");
+    }
+    if (board) sendBoardFrame(live, board);
+    else if (S.seeing) sendFrame(live);
+  }
+
+  const boardFrameCanvas = document.createElement("canvas");
+  function sendBoardFrame(live, board) {
+    const W = 768, H = Math.round(W * (board.height / board.width)) || 432;
+    boardFrameCanvas.width = W; boardFrameCanvas.height = H;
+    const ctx = boardFrameCanvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, W, H);
+    try { ctx.drawImage(board, 0, 0, W, H); } catch { return; }
+    const data = boardFrameCanvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+    live.ws.send(JSON.stringify({ realtimeInput: { video: { data, mimeType: "image/jpeg" } } }));
   }
 
   const frameCanvas = document.createElement("canvas");

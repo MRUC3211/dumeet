@@ -15,6 +15,8 @@ import json
 import os
 import secrets
 import ssl
+
+import cryptostore
 import threading
 import time
 import urllib.error
@@ -80,15 +82,17 @@ class FileStore:
             self._save()
 
     def put_media(self, media_id, body, content_type):
-        (self.media / media_id).write_bytes(body)
-        (self.media / f"{media_id}.type").write_text(content_type)
+        sealed, store_type = cryptostore.seal(content_type, body)
+        (self.media / media_id).write_bytes(sealed)
+        (self.media / f"{media_id}.type").write_text(store_type)
 
     def get_media(self, media_id):
         file = self.media / media_id
         if not file.is_file():
             return None, None
         kind = (self.media / f"{media_id}.type")
-        return file.read_bytes(), kind.read_text() if kind.is_file() else "application/octet-stream"
+        store_type = kind.read_text() if kind.is_file() else "application/octet-stream"
+        return cryptostore.unseal(file.read_bytes(), store_type)
 
     def delete_media(self, media_id):
         for file in (self.media / media_id, self.media / f"{media_id}.type"):
@@ -143,15 +147,17 @@ class SupabaseStore:
         self._request("DELETE", f"/rest/v1/dumeet_docs?{query}")
 
     def put_media(self, media_id, body, content_type):
-        self._request("POST", f"/storage/v1/object/dumeet-media/{media_id}", body, {
-            "Content-Type": content_type, "x-upsert": "true",
+        sealed, store_type = cryptostore.seal(content_type, body)
+        self._request("POST", f"/storage/v1/object/dumeet-media/{media_id}", sealed, {
+            "Content-Type": store_type, "x-upsert": "true",
         })
 
     def get_media(self, media_id):
         try:
-            return self._request("GET", f"/storage/v1/object/dumeet-media/{media_id}", raw=True)
+            body, store_type = self._request("GET", f"/storage/v1/object/dumeet-media/{media_id}", raw=True)
         except urllib.error.HTTPError:
             return None, None
+        return cryptostore.unseal(body, store_type)
 
     def delete_media(self, media_id):
         try:

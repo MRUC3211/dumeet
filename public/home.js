@@ -200,7 +200,7 @@
     }).join("")}</ul>`;
   }
 
-  const snapHtml = (s) => `<figure class="a-snap"><img loading="lazy" src="${esc(adminUrl(s.data.url))}" data-zoom="${esc(adminUrl(s.data.url))}" alt="Photo by ${esc(s.data.by)}"><figcaption>${esc(s.data.by)} · ${new Date(s.data.at).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</figcaption><button class="a-snap-del" data-a-del="snaps:${esc(s.id)}" aria-label="Delete photo"><span class="icon">delete</span></button></figure>`;
+  const snapHtml = (s) => `<figure class="a-snap"><img loading="lazy" src="${esc(adminUrl(s.data.url))}" data-zoom="${esc(adminUrl(s.data.url))}" alt="Photo by ${esc(s.data.by)}"><figcaption>${esc(s.data.by)} · ${new Date(s.data.at).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</figcaption><a class="a-snap-dl" href="${esc(adminUrl(s.data.url))}" download="DU Meet ${esc(dayKey(new Date(s.data.at || Date.now())))}.jpg" aria-label="Download photo"><span class="icon">download</span></a><button class="a-snap-del" data-a-del="snaps:${esc(s.id)}" aria-label="Delete photo"><span class="icon">delete</span></button></figure>`;
   const photosHtml = () => admin.snaps.length ? `<div class="a-grid">${admin.snaps.map(snapHtml).join("")}</div>`
     : `<div class="empty-art"><span class="icon">photo_camera</span><p>Photos taken with the camera button in a call show up here. Only you can see them.</p></div>`;
 

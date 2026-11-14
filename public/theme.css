@@ -832,6 +832,22 @@ body.can-flip .tile.self .tile-flip { display: grid; }
 .a-snap figcaption { padding: 6px 10px; font-size: 12px; color: #424245; background: #fff; }
 .a-snap-del { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; display: grid; place-items: center; }
 .a-snap-del .icon { font-size: 17px; }
+.a-snap-dl { position: absolute; top: 6px; right: 42px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; display: grid; place-items: center; text-decoration: none; }
+.a-snap-dl .icon { font-size: 17px; }
+/* Admin: recordings list */
+.a-recs { display: grid; gap: 14px; margin-top: 10px; }
+.a-rec { border-radius: 16px; overflow: hidden; background: #f5f5f7; }
+.a-rec video { display: block; width: 100%; max-height: 300px; background: #000; aspect-ratio: 16 / 9; object-fit: contain; }
+.a-rec-info { padding: 10px 12px 4px; }
+.a-rec-info b { display: block; font-size: 14px; }
+.a-rec-info small { color: #6e6e73; font-size: 12px; }
+.a-rec-acts { display: flex; gap: 8px; padding: 8px 12px 12px; flex-wrap: wrap; }
+.a-rec-acts .btn { text-decoration: none; }
+/* Admin: removed-from-call list */
+.a-bans { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.a-bans li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: #f5f5f7; }
+html[data-theme=dark] :is(.a-rec, .a-bans li) { background: #2c2c2e; }
+html[data-theme=dark] .a-rec-info small { color: #98989d; }
 .cta .install-btn { width: auto; align-self: center; }
 .sc-bar .tools-ic { width: 38px; height: 38px; padding: 9px; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; box-sizing: border-box; }
 .cw-grid button { aspect-ratio: auto; height: 32px; border-radius: 10px; }
