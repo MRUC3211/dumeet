@@ -184,6 +184,10 @@
         <div data-panel="chat" class="panel-body">
           <p class="chat-note">Messages and files are visible only to people in the call.</p>
           <ul id="chat-messages" aria-live="polite"></ul>
+          <div id="chat-typing" class="chat-typing" hidden aria-live="polite">
+            <span class="typing-dots"><i></i><i></i><i></i></span>
+            <span id="chat-typing-name" class="typing-name"></span>
+          </div>
           <form id="chat-form">
             <label class="icon-btn attach" title="Share photos, videos or files" aria-label="Share a file">
               <span class="icon" aria-hidden="true">add_circle</span>

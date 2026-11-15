@@ -599,8 +599,12 @@ function handleMessage(message) {
       break;
     case "chat":
       if (peer && (typeof data?.text === "string" || Array.isArray(data?.media))) {
+        setPeerTyping(peer, false);
         addChatMessage(peer.name, String(data.text ?? "").slice(0, 500), false, Array.isArray(data.media) ? data.media.slice(0, 10) : []);
       }
+      break;
+    case "typing":
+      if (peer) setPeerTyping(peer, Boolean(data?.on));
       break;
     case "reaction":
       if (peer && REACTIONS.includes(data?.emoji)) showReaction(data.emoji, peer.name);
@@ -738,6 +742,7 @@ function removePeer(id) {
   peer.audio.remove();
   peers.delete(id);
   meters.delete(id);
+  if (typingPeers.has(id)) { clearTimeout(typingPeers.get(id).timer); typingPeers.delete(id); renderTyping(); }
   recordingRemoveAudio(id);
   removeCaption(id);
   if (activeSpeaker === id) activeSpeaker = null;
@@ -2414,6 +2419,32 @@ function linkify(parent, text) {
 }
 
 const scrollChat = () => { $("#chat-messages").scrollTop = $("#chat-messages").scrollHeight; };
+
+// Who is currently typing, by peer id. A safety timeout clears it if the
+// "stopped" signal never arrives.
+const typingPeers = new Map();
+function setPeerTyping(peer, on) {
+  const existing = typingPeers.get(peer.id);
+  if (existing) clearTimeout(existing.timer);
+  if (on) {
+    typingPeers.set(peer.id, { name: peer.name, timer: setTimeout(() => { typingPeers.delete(peer.id); renderTyping(); }, 6000) });
+  } else {
+    typingPeers.delete(peer.id);
+  }
+  renderTyping();
+}
+function renderTyping() {
+  const box = $("#chat-typing");
+  if (!box) return;
+  const names = [...typingPeers.values()].map((t) => t.name);
+  box.hidden = names.length === 0;
+  if (!names.length) return;
+  const label = names.length === 1 ? `${names[0]} is typing…`
+    : names.length === 2 ? `${names[0]} and ${names[1]} are typing…`
+    : "Several people are typing…";
+  $("#chat-typing-name").textContent = label;
+  if (openPanel === "chat") scrollChat();
+}
 const refreshUnread = () => {
   $("#chat-dot").hidden = unread === 0;
   updatePip();
@@ -2739,9 +2770,25 @@ $("#chat-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const text = $("#chat-input").value.trim();
   if (!text) return;
+  stopTyping();
   send("chat", { text });
   addChatMessage(me.name, text, true);
   $("#chat-input").value = "";
+});
+
+// Tell the other side when I'm typing, WhatsApp style. Send "on" once when I
+// start, "off" when I pause for a moment, clear the field or send the message.
+let typingSent = false;
+let typingTimer;
+function stopTyping() {
+  clearTimeout(typingTimer);
+  if (typingSent) { typingSent = false; send("typing", { on: false }); }
+}
+$("#chat-input").addEventListener("input", (event) => {
+  if (!event.target.value.trim()) { stopTyping(); return; }
+  if (!typingSent) { typingSent = true; send("typing", { on: true }); }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(stopTyping, 2500);
 });
 
 $("#mic-select").addEventListener("change", (event) => changeMic(event.target.value));

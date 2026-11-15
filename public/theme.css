@@ -261,6 +261,16 @@ body { -webkit-tap-highlight-color: transparent; }
 .panel-head h3 { font-size: 1.15rem; letter-spacing: -0.02em; }
 .link-box { background: #26262a; }
 
+/* Typing indicator */
+.chat-typing { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 2px 8px; animation: msgpop-in .3s cubic-bezier(.22, 1, .36, 1); }
+.typing-dots { display: inline-flex; align-items: center; gap: 4px; padding: 9px 13px; border-radius: 16px 16px 16px 5px; background: rgba(255, 255, 255, .08); }
+.typing-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .7); animation: typing-bounce 1.3s infinite ease-in-out; }
+.typing-dots i:nth-child(2) { animation-delay: .18s; }
+.typing-dots i:nth-child(3) { animation-delay: .36s; }
+.typing-name { font: 500 13px/1 var(--font-body); color: rgba(255, 255, 255, .55); }
+@keyframes typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .typing-dots i { animation: none; } }
+
 .controls { height: 92px; position: relative; z-index: 20; }
 .controls .center { gap: 10px; align-items: center; }
 .ctrl { background: #2c2c2f; box-shadow: none; transition: background .18s var(--ease), transform .18s var(--ease), color .18s; }
