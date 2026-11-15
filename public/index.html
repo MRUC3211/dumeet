@@ -188,6 +188,14 @@
             <span class="typing-dots"><i></i><i></i><i></i></span>
             <span id="chat-typing-name" class="typing-name"></span>
           </div>
+          <div id="compose-bar" class="compose-bar" hidden>
+            <span class="icon compose-ic" aria-hidden="true">reply</span>
+            <div class="compose-info">
+              <span id="compose-title" class="compose-title"></span>
+              <span id="compose-text" class="compose-text"></span>
+            </div>
+            <button type="button" class="icon-btn" data-action="compose-cancel" aria-label="Cancel"><span class="icon" aria-hidden="true">close</span></button>
+          </div>
           <form id="chat-form">
             <label class="icon-btn attach" title="Share photos, videos or files" aria-label="Share a file">
               <span class="icon" aria-hidden="true">add_circle</span>
@@ -411,6 +419,7 @@
 
   <div id="toast" role="status" aria-live="polite" hidden></div>
   <div id="chat-pops" aria-live="polite"></div>
+  <div id="react-pop" class="react-pop" role="menu" aria-label="React" hidden></div>
 
   <!-- Thinking of you -->
   <div id="heart-fx" class="heart-fx" aria-hidden="true" hidden>

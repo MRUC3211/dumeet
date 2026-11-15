@@ -864,8 +864,9 @@
         try {
           const uploaded = await upload(blob);
           const item = [{ url: uploaded.url, type: uploaded.type, name: file.name }];
-          send("chat", { text: "", media: item });
-          addChatMessage(me.name, "", true, item);
+          const id = newMsgId();
+          send("chat", { id, text: "", media: item });
+          addChatMessage(me.name, "", true, item, { id, senderId: me.id });
           toast("Sent in chat");
           closeModal(q("#m-capture"));
         } catch { toast("Couldn't send the photo"); }
@@ -904,8 +905,9 @@
       } catch { toast(`Couldn't send ${file.name}`); }
     }
     if (!items.length) return;
-    send("chat", { text: "", media: items });
-    addChatMessage(me.name, "", true, items);
+    const id = newMsgId();
+    send("chat", { id, text: "", media: items });
+    addChatMessage(me.name, "", true, items, { id, senderId: me.id });
   });
 
   // ---------- weak network: voice only ----------

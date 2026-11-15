@@ -132,8 +132,9 @@
       run: (a) => {
         const text = String(a.text || "").trim().slice(0, 1000);
         if (!text) return { error: "Empty message" };
-        send("chat", { text });
-        addChatMessage(me.name, text, true);
+        const id = newMsgId();
+        send("chat", { id, text });
+        addChatMessage(me.name, text, true, [], { id, senderId: me.id });
         return { sent: text };
       } },
     { name: "close_windows", description: "Close all open tool windows, games and panels on the screen.",

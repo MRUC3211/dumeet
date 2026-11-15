@@ -519,6 +519,11 @@ function leaveMeeting() {
   clearCaptions();
   $("#grid").replaceChildren();
   $("#chat-messages").replaceChildren();
+  messages.clear();
+  lastIncoming = null;
+  peerSeen = 0;
+  cancelCompose();
+  $("#react-pop").hidden = true;
   toggleReactionPicker(false);
   toggleMenu(false);
   if (openPanel) togglePanel(openPanel);
@@ -618,11 +623,24 @@ function handleMessage(message) {
     case "chat":
       if (peer && (typeof data?.text === "string" || Array.isArray(data?.media))) {
         setPeerTyping(peer, false);
-        addChatMessage(peer.name, String(data.text ?? "").slice(0, 500), false, Array.isArray(data.media) ? data.media.slice(0, 10) : []);
+        addChatMessage(peer.name, String(data.text ?? "").slice(0, 500), false, Array.isArray(data.media) ? data.media.slice(0, 10) : [],
+          { id: typeof data.id === "string" ? data.id : undefined, reply: data.reply, senderId: peer.id });
       }
       break;
     case "typing":
       if (peer) setPeerTyping(peer, Boolean(data?.on));
+      break;
+    case "chat-react":
+      if (peer && typeof data?.id === "string" && typeof data?.emoji === "string") applyReact(data.id, data.emoji.slice(0, 8), peer.name, Boolean(data.on));
+      break;
+    case "chat-seen":
+      if (peer && typeof data?.id === "string") applySeen(data.id);
+      break;
+    case "chat-edit":
+      if (peer && typeof data?.id === "string") applyEdit(data.id, String(data.text ?? "").slice(0, 500), true);
+      break;
+    case "chat-delete":
+      if (peer && typeof data?.id === "string") applyDelete(data.id);
       break;
     case "reaction":
       if (peer && REACTIONS.includes(data?.emoji)) showReaction(data.emoji, peer.name);
@@ -2271,6 +2289,7 @@ function togglePanel(name) {
   if (openPanel === "chat") {
     unread = 0;
     refreshUnread();
+    markSeen();
     $("#chat-input").focus();
     scrollChat();
   } else if (openPanel === "polls") {
@@ -2448,8 +2467,23 @@ function chatMedia(list) {
   return box;
 }
 
-function addChatMessage(name, text, mine, media = []) {
+// Every chat message carries a stable id so it can be replied to, reacted to,
+// edited, deleted and marked "Seen" on both sides.
+const messages = new Map(); // id -> { el, name, mine, senderId, text, media, at, reactions: Map(emoji -> Set(name)), deleted }
+let lastIncoming = null;    // { id, from } — the newest message I received
+const MSG_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🔥", "🥰", "👏"];
+
+function newMsgId() { return `${me.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`; }
+
+function addChatMessage(name, text, mine, media = [], meta = {}) {
+  const id = meta.id || newMsgId();
+  if (messages.has(id)) return id;
+  const senderId = meta.senderId || (mine ? me.id : null);
+
   const item = document.createElement("li");
+  item.className = mine ? "msg mine" : "msg";
+  item.dataset.mid = id;
+
   const head = document.createElement("div");
   head.className = "msg-head";
   const who = document.createElement("strong");
@@ -2458,21 +2492,210 @@ function addChatMessage(name, text, mine, media = []) {
   time.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   head.append(who, time);
   item.append(head);
-  if (text) {
-    const body = document.createElement("p");
-    linkify(body, text);
-    item.append(body);
+
+  if (meta.reply && meta.reply.id) {
+    const quote = document.createElement("button");
+    quote.type = "button";
+    quote.className = "msg-quote";
+    const qn = document.createElement("span"); qn.className = "msg-quote-name"; qn.textContent = meta.reply.name || "";
+    const qt = document.createElement("span"); qt.className = "msg-quote-text"; qt.textContent = meta.reply.text || "Message";
+    quote.append(qn, qt);
+    quote.addEventListener("click", () => jumpToMessage(meta.reply.id));
+    item.append(quote);
   }
-  if (media.length) item.append(chatMedia(media));
+
+  const bodyWrap = document.createElement("div");
+  bodyWrap.className = "msg-body";
+  if (text) { const body = document.createElement("p"); linkify(body, text); bodyWrap.append(body); }
+  if (media.length) bodyWrap.append(chatMedia(media));
+  item.append(bodyWrap);
+
+  const reacts = document.createElement("div");
+  reacts.className = "msg-reacts";
+  reacts.hidden = true;
+  item.append(reacts);
+
+  const actions = document.createElement("div");
+  actions.className = "msg-actions";
+  let html = `<button type="button" class="msg-act" data-mact="react" aria-label="React"><span class="icon" aria-hidden="true">add_reaction</span></button>`
+    + `<button type="button" class="msg-act" data-mact="reply" aria-label="Reply"><span class="icon" aria-hidden="true">reply</span></button>`;
+  if (mine && text) html += `<button type="button" class="msg-act" data-mact="edit" aria-label="Edit"><span class="icon" aria-hidden="true">edit</span></button>`;
+  if (mine) html += `<button type="button" class="msg-act" data-mact="delete" aria-label="Delete"><span class="icon" aria-hidden="true">delete</span></button>`;
+  actions.innerHTML = html;
+  item.append(actions);
+
   $("#chat-messages").append(item);
+  messages.set(id, { el: item, name, mine, senderId, text, media, at: Date.now(), reactions: new Map(), deleted: false });
   scrollChat();
   note("chat", name, text || `[${media.map((m) => m.name || m.type).join(", ")}]`);
 
-  if (openPanel !== "chat" && !mine) {
-    unread++;
-    refreshUnread();
-    messagePopup(name, text, media);
-    chatPing();
+  if (!mine) {
+    lastIncoming = { id, from: senderId };
+    if (openPanel === "chat") markSeen();
+    else { unread++; refreshUnread(); messagePopup(name, text, media); chatPing(); }
+  }
+  updateSeen();
+  return id;
+}
+
+function jumpToMessage(id) {
+  const rec = messages.get(id);
+  if (!rec) return;
+  rec.el.scrollIntoView({ behavior: "smooth", block: "center" });
+  rec.el.classList.add("flash");
+  setTimeout(() => rec.el.classList.remove("flash"), 1200);
+}
+
+// ---------- Reactions on a message ----------
+
+function renderReacts(id) {
+  const rec = messages.get(id);
+  if (!rec) return;
+  const row = rec.el.querySelector(".msg-reacts");
+  row.replaceChildren();
+  let any = false;
+  for (const [emoji, who] of rec.reactions) {
+    if (!who.size) continue;
+    any = true;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = who.has(me.name) ? "react-chip mine" : "react-chip";
+    chip.textContent = who.size > 1 ? `${emoji} ${who.size}` : emoji;
+    chip.title = [...who].join(", ");
+    chip.addEventListener("click", () => toggleReact(id, emoji));
+    row.append(chip);
+  }
+  row.hidden = !any;
+}
+
+function toggleReact(id, emoji) {
+  const rec = messages.get(id);
+  if (!rec || rec.deleted) return;
+  let who = rec.reactions.get(emoji);
+  if (!who) { who = new Set(); rec.reactions.set(emoji, who); }
+  const on = !who.has(me.name);
+  if (on) who.add(me.name); else who.delete(me.name);
+  renderReacts(id);
+  send("chat-react", { id, emoji, on });
+}
+
+function applyReact(id, emoji, name, on) {
+  const rec = messages.get(id);
+  if (!rec) return;
+  let who = rec.reactions.get(emoji);
+  if (!who) { who = new Set(); rec.reactions.set(emoji, who); }
+  if (on) who.add(name); else who.delete(name);
+  renderReacts(id);
+}
+
+function openReactPicker(id, anchor) {
+  const pop = $("#react-pop");
+  pop.replaceChildren();
+  for (const emoji of MSG_EMOJIS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = emoji;
+    b.addEventListener("click", () => { toggleReact(id, emoji); pop.hidden = true; });
+    pop.append(b);
+  }
+  pop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+  pop.style.top = `${Math.max(8, r.top - h - 8)}px`;
+}
+
+// ---------- Reply / edit compose bar ----------
+
+let composing = null; // { mode: "reply" | "edit", id, ... }
+
+function startReply(id) {
+  const rec = messages.get(id);
+  if (!rec || rec.deleted) return;
+  composing = { mode: "reply", id, name: rec.mine ? "You" : rec.name, text: rec.text || (rec.media.length ? "Attachment" : "") };
+  showCompose("reply", `Replying to ${composing.name}`, composing.text || "Attachment");
+  $("#chat-input").focus();
+}
+
+function startEdit(id) {
+  const rec = messages.get(id);
+  if (!rec || !rec.mine || rec.deleted) return;
+  composing = { mode: "edit", id };
+  showCompose("edit", "Editing message", rec.text || "");
+  const input = $("#chat-input");
+  input.value = rec.text || "";
+  input.focus();
+}
+
+function showCompose(mode, title, text) {
+  $("#compose-bar").hidden = false;
+  $("#compose-bar").querySelector(".compose-ic").textContent = mode === "edit" ? "edit" : "reply";
+  $("#compose-title").textContent = title;
+  $("#compose-text").textContent = text;
+}
+
+function cancelCompose() {
+  composing = null;
+  $("#compose-bar").hidden = true;
+}
+
+function applyEdit(id, text, fromPeer) {
+  const rec = messages.get(id);
+  if (!rec || rec.deleted) return;
+  rec.text = text;
+  const bodyWrap = rec.el.querySelector(".msg-body");
+  bodyWrap.replaceChildren();
+  const p = document.createElement("p");
+  linkify(p, text);
+  const tag = document.createElement("span");
+  tag.className = "msg-edited";
+  tag.textContent = " (edited)";
+  p.append(tag);
+  bodyWrap.append(p);
+  if (rec.media.length) bodyWrap.append(chatMedia(rec.media));
+}
+
+function deleteMessage(id) {
+  applyDelete(id);
+  send("chat-delete", { id });
+}
+
+function applyDelete(id) {
+  const rec = messages.get(id);
+  if (!rec) return;
+  rec.deleted = true;
+  rec.text = "";
+  rec.el.querySelector(".msg-body").innerHTML = `<p class="msg-deleted"><span class="icon" aria-hidden="true">block</span>This message was deleted</p>`;
+  rec.el.querySelector(".msg-reacts").hidden = true;
+  rec.el.querySelector(".msg-actions")?.remove();
+  rec.el.querySelector(".msg-quote")?.remove();
+  if (composing?.id === id) cancelCompose();
+}
+
+// ---------- Seen receipts ----------
+
+let peerSeen = 0; // newest timestamp among MY messages the other side has opened
+
+function markSeen() {
+  // Tell the sender of the newest message I received that I've now seen it.
+  if (lastIncoming) send("chat-seen", { id: lastIncoming.id }, lastIncoming.from || undefined);
+}
+
+function applySeen(id) {
+  const rec = messages.get(id);
+  if (rec && rec.mine) peerSeen = Math.max(peerSeen, rec.at);
+  updateSeen();
+}
+
+function updateSeen() {
+  document.querySelectorAll(".msg-seen").forEach((el) => el.remove());
+  let last = null;
+  for (const rec of messages.values()) if (rec.mine && !rec.deleted && rec.at <= peerSeen) last = rec;
+  if (last) {
+    const tag = document.createElement("div");
+    tag.className = "msg-seen";
+    tag.innerHTML = `<span class="icon" aria-hidden="true">done_all</span>Seen`;
+    last.el.append(tag);
   }
 }
 
@@ -2821,6 +3044,7 @@ const actions = {
   chat: () => togglePanel("chat"),
   polls: () => togglePanel("polls"),
   "close-panel": () => togglePanel(openPanel),
+  "compose-cancel": () => { cancelCompose(); $("#chat-input").value = ""; },
   "copy-link": async () => {
     await navigator.clipboard.writeText(`Join my DU Meet: ${meetingLink()}`);
     toast("Meeting link copied");
@@ -2917,8 +3141,16 @@ $("#chat-form").addEventListener("submit", (event) => {
   const text = $("#chat-input").value.trim();
   if (!text) return;
   stopTyping();
-  send("chat", { text });
-  addChatMessage(me.name, text, true);
+  if (composing?.mode === "edit") {
+    applyEdit(composing.id, text);
+    send("chat-edit", { id: composing.id, text });
+  } else {
+    const id = newMsgId();
+    const reply = composing?.mode === "reply" ? { id: composing.id, name: composing.name, text: (composing.text || "").slice(0, 80) } : null;
+    send("chat", { id, text, reply });
+    addChatMessage(me.name, text, true, [], { id, reply, senderId: me.id });
+  }
+  cancelCompose();
   $("#chat-input").value = "";
 });
 
@@ -2935,6 +3167,27 @@ $("#chat-input").addEventListener("input", (event) => {
   if (!typingSent) { typingSent = true; send("typing", { on: true }); }
   clearTimeout(typingTimer);
   typingTimer = setTimeout(stopTyping, 2500);
+});
+
+// React, reply, edit or delete a specific message.
+$("#chat-messages").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-mact]");
+  if (!btn) return;
+  const id = btn.closest(".msg")?.dataset.mid;
+  if (!id) return;
+  const act = btn.dataset.mact;
+  if (act === "react") openReactPicker(id, btn);
+  else if (act === "reply") startReply(id);
+  else if (act === "edit") startEdit(id);
+  else if (act === "delete") deleteMessage(id);
+});
+// A click anywhere else closes the emoji picker.
+document.addEventListener("click", (event) => {
+  if (!$("#react-pop").hidden && !event.target.closest("#react-pop, [data-mact=react]")) $("#react-pop").hidden = true;
+});
+// Esc cancels a reply / edit in progress.
+$("#chat-input").addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && composing) { event.stopPropagation(); cancelCompose(); }
 });
 
 $("#mic-select").addEventListener("change", (event) => changeMic(event.target.value));

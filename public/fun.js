@@ -531,8 +531,9 @@
     try {
       const up = await upload(blob);
       const item = [{ url: up.url, type: (up.type || blob.type).split(";")[0], name: "Voice message", voice: true, secs }];
-      send("chat", { text: "", media: item });
-      addChatMessage(me.name, "", true, item);
+      const id = newMsgId();
+      send("chat", { id, text: "", media: item });
+      addChatMessage(me.name, "", true, item, { id, senderId: me.id });
     } catch { toast("Couldn't send the voice message"); }
   }
 
