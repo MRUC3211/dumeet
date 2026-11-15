@@ -44,6 +44,7 @@ const me = {
   handAt: 0,
   cc: false,          // showing live captions
   rec: false,         // recording the meeting
+  note: "",           // short status note shown on your tile
   facing: "user",     // "user" (front) or "environment" (back camera)
 };
 
@@ -56,6 +57,7 @@ let openPanel = null;       // "info" | "people" | "chat" | "polls" | null
 let unread = 0;
 let unreadPolls = 0;
 const notes = [];           // { time, kind, name, text } for "Download meeting notes"
+const localMuted = new Set(); // peer ids silenced just for me (doesn't affect others)
 
 // ---------- Saved preferences ----------
 
@@ -436,8 +438,22 @@ async function joinMeeting() {
     // keep the built-in STUN servers
   }
   pollLoop();
+  keepAwake(true);
   window.DU?.onJoin?.();
 }
+
+// Keep the screen on during a call so it doesn't dim or sleep mid-conversation.
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on) wakeLock = await navigator.wakeLock?.request("screen") ?? null;
+    else { await wakeLock?.release(); wakeLock = null; }
+  } catch { /* not supported or blocked — harmless */ }
+}
+// The lock drops when the tab is hidden; take it again when you come back.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && polling && !wakeLock) keepAwake(true);
+});
 
 async function pollLoop() {
   const controller = new AbortController();
@@ -510,6 +526,8 @@ function leaveMeeting() {
   unread = unreadPolls = 0;
   refreshUnread();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  keepAwake(false);
+  setImmersive(false);
   window.DU?.onLeave?.();
   showView("left");
 }
@@ -553,7 +571,7 @@ function handleMessage(message) {
       for (const info of message.peers) callPeer(addPeer(info));
       hostId = message.host ?? null;
       refreshPeople();
-      sendState({ mic: me.mic, cam: me.cam, hand: me.hand, screen: Boolean(me.screenTrack), rec: me.rec, cc: me.cc });
+      sendState({ mic: me.mic, cam: me.cam, hand: me.hand, screen: Boolean(me.screenTrack), rec: me.rec, cc: me.cc, note: me.note });
       break;
     case "join":
       removePeer(message.peer.id); // same person reconnecting
@@ -673,7 +691,7 @@ function handleMessage(message) {
 
 function addPeer(info) {
   const peer = {
-    hand: false, screen: false, rec: false, cc: false, handAt: 0,
+    hand: false, screen: false, rec: false, cc: false, handAt: 0, note: "",
     ...info, pc: new RTCPeerConnection({ iceServers }), pendingIce: [],
     audio: document.createElement("audio"), camTrack: null, screenTrack: null,
   };
@@ -719,6 +737,7 @@ function addPeer(info) {
     const slot = peer.pc.getTransceivers().indexOf(transceiver);
     if (slot === SLOT.audio) {
       peer.audio.srcObject = new MediaStream([track]);
+      peer.audio.muted = localMuted.has(peer.id);
       peer.audio.play().catch(() => toast("Click anywhere to turn on sound"));
       watchAudio(peer.id, track);
       recordingAddAudio(peer.id, track);
@@ -743,6 +762,7 @@ function removePeer(id) {
   peers.delete(id);
   meters.delete(id);
   if (typingPeers.has(id)) { clearTimeout(typingPeers.get(id).timer); typingPeers.delete(id); renderTyping(); }
+  localMuted.delete(id);
   recordingRemoveAudio(id);
   removeCaption(id);
   if (activeSpeaker === id) activeSpeaker = null;
@@ -871,6 +891,15 @@ function paintTile(tile, spec) {
   if (!info) return;
   const label = isMe ? "You" : info.name;
   const video = tile.querySelector("video");
+  tile.classList.toggle("muted-for-me", !isMe && localMuted.has(spec.owner));
+  const noteEl = tile.querySelector(".tile-note");
+  if (noteEl) {
+    const noteText = spec.kind === "camera" ? (info.note || "").trim() : "";
+    noteEl.textContent = noteText;
+    noteEl.hidden = !noteText;
+  }
+  const muteBtn = tile.querySelector(".tile-mute-btn .icon");
+  if (muteBtn) muteBtn.textContent = (!isMe && localMuted.has(spec.owner)) ? "volume_off" : "volume_up";
   if (spec.kind === "camera") {
     tile.classList.toggle("video-off", !info.cam);
     tile.classList.toggle("mic-muted", !info.mic);
@@ -903,6 +932,51 @@ function paintPin(tile, id) {
   const text = pinned ? "Unpin" : "Pin";
   button.title = button.ariaLabel = text;
   button.querySelector(".icon").textContent = pinned ? "keep_off" : "keep";
+}
+
+// ---------- Status note on your tile ----------
+
+const NOTE_PRESETS = ["Be right back", "On mute, listening", "One sec…", "Bad network", "Can't talk — text me", "In a meeting"];
+
+function editNote() {
+  const dialog = $("#note-dialog");
+  const input = $("#note-input");
+  input.value = me.note;
+  const presets = $("#note-presets");
+  presets.replaceChildren();
+  for (const text of NOTE_PRESETS) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "note-chip";
+    chip.textContent = text;
+    chip.addEventListener("click", () => { input.value = text; input.focus(); });
+    presets.append(chip);
+  }
+  dialog.showModal();
+  setTimeout(() => input.focus(), 50);
+}
+
+function applyNote(text) {
+  me.note = (text || "").trim().slice(0, 80);
+  sendState({ note: me.note });
+  renderAll();
+}
+
+// ---------- Mute a participant just for yourself ----------
+
+function toggleLocalMute(id) {
+  const peer = peers.get(id);
+  if (!peer) return;
+  if (localMuted.has(id)) {
+    localMuted.delete(id);
+    peer.audio.muted = false;
+    toast(`${peer.name} unmuted for you`);
+  } else {
+    localMuted.add(id);
+    peer.audio.muted = true;
+    toast(`${peer.name} muted — only for you. They don't know.`);
+  }
+  renderAll();
 }
 
 function togglePin(id) {
@@ -978,7 +1052,7 @@ function colorFor(name) {
 
 const myInfo = () => ({
   id: me.id, name: me.name, mic: me.mic, cam: me.cam, hand: me.hand, handAt: me.handAt,
-  screen: Boolean(me.screenTrack), rec: me.rec, cc: me.cc,
+  screen: Boolean(me.screenTrack), rec: me.rec, cc: me.cc, note: me.note,
 });
 
 /** Redraw every button that shows your own state. */
@@ -2666,6 +2740,68 @@ function openLayoutDialog() {
   $("#layout-dialog").showModal();
 }
 
+// ---------- Keyboard shortcuts overlay ----------
+
+const mod = navigator.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl";
+const SHORTCUTS = [
+  [`${mod} + D`, "Mic on / off"],
+  [`${mod} + E`, "Camera on / off"],
+  ["Ctrl + Alt + H", "Raise or lower hand"],
+  ["Ctrl + Alt + C", "Open chat"],
+  ["Ctrl + Alt + P", "Open people"],
+  ["Double-click a tile", "Pin or unpin it"],
+  ["?", "Show this list"],
+  ["Esc", "Close a menu, panel or dialog"],
+];
+
+function openShortcuts() {
+  const list = $("#shortcuts-list");
+  list.replaceChildren();
+  for (const [keys, what] of SHORTCUTS) {
+    const li = document.createElement("li");
+    const desc = document.createElement("span");
+    desc.textContent = what;
+    const kbd = document.createElement("kbd");
+    kbd.textContent = keys;
+    li.append(desc, kbd);
+    list.append(li);
+  }
+  $("#shortcuts-dialog").showModal();
+}
+
+// ---------- Immersive mode: let the controls fade away when you're idle ----------
+
+let immersive = false;
+let idleTimer;
+function setImmersive(on) {
+  immersive = on;
+  $("#immersive-label").textContent = `Immersive mode: ${on ? "on" : "off"}`;
+  clearTimeout(idleTimer);
+  document.body.classList.remove("controls-hidden");
+  if (on) { toast("Immersive mode on — controls fade when you're idle. Move to bring them back."); scheduleIdle(); }
+}
+function scheduleIdle() {
+  clearTimeout(idleTimer);
+  if (!immersive) return;
+  idleTimer = setTimeout(() => {
+    if (!immersive || !polling) return;
+    // Never hide while the person is in the middle of something.
+    const busy = openPanel || document.querySelector("dialog[open]")
+      || !$("#more-menu").hidden || !$("#reaction-picker").hidden
+      || !$("#info-pop").hidden || (document.querySelector("#tg-tray") && !$("#tg-tray").hidden);
+    if (busy) { scheduleIdle(); return; }
+    document.body.classList.add("controls-hidden");
+  }, 4000);
+}
+function wakeControls() {
+  if (!immersive) return;
+  document.body.classList.remove("controls-hidden");
+  scheduleIdle();
+}
+for (const type of ["pointermove", "pointerdown", "keydown", "touchstart", "wheel"]) {
+  document.addEventListener(type, wakeControls, { passive: true });
+}
+
 // ---------- Buttons and keyboard ----------
 
 const actions = {
@@ -2701,6 +2837,10 @@ const actions = {
   },
   fullscreen: toggleFullscreen,
   notes: downloadNotes,
+  "note-save": () => { applyNote($("#note-input").value); $("#note-dialog").close(); },
+  "note-clear": () => { applyNote(""); $("#note-dialog").close(); },
+  shortcuts: openShortcuts,
+  immersive: () => setImmersive(!immersive),
   settings: openSettings,
   "poll-add-option": addPollOption,
   rejoin: () => openLobby(room),
@@ -2713,8 +2853,14 @@ document.addEventListener("click", (event) => {
     if (button.closest("#more-menu")) toggleMenu(false);
     actions[button.dataset.action]?.();
   }
-  const tileButton = event.target.closest("[data-tile-action=pin]");
-  if (tileButton) togglePin(tileButton.closest(".tile").dataset.id);
+  const tileButton = event.target.closest("[data-tile-action]");
+  if (tileButton) {
+    const id = tileButton.closest(".tile").dataset.id;
+    const act = tileButton.dataset.tileAction;
+    if (act === "pin") togglePin(id);
+    else if (act === "note") editNote();
+    else if (act === "localmute") toggleLocalMute(id);
+  }
   // A click anywhere outside the picker or menu closes it.
   if (!event.target.closest("#reaction-picker, [data-action=reactions]")) toggleReactionPicker(false);
   if (!event.target.closest("#more-menu, [data-action=more]") && !$("#more-menu").hidden) toggleMenu(false);
@@ -2842,6 +2988,24 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     setCamera(!me.cam);
   }
+});
+
+// "?" opens the keyboard-shortcuts overlay, unless you're typing or a dialog is open.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "?" || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (!polling || document.querySelector("dialog[open]")) return;
+  const el = document.activeElement;
+  if (el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName))) return;
+  event.preventDefault();
+  openShortcuts();
+});
+
+// Enter in the note field saves it.
+$("#note-input").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  applyNote($("#note-input").value);
+  $("#note-dialog").close();
 });
 
 window.addEventListener("popstate", () => {

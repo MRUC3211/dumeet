@@ -371,6 +371,7 @@ class Peer:
         self.screen = False
         self.rec = False            # recording the meeting
         self.cc = False             # wants live captions
+        self.note = ""              # short status note shown on their tile
         self.inbox = queue.Queue()  # messages waiting for this tab's next poll
         self.polls = 0              # polls currently waiting
         self.last_seen = time.monotonic()
@@ -385,6 +386,7 @@ class Peer:
             "screen": self.screen,
             "rec": self.rec,
             "cc": self.cc,
+            "note": self.note,
         }
 
 
@@ -635,6 +637,8 @@ class Handler(BaseHTTPRequestHandler):
                 for key in ("mic", "cam", "hand", "screen", "rec", "cc"):
                     if isinstance(data.get(key), bool):
                         setattr(peer, key, data[key])
+                if isinstance(data.get("note"), str):
+                    peer.note = data["note"][:80]
             deliver(room, {"type": "state", "peer": peer.info()}, exclude=peer.id)
         else:
             # offer / answer / ice / chat / reaction / whiteboard / poll / sync /

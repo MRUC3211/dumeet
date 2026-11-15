@@ -383,6 +383,8 @@
           <button role="menuitem" data-action="record"><span class="icon" aria-hidden="true">radio_button_checked</span><span class="label">Record meeting</span></button>
           <button role="menuitem" data-action="hide-self"><span class="icon" aria-hidden="true">hide_image</span><span class="label">Hide self view</span></button>
           <button role="menuitem" data-action="fullscreen"><span class="icon" aria-hidden="true">fullscreen</span><span class="label">Full screen</span></button>
+          <button role="menuitem" data-action="immersive"><span class="icon" aria-hidden="true">visibility_off</span><span class="label" id="immersive-label">Immersive mode: off</span></button>
+          <button role="menuitem" data-action="shortcuts"><span class="icon" aria-hidden="true">keyboard</span><span class="label">Keyboard shortcuts</span></button>
           <button role="menuitem" data-tg="where"><span class="icon" aria-hidden="true">partly_cloudy_day</span><span class="label" id="where-label">Time & weather: off</span></button>
           <button role="menuitem" data-tg="saver"><span class="icon" aria-hidden="true">data_saver_on</span><span class="label" id="saver-label">Data saver: off</span></button>
           <button role="menuitem" data-action="settings"><span class="icon" aria-hidden="true">settings</span><span class="label">Settings</span></button>
@@ -541,18 +543,50 @@
     </form>
   </dialog>
 
+  <!-- Status note on your tile -->
+  <dialog id="note-dialog" class="dialog" aria-labelledby="note-title">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2 id="note-title">Add a note</h2>
+        <button class="icon-btn" value="close" aria-label="Close"><span class="icon" aria-hidden="true">close</span></button>
+      </div>
+      <p class="dialog-sub">Shows on your tile so the other person knows what's going on — handy when your camera or mic is off.</p>
+      <input id="note-input" class="field" maxlength="80" placeholder="e.g. Be right back" autocomplete="off">
+      <div id="note-presets" class="note-presets"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" data-action="note-clear">Clear note</button>
+        <button type="button" class="btn primary" data-action="note-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Keyboard shortcuts -->
+  <dialog id="shortcuts-dialog" class="dialog" aria-labelledby="shortcuts-title">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+        <button class="icon-btn" value="close" aria-label="Close"><span class="icon" aria-hidden="true">close</span></button>
+      </div>
+      <ul id="shortcuts-list" class="shortcuts-list"></ul>
+    </form>
+  </dialog>
+
   <template id="tile-template">
     <div class="tile">
       <video autoplay playsinline muted></video>
       <div class="avatar"><span></span></div>
+      <div class="tile-note" hidden></div>
       <div class="present-card">
         <span class="icon" aria-hidden="true">present_to_all</span>
         <p>You are presenting to everyone</p>
         <button class="btn outline" data-action="share">Stop presenting</button>
       </div>
       <div class="hand-badge"><span class="icon" aria-hidden="true">back_hand</span></div>
+      <div class="localmute-badge" title="Muted just for you"><span class="icon" aria-hidden="true">volume_off</span></div>
       <div class="tile-actions">
         <button class="tile-btn tile-flip" data-action="flip" title="Switch camera" aria-label="Switch camera"><span class="icon" aria-hidden="true">cameraswitch</span></button>
+        <button class="tile-btn tile-note-btn" data-tile-action="note" title="Add a note" aria-label="Add a note to your tile"><span class="icon" aria-hidden="true">edit_note</span></button>
+        <button class="tile-btn tile-mute-btn" data-tile-action="localmute" title="Mute for me" aria-label="Mute this person just for you"><span class="icon" aria-hidden="true">volume_up</span></button>
         <button class="tile-btn" data-tile-action="pin" title="Pin" aria-label="Pin"><span class="icon" aria-hidden="true">keep</span></button>
       </div>
       <div class="tile-name"><span class="icon pin-mark" aria-hidden="true">keep</span><span class="name"></span><span class="mic-off"><span class="icon" aria-hidden="true">mic_off</span></span></div>

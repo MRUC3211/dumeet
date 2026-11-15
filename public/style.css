@@ -244,6 +244,53 @@ button:disabled { cursor: default; }
 .tile.hand::after { box-shadow: inset 0 0 0 3px var(--color-accent-2); opacity: 1; }
 .tile.hand.speaking::after { box-shadow: inset 0 0 0 3px var(--color-accent); }
 
+/* Status note on a tile */
+.tile-note {
+  position: absolute; top: var(--space-sm); left: 50%; translate: -50% 0; z-index: 2;
+  max-width: calc(100% - 96px); padding: 5px 12px; border-radius: var(--radius-pill);
+  background: var(--glass); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-hi);
+  font-size: var(--text-sm); font-weight: 500; color: var(--color-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: toast-in var(--dur-short) var(--ease-out);
+}
+
+/* The note button is only yours; the local-mute button is only for others. */
+.tile-btn.tile-note-btn { display: none; }
+.tile.self .tile-btn.tile-note-btn { display: grid; }
+.tile.self .tile-btn.tile-mute-btn { display: none; }
+.tile.screen .tile-btn.tile-note-btn, .tile.screen .tile-btn.tile-mute-btn { display: none; }
+.localmute-badge {
+  position: absolute; top: var(--space-sm); right: calc(var(--space-sm) + 40px); width: 32px; height: 32px; border-radius: 50%;
+  background: var(--glass); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-hi);
+  display: none; place-items: center; color: var(--color-ink); z-index: 2;
+}
+.localmute-badge .icon { font-size: 18px; }
+.tile.muted-for-me .localmute-badge { display: grid; }
+
+/* Note editor + shortcuts dialog */
+.dialog-sub { margin: 0 0 var(--space-md); font-size: var(--text-sm); color: var(--color-muted); line-height: 1.45; }
+.note-presets { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-sm); }
+.note-chip {
+  border: 0; border-radius: var(--radius-pill); padding: 7px 14px; font-size: var(--text-sm); font-weight: 500;
+  background: var(--color-paper-3); color: var(--color-ink); cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+.note-chip:hover { background: color-mix(in oklab, var(--color-accent) 16%, var(--color-paper-3)); }
+.note-chip:active { transform: scale(0.96); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-lg); }
+.shortcuts-list { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: flex; flex-direction: column; }
+.shortcuts-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) 0; border-top: 1px solid var(--color-rule); font-size: var(--text-sm); }
+.shortcuts-list li:first-child { border-top: 0; }
+.shortcuts-list kbd {
+  font-family: var(--font-body); font-size: var(--text-xs); font-weight: 600; white-space: nowrap;
+  padding: 4px 9px; border-radius: 8px; background: var(--color-paper-3); color: var(--color-ink-2); box-shadow: inset 0 0 0 1px var(--color-rule);
+}
+
+/* Immersive mode: fade the furniture when idle */
+.controls, .meet-chip, .snap-float { transition: opacity var(--dur-short) var(--ease-out), transform var(--dur-short) var(--ease-out); }
+body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
+body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
+
 /* Pin */
 .tile-actions {
   position: absolute; top: 50%; left: 50%; translate: -50% -50%; z-index: 2; display: flex; gap: var(--space-xs);
