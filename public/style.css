@@ -291,6 +291,53 @@ button:disabled { cursor: default; }
 body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
 
+/* Gesture magic effects on a tile */
+.gfx-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.gfx { position: absolute; bottom: 6%; will-change: transform, opacity; animation: gfx-float 1.6s ease-out forwards; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); }
+@keyframes gfx-float {
+  0% { transform: translate(0, 0) scale(.3); opacity: 0; }
+  15% { opacity: 1; transform: translate(0, -8%) scale(1.15); }
+  100% { transform: translate(var(--dx), -120%) scale(1); opacity: 0; }
+}
+.gfx.big { animation-duration: 2s; bottom: 0; }
+.gfx.fly { left: 50%; bottom: 40%; animation: gfx-fly 1.9s cubic-bezier(.22, 1, .36, 1) forwards; }
+@keyframes gfx-fly {
+  0% { transform: translate(-50%, 0) scale(.3) rotate(-8deg); opacity: 0; }
+  20% { opacity: 1; transform: translate(-50%, -10%) scale(1.2); }
+  100% { transform: translate(-50%, -90%) scale(2.4) rotate(6deg); opacity: 0; }
+}
+.gfx-label {
+  position: absolute; left: 50%; top: 14%; transform: translateX(-50%); white-space: nowrap;
+  padding: 6px 15px; border-radius: var(--radius-pill); font-weight: 600; font-size: var(--text-sm); color: var(--color-ink);
+  background: var(--glass); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-hi);
+  animation: gfx-label 1.8s ease forwards;
+}
+@keyframes gfx-label {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.9); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Kiss Cam */
+body.kisscam::before {
+  content: ""; position: fixed; inset: 0; z-index: 1500; pointer-events: none;
+  box-shadow: inset 0 0 200px 50px rgba(255, 45, 120, .55);
+  animation: kiss-pulse 1.1s ease-in-out infinite alternate;
+}
+@keyframes kiss-pulse { from { box-shadow: inset 0 0 160px 40px rgba(255, 45, 120, .4); } to { box-shadow: inset 0 0 240px 70px rgba(255, 45, 120, .65); } }
+.kisscam-banner {
+  position: fixed; top: 40px; left: 50%; translate: -50% 0; z-index: 1600; display: flex; align-items: center; gap: 10px;
+  padding: 12px 26px; border-radius: var(--radius-pill); color: #fff; font-weight: 800; letter-spacing: .08em;
+  background: linear-gradient(90deg, #ff2d78, #c3379b); box-shadow: 0 20px 50px -16px rgba(255, 45, 120, .75);
+  animation: kiss-in .5s cubic-bezier(.34, 1.56, .64, 1);
+}
+.kisscam-banner b { font-size: 18px; }
+.kisscam-banner span { font-size: 22px; animation: kiss-bob .8s ease-in-out infinite alternate; }
+@keyframes kiss-in { from { opacity: 0; transform: translate(-50%, -16px) scale(.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes kiss-bob { from { transform: rotate(-8deg) scale(1); } to { transform: rotate(8deg) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { body.kisscam::before { animation: none; } .kisscam-banner span { animation: none; } }
+
 /* Pin */
 .tile-actions {
   position: absolute; top: 50%; left: 50%; translate: -50% -50%; z-index: 2; display: flex; gap: var(--space-xs);
