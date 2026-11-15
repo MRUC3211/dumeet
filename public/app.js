@@ -2392,7 +2392,8 @@ function addChatMessage(name, text, mine, media = []) {
   if (openPanel !== "chat" && !mine) {
     unread++;
     refreshUnread();
-    toast(`${name}: ${text || "sent a file"}`);
+    messagePopup(name, text, media);
+    chatPing();
   }
 }
 
@@ -2498,6 +2499,68 @@ function toast(text) {
   element.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { element.hidden = true; }, 3500);
+}
+
+// A premium little message card that slides in on the call screen when a chat
+// arrives, plus a soft chime. Tap it to jump into the conversation.
+function messagePopup(name, text, media = []) {
+  const stack = $("#chat-pops");
+  if (!stack) return;
+  const preview = text
+    || (media.length ? `Sent ${media.length > 1 ? media.length + " files" : "a " + (media[0].type || "file")}` : "");
+
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "msg-pop";
+  card.innerHTML =
+    '<span class="msg-pop-av"></span>' +
+    '<span class="msg-pop-body">' +
+      '<span class="msg-pop-top"><span class="msg-pop-name"></span><span class="msg-pop-tag">Message</span></span>' +
+      '<span class="msg-pop-text"></span>' +
+    '</span>';
+  const avatar = card.querySelector(".msg-pop-av");
+  avatar.textContent = initial(name);
+  avatar.style.setProperty("--avatar", colorFor(name));
+  card.querySelector(".msg-pop-name").textContent = name;
+  card.querySelector(".msg-pop-text").textContent = preview;
+
+  let timer;
+  const close = () => {
+    clearTimeout(timer);
+    if (!card.isConnected || card.classList.contains("out")) return;
+    card.classList.add("out");
+    setTimeout(() => card.remove(), 320);
+  };
+  card.addEventListener("click", () => { if (openPanel !== "chat") togglePanel("chat"); close(); });
+
+  stack.prepend(card);
+  while (stack.children.length > 3) stack.lastElementChild.remove();
+  timer = setTimeout(close, 5000);
+}
+
+// A gentle two-note chime, synthesised so there's no audio file to load.
+let pingCtx;
+function chatPing() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    pingCtx = pingCtx || new Ctx();
+    if (pingCtx.state === "suspended") pingCtx.resume();
+    const start = pingCtx.currentTime;
+    for (const [freq, offset] of [[1318.5, 0], [1760, 0.1]]) {
+      const osc = pingCtx.createOscillator();
+      const gain = pingCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const at = start + offset;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.11, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.42);
+      osc.connect(gain).connect(pingCtx.destination);
+      osc.start(at);
+      osc.stop(at + 0.45);
+    }
+  } catch { /* audio not available — the popup still shows */ }
 }
 
 function download(blob, name) {
