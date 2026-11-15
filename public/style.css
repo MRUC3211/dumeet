@@ -291,6 +291,35 @@ button:disabled { cursor: default; }
 body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
 
+/* "Future us" reveal card */
+.future-card {
+  position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px; overflow: auto;
+  background: radial-gradient(130% 120% at 50% -10%, #7a5cff 0%, #52379b 45%, #1c1340 100%);
+  opacity: 0; transition: opacity .45s ease;
+}
+.future-card.open { opacity: 1; }
+.fut-x { position: fixed; top: 18px; right: 18px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .14); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.fut-x:hover { background: rgba(255, 255, 255, .24); }
+.fut-inner { width: 100%; max-width: 480px; color: #fff; text-align: center; transform: translateY(16px); opacity: 0; transition: transform .5s cubic-bezier(.22, 1, .36, 1), opacity .5s; }
+.future-card.open .fut-inner { transform: none; opacity: 1; }
+.fut-eyebrow { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; opacity: .82; }
+.fut-title { margin: 0 0 22px; font-size: clamp(24px, 6vw, 34px); line-height: 1.2; font-weight: 700; }
+.fut-scenes { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.fut-scene {
+  display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 18px;
+  background: rgba(255, 255, 255, .1); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+  opacity: 0; transform: translateY(12px); animation: fut-rise .6s cubic-bezier(.22, 1, .36, 1) var(--d) forwards;
+}
+@keyframes fut-rise { to { opacity: 1; transform: none; } }
+.fut-emoji { font-size: 30px; line-height: 1.1; flex: none; }
+.fut-scene b { display: block; font-size: 15px; margin-bottom: 3px; }
+.fut-scene p { margin: 0; font-size: 14px; line-height: 1.5; opacity: .9; }
+.fut-line { margin: 24px 0 20px; font-size: 18px; font-weight: 500; line-height: 1.4; }
+.future-card .btn.primary { background: #fff; color: #52379b; }
+.future-card .btn.primary:hover { background: #fff; transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .fut-scene { animation-duration: .01ms; } }
+
 /* Gesture magic effects on a tile */
 .gfx-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
 .gfx { position: absolute; bottom: 6%; will-change: transform, opacity; animation: gfx-float 1.6s ease-out forwards; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); }

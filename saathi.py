@@ -719,6 +719,25 @@ ask, and keep both of them included.
             raise ValueError("Couldn't make a plan, add a few tasks first")
         return {"plan": plan, "tip": str(r.get("tip", ""))[:200]}
 
+    def future(self, names, years):
+        people = " and ".join(names) or "the two of you"
+        r = self.ask(
+            "You imagine a sweet, hopeful future for a loving adult couple who are long-distance right now and use a "
+            "private video-call app. Warm, wholesome and a little playful; grounded and believable, not cheesy or "
+            "over the top. Simple English with a gentle Hinglish touch now and then. Keep it respectful and kind, "
+            "nothing graphic, no other people's private details. Return JSON {\"title\": a short warm title, "
+            "\"scenes\": [exactly 4 objects {\"emoji\": one emoji, \"title\": 2-4 words, \"text\": one or two "
+            "sentences imagining that part of their life}], \"line\": one short closing line to end on}.",
+            f"Imagine {people} about {years} years from now, finally together. Picture their home, a little daily "
+            "ritual, a trip they take, and a moment that shows how close they are.", temperature=1.0)
+        scenes = []
+        for s in (r.get("scenes") or [])[:4] if isinstance(r, dict) else []:
+            if isinstance(s, dict) and s.get("text"):
+                scenes.append({"emoji": str(s.get("emoji", "✨"))[:4], "title": str(s.get("title", ""))[:40], "text": str(s["text"])[:300]})
+        if len(scenes) < 2:
+            raise ValueError("Couldn't picture it this time, try again")
+        return {"title": str(r.get("title", "Our future"))[:80] or "Our future", "scenes": scenes, "line": str(r.get("line", ""))[:200]}
+
 
 def handle(saathi, path, body, name_ok):
     """POST /api/ai/<action>. Returns a JSON-able dict, or raises ValueError (shown to the user)."""
@@ -833,6 +852,12 @@ def handle(saathi, path, body, name_ok):
         if not tasks:
             raise ValueError("Add a few tasks first")
         return saathi.plan(name, tasks, str(body.get("now", ""))[:20])
+    if action == "future":   # imagine the couple's life together, a fun game
+        try:
+            years = max(1, min(50, int(body.get("years", 10))))
+        except (TypeError, ValueError):
+            years = 10
+        return saathi.future(names, years)
     if action == "soften":
         return saathi.soften(str(body.get("text", "")), name)
     if action == "verdict":

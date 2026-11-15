@@ -204,6 +204,42 @@
   const photosHtml = () => admin.snaps.length ? `<div class="a-grid">${admin.snaps.map(snapHtml).join("")}</div>`
     : `<div class="empty-art"><span class="icon">photo_camera</span><p>Photos taken with the camera button in a call show up here. Only you can see them.</p></div>`;
 
+  // A scrapbook of your call photos: newest first, grouped by day, with an
+  // "On this day" shelf and gentle milestones. Private — only the admin sees it.
+  function scrapbookHtml() {
+    const snaps = [...admin.snaps].sort((a, b) => (b.data.at || 0) - (a.data.at || 0));
+    if (!snaps.length) {
+      return `<div class="empty-art"><span class="icon">auto_stories</span><p>Your scrapbook fills up as you take photos in calls (the camera button). Only you can see them.</p></div>`;
+    }
+    const now = new Date();
+    const sameDay = (ts, d) => { const x = new Date(ts || 0); return x.getDate() === d.getDate() && x.getMonth() === d.getMonth(); };
+    const onThis = snaps.filter((s) => sameDay(s.data.at, now) && new Date(s.data.at || 0).getFullYear() !== now.getFullYear());
+    const byDay = new Map();
+    for (const s of snaps) { const k = dayKey(new Date(s.data.at || 0)); (byDay.get(k) || byDay.set(k, []).get(k)).push(s); }
+    const oldestDay = [...byDay.keys()].pop();
+    const people = new Set(snaps.map((s) => s.data.by).filter(Boolean)).size;
+
+    let html = `<div class="a-scrap">
+      <div class="a-stats three"><div><b>${snaps.length}</b><span>photos</span></div><div><b>${byDay.size}</b><span>days</span></div><div><b>${people || 1}</b><span>of you</span></div></div>`;
+    if (onThis.length) {
+      html += `<section class="scrap-onthis"><p class="a-label"><span class="icon">cake</span>On this day</p><p class="muted small">You took ${onThis.length} photo${onThis.length > 1 ? "s" : ""} on this date in another year.</p><div class="a-grid">${onThis.map(snapHtml).join("")}</div></section>`;
+    }
+    let count = 0;
+    for (const [day, items] of byDay) {
+      const d = new Date(items[0].data.at || 0);
+      const milestones = [];
+      const before = snaps.length - count; // running count from newest; total up to and including this day
+      if (day === oldestDay) milestones.push("🌱 Your first photos together");
+      for (const m of [100, 50, 25, 10]) if (before >= m && before - items.length < m) { milestones.push(`🎉 ${m} photos!`); break; }
+      count += items.length;
+      html += `<section class="scrap-day">
+        <p class="scrap-date">${d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${items.length} photo${items.length > 1 ? "s" : ""}</p>
+        ${milestones.map((m) => `<p class="scrap-mile">${esc(m)}</p>`).join("")}
+        <div class="a-grid">${items.map(snapHtml).join("")}</div></section>`;
+    }
+    return html + `</div>`;
+  }
+
   function securityHtml() {
     const fails = admin.logins.filter((l) => !l.data.ok && Date.now() / 1000 - l.data.at < 86400).length;
     const locked = admin.locked.length
@@ -235,6 +271,7 @@
   const BASE_TABS = [
     { id: "overview", label: "Overview", icon: "space_dashboard", group: "Insights", html: overviewHtml },
     { id: "sessions", label: "Sessions", icon: "history", group: "Insights", html: sessionsHtml },
+    { id: "scrapbook", label: "Scrapbook", icon: "auto_stories", group: "Data", html: scrapbookHtml, badge: () => admin.snaps.length || "", onOpen: scrapConfetti },
     { id: "photos", label: "Photos", icon: "photo_library", group: "Data", html: photosHtml, badge: () => admin.snaps.length || "" },
     { id: "security", label: "Security", icon: "shield_lock", group: "Control", html: securityHtml },
     { id: "settings", label: "Profiles & data", icon: "manage_accounts", group: "Data", html: settingsHtml },
@@ -267,7 +304,29 @@
     admin.tab = id;
     const tab = allTabs().find((t) => t.id === id);
     renderAdmin();
+    tab?.onOpen?.();
     if (tab?.load) Promise.resolve(tab.load()).then(() => { if (admin.tab === id) renderAdmin(); }).catch(() => {});
+  }
+
+  // A quick confetti burst when the scrapbook opens.
+  function scrapConfetti() {
+    if (!admin.snaps.length) return;
+    const host = q(".a-view", adminBody());
+    if (!host) return;
+    const cols = ["#ff375f", "#ffd60a", "#0a84ff", "#30d158", "#bf5af2", "#ff9f0a"];
+    const layer = document.createElement("div");
+    layer.className = "scrap-confetti";
+    for (let i = 0; i < 40; i++) {
+      const bit = document.createElement("i");
+      bit.style.left = Math.random() * 100 + "%";
+      bit.style.background = cols[i % cols.length];
+      bit.style.animationDelay = (Math.random() * 0.3) + "s";
+      bit.style.animationDuration = (1.2 + Math.random() * 0.9) + "s";
+      bit.style.transform = `rotate(${Math.random() * 360}deg)`;
+      layer.append(bit);
+    }
+    host.append(layer);
+    setTimeout(() => layer.remove(), 2600);
   }
 
   function downloadText(name, text) {
