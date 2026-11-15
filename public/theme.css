@@ -536,6 +536,27 @@ body { -webkit-tap-highlight-color: transparent; }
 .as-line button { border: 0; background: none; padding: 0; color: var(--color-accent); font: inherit; cursor: pointer; }
 .as-line button:hover { text-decoration: underline; }
 #home-status.waiting { background: #e9fbe9; box-shadow: 0 0 0 1px #b8ecc1; color: #146c2e; font-weight: 600; }
+#home-status.away { background: #fff4e6; box-shadow: 0 0 0 1px #f3d9b0; color: #8a5a12; }
+#home-status.away .live-dot { background: #c7c7cc; animation: none; box-shadow: none; }
+
+/* Leave a note */
+.note-big { height: 64px; padding: 0 24px; border-radius: 999px; font-size: 16px; font-weight: 600; gap: 10px; }
+.note-big .icon { color: #ff2d78; font-variation-settings: "FILL" 1; }
+.note-big:hover { transform: translateY(-2px); }
+.note-big:active { transform: scale(.97); }
+.lovenote-field { width: 100%; min-height: 96px; resize: vertical; padding: 12px 14px; font: inherit; font-size: 15px; line-height: 1.5; margin-top: 6px; }
+.lovenote-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 20px; }
+
+.lovenote-card { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px; background: radial-gradient(130% 120% at 50% 0%, #ff6aa6 0%, #c3379b 48%, #6a2d8f 100%); opacity: 0; transition: opacity .4s ease; }
+.lovenote-card.open { opacity: 1; }
+.ln-inner { max-width: 440px; text-align: center; color: #fff; transform: translateY(18px) scale(.96); opacity: 0; transition: transform .55s cubic-bezier(.22, 1, .36, 1), opacity .55s; }
+.lovenote-card.open .ln-inner { transform: none; opacity: 1; }
+.ln-seal { font-size: 76px; filter: drop-shadow(0 14px 34px rgba(0, 0, 0, .3)); animation: ln-pop .6s cubic-bezier(.34, 1.56, .64, 1) both; }
+@keyframes ln-pop { from { transform: scale(0) rotate(-14deg); } to { transform: none; } }
+.ln-from { margin: 20px 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; opacity: .82; }
+.ln-body { margin: 0 0 30px; font-size: clamp(20px, 5vw, 26px); line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; }
+.lovenote-card .btn.primary { background: #fff; color: #c3379b; }
+.lovenote-card .btn.primary:hover { background: #fff; transform: translateY(-1px); }
 
 .who-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .who { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 12px; border: 0; border-radius: 20px; background: #f5f5f7; color: #1d1d1f; font: 600 16px var(--font-body); transition: transform .2s var(--ease), background .2s; }

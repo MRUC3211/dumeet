@@ -485,20 +485,99 @@
     }
   }
 
-  // who is already in our room, shown on the home screen
+  // Presence on the home screen: who's in the room, online, or last seen when.
+  const PEOPLE = ["Uday", "Diya"];
+  const PARTNER = () => PEOPLE.find((p) => p.toLowerCase() !== String(prefs.name || "").toLowerCase());
+  function agoText(s) {
+    if (s < 60) return "just now";
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h} hr ago`;
+    return `${Math.round(h / 24)} day${Math.round(h / 24) === 1 ? "" : "s"} ago`;
+  }
   let presenceTimer = 0;
   async function refreshPresence() {
     clearTimeout(presenceTimer);
     if (document.body.dataset.view !== "home") return;
     const pill = q("#home-status");
+    const label = q("span:last-child", pill);
     try {
-      const { names } = await (await fetch(`/api/room?room=${OUR_ROOM}`)).json();
+      const { names, seen } = await (await fetch(`/api/room?room=${OUR_ROOM}&me=${encodeURIComponent(prefs.name || "")}`)).json();
       const others = names.filter((n) => n !== prefs.name);
-      pill.classList.toggle("waiting", others.length > 0);
-      q("span:last-child", pill).textContent = others.length ? `${others.join(" & ")} ${others.length > 1 ? "are" : "is"} waiting for you` : "Your private room";
+      const partner = PARTNER();
+      const ago = seen && partner ? Object.entries(seen).find(([n]) => n.toLowerCase() === partner.toLowerCase())?.[1] : undefined;
+      if (others.length) {
+        pill.classList.add("waiting"); pill.classList.remove("away");
+        label.textContent = `${others.join(" & ")} ${others.length > 1 ? "are" : "is"} waiting for you`;
+      } else if (ago != null && ago < 50) {
+        pill.classList.add("waiting"); pill.classList.remove("away");
+        label.textContent = `${partner} is online`;
+      } else if (ago != null && partner) {
+        pill.classList.remove("waiting"); pill.classList.add("away");
+        label.textContent = `${partner} · last seen ${agoText(ago)}`;
+      } else {
+        pill.classList.remove("waiting", "away");
+        label.textContent = "Your private room";
+      }
       joinButton.classList.toggle("pulse", others.length > 0);
     } catch { /* offline: leave as is */ }
     presenceTimer = setTimeout(refreshPresence, 8000);
+  }
+
+  // ---------- love notes: leave one; it arrives the next time they open DU Meet ----------
+
+  const LOVE_CHIPS = ["Miss you 🥺", "Thinking of you 💭", "Call me when free 📞", "Good night 🌙", "You're the best 💖"];
+
+  function openLovenote() {
+    if (!prefs.name) return askWho(false);
+    q("#lovenote-text").value = "";
+    q("#lovenote-sub").textContent = `${PARTNER()} will see this the next time they open DU Meet.`;
+    const chips = q("#lovenote-chips");
+    chips.replaceChildren();
+    for (const text of LOVE_CHIPS) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "note-chip";
+      chip.textContent = text;
+      chip.addEventListener("click", () => { q("#lovenote-text").value = text; q("#lovenote-text").focus(); });
+      chips.append(chip);
+    }
+    openModal(q("#m-lovenote"));
+  }
+
+  async function sendLovenote() {
+    const text = q("#lovenote-text").value.trim().slice(0, 300);
+    if (!text) return;
+    try {
+      await fetch("/api/data", { method: "POST", body: JSON.stringify({ c: "lovenotes", data: { to: PARTNER(), from: prefs.name, text, at: Date.now() } }) });
+      closeModal(q("#m-lovenote"));
+      toast(`Note left for ${PARTNER()} 💌`);
+    } catch { toast("Couldn't leave the note. Check the internet."); }
+  }
+
+  let lovenoteQueue = [];
+  async function deliverLovenotes() {
+    if (!prefs.name || document.body.dataset.view !== "home") return;
+    try {
+      const { docs } = await (await fetch("/api/data?c=lovenotes")).json();
+      lovenoteQueue = (docs || [])
+        .filter((d) => String(d.data?.to || "").toLowerCase() === prefs.name.toLowerCase() && d.data?.text)
+        .sort((a, b) => (a.data.at || 0) - (b.data.at || 0));
+      showNextLovenote();
+    } catch { /* offline */ }
+  }
+
+  function showNextLovenote() {
+    const card = q("#lovenote-card");
+    const note = lovenoteQueue.shift();
+    if (!note) { card.hidden = true; card.classList.remove("open"); return; }
+    q("#ln-from").textContent = `From ${note.data.from || PARTNER()}`;
+    q("#ln-body").textContent = note.data.text;
+    card.hidden = false;
+    requestAnimationFrame(() => card.classList.add("open"));
+    // Once it's been seen, it's delivered — remove it so it doesn't show again.
+    fetch(`/api/data?c=lovenotes&id=${encodeURIComponent(note.id)}`, { method: "DELETE" }).catch(() => {});
   }
 
   // ---------- theme: Auto (device) → Light → Dark ----------
@@ -529,7 +608,13 @@
         who: () => askWho(false),
         other: () => openModal(q("#m-other")),
         theme: cycleTheme,
+        lovenote: openLovenote,
       })[button.dataset.home]?.();
+    }
+    const act = event.target.closest("[data-action]");
+    if (act) {
+      if (act.dataset.action === "lovenote-send") sendLovenote();
+      else if (act.dataset.action === "lovenote-next") showNextLovenote();
     }
     const who = event.target.closest("[data-who]");
     if (who) setWho(who.dataset.who);
@@ -540,7 +625,7 @@
 
   window.DU = Object.assign(window.DU || {}, {
     openModal, closeModal,
-    onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); },
+    onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); setTimeout(deliverLovenotes, 600); },
     faceFor(name) {
       const key = Object.keys(avatars).find((k) => k.toLowerCase() === String(name || "").trim().toLowerCase());
       return key && avatars[key] ? window.authUrl(avatars[key]) : "";

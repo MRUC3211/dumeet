@@ -227,7 +227,17 @@ def apply_limits():
 
 apply_limits()
 last_ring = {}  # caller name -> time, so a ring can't be spammed
-COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins"}
+seen_at = {}    # lowercased name -> (display name, wall-clock time) for "online / last seen"
+
+
+def touch_seen(name):
+    """Remember that someone was active just now, for presence on the home screen."""
+    name = (name or "").strip()[:40]
+    if name:
+        seen_at[name.lower()] = (name, time.time())
+
+
+COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins", "lovenotes"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MAX_RECORDING = 80 * 1024 * 1024    # call recordings uploaded to the admin panel (bigger ones save to the device)
@@ -503,7 +513,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/poll":
                 self.poll(params)
             elif path == "/api/room":
-                self.send_json({"names": [peer.name for peer in members(params.get("room", ""))]})
+                touch_seen(params.get("me", ""))
+                now = time.time()
+                presence = {disp: round(now - ts) for disp, ts in seen_at.values()}
+                self.send_json({"names": [peer.name for peer in members(params.get("room", ""))], "seen": presence})
             elif path == "/api/wrapped":
                 month = params.get("m", "")
                 if len(month) != 7 or month[4] != "-" or not month.replace("-", "").isdigit():
@@ -1037,6 +1050,7 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             peer.polls -= 1
             peer.last_seen = time.monotonic()
+            touch_seen(peer.name)
         try:
             self.send_json({"messages": messages})
         except OSError:

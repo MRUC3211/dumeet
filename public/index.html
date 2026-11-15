@@ -77,6 +77,7 @@
         <div class="cta-row">
           <button class="btn primary join-big" data-home="join"><span class="icon" aria-hidden="true">videocam</span><span>Join</span></button>
           <button class="btn glass ring-big" data-home="ring"><span class="icon" aria-hidden="true">ring_volume</span><span class="ring-label">Ring</span></button>
+          <button class="btn glass note-big" data-home="lovenote"><span class="icon" aria-hidden="true">mail</span><span>Leave a note</span></button>
         </div>
         <p class="as-line" id="home-as" hidden></p>
         <button class="alerts-line" id="alerts-line" data-home="alerts" hidden></button>
@@ -516,6 +517,29 @@
   </div>
 
   <div id="m-lightbox" class="modal lightbox" hidden><img id="lightbox-img" alt=""><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></div>
+
+  <!-- Leave a love note -->
+  <div id="m-lovenote" class="modal" hidden>
+    <div class="sheet narrow light" role="dialog" aria-modal="true" aria-labelledby="ln-title">
+      <header class="sheet-head"><h2 id="ln-title">Leave a note 💌</h2><button class="icon-btn" data-modal-close aria-label="Close"><span class="icon">close</span></button></header>
+      <div class="sheet-body">
+        <p class="muted" id="lovenote-sub">A little message that shows up the next time they open DU Meet.</p>
+        <textarea id="lovenote-text" class="field lovenote-field" maxlength="300" rows="3" placeholder="Write something sweet…"></textarea>
+        <div class="lovenote-chips" id="lovenote-chips"></div>
+        <button class="btn primary wide big" data-action="lovenote-send"><span class="icon" aria-hidden="true">send</span>Leave the note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- A love note being delivered -->
+  <div id="lovenote-card" class="lovenote-card" hidden>
+    <div class="ln-inner">
+      <div class="ln-seal" aria-hidden="true">💌</div>
+      <p class="ln-from" id="ln-from"></p>
+      <p class="ln-body" id="ln-body"></p>
+      <button class="btn primary" data-action="lovenote-next">Aww 🥰</button>
+    </div>
+  </div>
 
   <!-- Audio and video settings -->
   <dialog id="settings-dialog" class="dialog" aria-labelledby="settings-title">
