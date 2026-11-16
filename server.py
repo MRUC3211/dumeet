@@ -237,7 +237,7 @@ def touch_seen(name):
         seen_at[name.lower()] = (name, time.time())
 
 
-COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins", "lovenotes"}
+COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins", "lovenotes", "messages"}
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MAX_RECORDING = 80 * 1024 * 1024    # call recordings uploaded to the admin panel (bigger ones save to the device)

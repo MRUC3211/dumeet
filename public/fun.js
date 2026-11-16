@@ -534,6 +534,7 @@
       const id = newMsgId();
       send("chat", { id, text: "", media: item });
       addChatMessage(me.name, "", true, item, { id, senderId: me.id });
+      window.DU?.messenger?.persist(me.name, "", item);
     } catch { toast("Couldn't send the voice message"); }
   }
 

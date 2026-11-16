@@ -3149,6 +3149,7 @@ $("#chat-form").addEventListener("submit", (event) => {
     const reply = composing?.mode === "reply" ? { id: composing.id, name: composing.name, text: (composing.text || "").slice(0, 80) } : null;
     send("chat", { id, text, reply });
     addChatMessage(me.name, text, true, [], { id, reply, senderId: me.id });
+    window.DU?.messenger?.persist(me.name, text, []);
   }
   cancelCompose();
   $("#chat-input").value = "";

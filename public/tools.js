@@ -908,6 +908,7 @@
     const id = newMsgId();
     send("chat", { id, text: "", media: items });
     addChatMessage(me.name, "", true, items, { id, senderId: me.id });
+    window.DU?.messenger?.persist(me.name, "", items);
   });
 
   // ---------- weak network: voice only ----------

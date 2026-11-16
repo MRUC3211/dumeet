@@ -1,0 +1,120 @@
+// DU Meet · Messenger: a persistent conversation you can open any time, even
+// outside a call. Messages are stored on the server (the "messages" collection),
+// so history is kept and a message sent while the other is away is waiting for
+// them next time. In-call chat is persisted here too, so it's one thread.
+// Uses globals from app.js (prefs, toast, window.authUrl) and window.DU.
+
+(() => {
+  "use strict";
+  const q = (s, r = document) => r.querySelector(s);
+  const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const PEOPLE = ["Uday", "Diya"];
+  const partner = () => PEOPLE.find((p) => p.toLowerCase() !== String(prefs.name || "").toLowerCase()) || "them";
+  const authUrl = (u) => (window.authUrl ? window.authUrl(u) : u);
+
+  const SEEN_KEY = "du-msg-seen";
+  let seen = 0; try { seen = +localStorage.getItem(SEEN_KEY) || 0; } catch { /* private */ }
+  const setSeen = (t) => { seen = Math.max(seen, t || 0); try { localStorage.setItem(SEEN_KEY, seen); } catch { /* private */ } };
+
+  let msgs = [], el = null, pollT = 0;
+
+  async function fetchMsgs() {
+    try {
+      const { docs } = await (await fetch("/api/data?c=messages")).json();
+      msgs = (docs || []).map((d) => ({ id: d.id, ...d.data })).filter((m) => m && m.at).sort((a, b) => a.at - b.at);
+      return true;
+    } catch { return false; }
+  }
+  async function store(doc) {
+    const r = await fetch("/api/data", { method: "POST", body: JSON.stringify({ c: "messages", data: doc }) });
+    return (await r.json().catch(() => ({}))).doc;
+  }
+
+  // called by the in-call chat and by this sheet to save + show a message
+  async function persist(from, text, media) {
+    if (!text && !(media && media.length)) return;
+    const doc = { from: from || prefs.name || "", text: text || "", media: media || [], at: Date.now() };
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); } } catch { /* offline */ }
+  }
+
+  async function open() {
+    build();
+    await fetchMsgs();
+    render(true);
+    if (msgs.length) setSeen(msgs[msgs.length - 1].at);
+    paintBadge();
+    clearInterval(pollT);
+    pollT = setInterval(async () => { if (!el) return; const n = msgs.length, last = msgs[n - 1]?.at; await fetchMsgs(); if (msgs.length !== n || msgs[msgs.length - 1]?.at !== last) render(true); }, 5000);
+  }
+  function close() { clearInterval(pollT); el?.remove(); el = null; paintBadge(); }
+
+  function build() {
+    if (el) return;
+    el = document.createElement("div");
+    el.className = "msgr";
+    el.innerHTML = `
+      <div class="msgr-sheet">
+        <header class="msgr-head">
+          <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
+          <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+        </header>
+        <div class="msgr-list" id="msgr-list"></div>
+        <form class="msgr-form" id="msgr-form">
+          <label class="icon-btn" title="Photo" aria-label="Send a photo"><span class="icon">add_photo_alternate</span><input type="file" accept="image/*" id="msgr-file" hidden></label>
+          <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
+          <button class="icon-btn send" aria-label="Send"><span class="icon">arrow_upward</span></button>
+        </form>
+      </div>`;
+    document.body.append(el);
+    requestAnimationFrame(() => el.classList.add("open"));
+    q("#msgr-name").textContent = partner();
+    const av = q("#msgr-av"); const face = window.DU?.faceFor?.(partner());
+    if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
+    el.addEventListener("click", (e) => { if (e.target.closest("[data-m=close]")) close(); });
+    q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; persist(prefs.name, t, []); });
+    q("#msgr-file").addEventListener("change", async (e) => {
+      const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+      if (f.size > 25 * 1024 * 1024) return toast("Photo 25MB se chhoti honi chahiye");
+      toast("Sending…");
+      try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name }]); } catch { toast("Photo send nahi hui"); }
+    });
+  }
+
+  function dayLabel(d) {
+    const t = new Date(), y = new Date(Date.now() - 864e5);
+    if (d.toDateString() === t.toDateString()) return "Today";
+    if (d.toDateString() === y.toDateString()) return "Yesterday";
+    return d.toLocaleDateString([], { day: "numeric", month: "short", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" });
+  }
+  const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  function render(scroll) {
+    const list = q("#msgr-list"); if (!list) return;
+    if (!msgs.length) { list.innerHTML = `<div class="msgr-empty"><span class="icon">chat</span><p>Koi message nahi abhi — pehla bhejo 💬</p></div>`; return; }
+    let html = "", lastDay = "";
+    for (const m of msgs) {
+      const d = new Date(m.at), day = d.toDateString();
+      if (day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
+      const mine = String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
+      const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      html += `<div class="msgr-b ${mine ? "me" : "them"}">`;
+      if (Array.isArray(m.media)) html += m.media.filter((x) => x && typeof x.url === "string" && x.url.startsWith("/api/media/")).map((x) => `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`).join("");
+      if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
+      html += `<span class="msgr-time">${time}</span></div>`;
+    }
+    list.innerHTML = html;
+    setSeen(msgs[msgs.length - 1].at);
+    if (scroll) list.scrollTop = list.scrollHeight;
+  }
+
+  const unread = () => msgs.filter((m) => m.at > seen && String(m.from || "").toLowerCase() !== String(prefs.name || "").toLowerCase()).length;
+  function paintBadge() { const b = q("#msgr-badge"); if (!b) return; const n = unread(); b.textContent = n > 9 ? "9+" : String(n); b.hidden = !n; }
+  async function refresh() { await fetchMsgs(); paintBadge(); }
+
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-home=messages]")) open(); });
+
+  window.DU = window.DU || {};
+  window.DU.messenger = { open, persist, refresh };
+  const prevHome = window.DU.onHome;
+  window.DU.onHome = function (...a) { prevHome?.apply(this, a); setTimeout(refresh, 400); };
+})();
