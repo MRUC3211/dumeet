@@ -738,6 +738,29 @@ ask, and keep both of them included.
             raise ValueError("Couldn't picture it this time, try again")
         return {"title": str(r.get("title", "Our future"))[:80] or "Our future", "scenes": scenes, "line": str(r.get("line", ""))[:200]}
 
+    def smartreply(self, conv):
+        r = self.ask(
+            "You suggest 3 short, natural quick replies for a person replying to their partner in a private chat. "
+            "Warm and casual, a little Hinglish is fine, nothing graphic. Each under 40 characters, all different, "
+            "no surrounding quotes. Return JSON {\"replies\": [3 strings]}.",
+            f"The other person just said: {conv}", temperature=0.9)
+        reps = [str(x).strip()[:60] for x in (r.get("replies") or []) if isinstance(x, str) and x.strip()] if isinstance(r, dict) else []
+        if not reps:
+            raise ValueError("No suggestions")
+        return {"replies": reps[:3]}
+
+    def summarize(self, text):
+        r = self.ask(
+            "You briefly and kindly summarize a couple's conversation (from their call captions and chat). Give 3-5 "
+            "short bullet points: what they talked about, anything they decided or planned. Simple English with a "
+            "little Hinglish, warm, no judgement, no private details beyond what's written. Return JSON "
+            "{\"points\": [short strings], \"line\": one warm closing line}.",
+            f"Conversation:\n{text[:6000]}", temperature=0.5)
+        pts = [str(x).strip()[:200] for x in (r.get("points") or []) if isinstance(x, str) and x.strip()] if isinstance(r, dict) else []
+        if not pts:
+            raise ValueError("Summarize karne ko kuch nahi mila")
+        return {"points": pts[:6], "line": str(r.get("line", ""))[:200]}
+
 
 def handle(saathi, path, body, name_ok):
     """POST /api/ai/<action>. Returns a JSON-able dict, or raises ValueError (shown to the user)."""
@@ -858,6 +881,16 @@ def handle(saathi, path, body, name_ok):
         except (TypeError, ValueError):
             years = 10
         return saathi.future(names, years)
+    if action == "smartreply":
+        conv = str(body.get("text", "")).strip()[:1000]
+        if not conv:
+            raise ValueError("No message")
+        return saathi.smartreply(conv)
+    if action == "summary":   # summarize a call's captions + chat, or unread messages
+        text = str(body.get("text", ""))
+        if len(text.strip()) < 20:
+            raise ValueError("Pehle thodi baat-cheet honi chahiye")
+        return saathi.summarize(text)
     if action == "soften":
         return saathi.soften(str(body.get("text", "")), name)
     if action == "verdict":

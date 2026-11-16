@@ -70,12 +70,14 @@
         <header class="msgr-head">
           <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
           <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+          <button class="icon-btn" data-m="catchup" title="Catch me up" aria-label="Catch me up"><span class="icon">auto_awesome</span></button>
           <button class="icon-btn msgr-vanish-btn" data-m="vanish" aria-label="Disappearing messages"><span class="icon">timer</span></button>
           <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
           <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
         <div class="msgr-potd" id="msgr-potd" hidden><span class="icon">photo_camera</span><div><b>Photo of the day</b><small>Aaj ki ek photo/selfie bhejo 📸</small></div><button type="button" class="btn primary small-btn" data-m="potd-send">Send</button><button type="button" class="icon-btn" data-m="potd-x" aria-label="Dismiss"><span class="icon">close</span></button></div>
         <div class="msgr-list" id="msgr-list"></div>
+        <div class="msgr-smart" id="msgr-smart" hidden></div>
         <div class="msgr-replybar" id="msgr-replybar" hidden><div class="msgr-rb-info"><b id="msgr-rb-name"></b><span id="msgr-rb-text"></span></div><button type="button" class="icon-btn" data-m="cancel-reply" aria-label="Cancel"><span class="icon">close</span></button></div>
         <div class="msgr-stickers" id="msgr-stickers" hidden></div>
         <form class="msgr-form" id="msgr-form">
@@ -108,6 +110,8 @@
       if (e.target.closest("[data-m=potd-x]")) { potdDone(); return (q("#msgr-potd").hidden = true); }
       if (e.target.closest("[data-m=attach]")) return toggleAttach(e.target.closest("[data-m=attach]"));
       if (e.target.closest("[data-m=vanish]")) return toggleVanish();
+      if (e.target.closest("[data-m=catchup]")) return catchUp();
+      const sm = e.target.closest("[data-smart]"); if (sm) { persist(prefs.name, sm.dataset.smart, []); q("#msgr-smart").hidden = true; smartFor = "sent"; return; }
       const ab = e.target.closest("[data-a]"); if (ab) { q("#msgr-attachpop").hidden = true; const a = ab.dataset.a; if (a === "photo") q("#msgr-file").click(); else if (a === "once") q("#msgr-file-once").click(); else if (a === "location") shareLocation(); return; }
       const vo = e.target.closest("[data-once]"); if (vo) return revealOnce(+vo.dataset.once);
       if (e.target.closest("[data-m=gallery]")) return openGallery();
@@ -189,6 +193,37 @@
     setSeen(now);
     if (scroll) list.scrollTop = list.scrollHeight;
     loadPreviews();
+    maybeSmart();
+  }
+
+  // ---------- AI: smart replies + catch me up ----------
+  let smartFor = null;
+  async function maybeSmart() {
+    const smart = q("#msgr-smart"); if (!smart) return;
+    const last = msgs[msgs.length - 1];
+    const mine = last && String(last.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
+    if (!last || mine || !last.text || last.id === smartFor) { if (!last || mine) smart.hidden = true; return; }
+    smartFor = last.id;
+    try {
+      const res = await fetch("/api/ai/smartreply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: last.text.slice(0, 500) }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.replies || !data.replies.length) { smart.hidden = true; return; }
+      smart.innerHTML = data.replies.map((r) => `<button data-smart="${esc(r)}">${esc(r)}</button>`).join("");
+      smart.hidden = false;
+    } catch { smart.hidden = true; }
+  }
+  async function catchUp() {
+    const now = Date.now();
+    const recent = msgs.filter((m) => !(m.sendAt && m.sendAt > now) && !m.deleted && (m.text || m.sticker)).slice(-30)
+      .map((m) => `${String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase() ? "You" : (m.from || "Them")}: ${m.text || m.sticker}`).join("\n");
+    if (recent.trim().length < 20) return toast("Abhi summarize karne ko kaafi messages nahi");
+    toast("Catching up…");
+    try {
+      const res = await fetch("/api/ai/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: recent }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || "failed");
+      (window.DU.aiCard || (() => toast("Summary ready")))("Catch me up", data.points, data.line);
+    } catch (error) { toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Hey Lord on karo (AI key)" : "Summary nahi bani"); }
   }
 
   // ---------- link previews ----------

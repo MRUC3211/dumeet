@@ -2992,6 +2992,40 @@ function openShortcuts() {
   $("#shortcuts-dialog").showModal();
 }
 
+// ---------- AI call summary ----------
+
+async function aiSummary() {
+  toggleMenu(false);
+  const text = notes.filter((n) => n.kind === "chat" || n.kind === "caption").map((n) => `${n.name}: ${n.text}`).join("\n");
+  if (text.trim().length < 20) return toast("Abhi summarize karne ko kaafi baat nahi hui — captions (CC) on karo ya chat karo");
+  toast("Summary bana rahe hain…");
+  try {
+    const res = await fetch("/api/ai/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, kind: "call" }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error || "failed");
+    showAiCard("Call summary", data.points, data.line);
+  } catch (error) {
+    toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Hey Lord on karo (AI key server par)" : "Summary nahi bani, try again");
+  }
+}
+
+function showAiCard(title, points, line) {
+  const el = document.createElement("div");
+  el.className = "ai-card";
+  const inner = document.createElement("div");
+  inner.className = "ai-card-in";
+  inner.innerHTML = `<button class="ai-x" aria-label="Close"><span class="icon" aria-hidden="true">close</span></button><p class="ai-eyebrow">✨ ${title}</p><ul class="ai-points"></ul>`;
+  const ul = inner.querySelector(".ai-points");
+  for (const p of points || []) { const li = document.createElement("li"); li.textContent = p; ul.append(li); }
+  if (line) { const pl = document.createElement("p"); pl.className = "ai-line"; pl.textContent = line; inner.append(pl); }
+  el.append(inner);
+  document.body.append(el);
+  requestAnimationFrame(() => el.classList.add("open"));
+  el.addEventListener("click", (e) => { if (e.target.closest(".ai-x") || e.target === el) el.remove(); });
+}
+window.DU = window.DU || {};
+window.DU.aiCard = showAiCard;
+
 // ---------- Immersive mode: let the controls fade away when you're idle ----------
 
 let immersive = false;
@@ -3064,6 +3098,7 @@ const actions = {
   "note-save": () => { applyNote($("#note-input").value); $("#note-dialog").close(); },
   "note-clear": () => { applyNote(""); $("#note-dialog").close(); },
   shortcuts: openShortcuts,
+  summary: aiSummary,
   immersive: () => setImmersive(!immersive),
   settings: openSettings,
   "poll-add-option": addPollOption,

@@ -292,6 +292,21 @@ button:disabled { cursor: default; }
 body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
 
+/* AI summary card + smart replies */
+.ai-card { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px; overflow: auto; background: radial-gradient(130% 120% at 50% -10%, #5e5ce6 0%, #3a2f7a 45%, #16122e 100%); opacity: 0; transition: opacity .4s ease; }
+.ai-card.open { opacity: 1; }
+.ai-card-in { position: relative; width: 100%; max-width: 440px; color: #fff; transform: translateY(16px); opacity: 0; transition: transform .5s cubic-bezier(.22, 1, .36, 1), opacity .5s; }
+.ai-card.open .ai-card-in { transform: none; opacity: 1; }
+.ai-x { position: fixed; top: 16px; right: 16px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .14); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.ai-eyebrow { margin: 0 0 16px; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+.ai-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ai-points li { position: relative; padding: 12px 14px 12px 38px; border-radius: 14px; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); font-size: 15px; line-height: 1.4; }
+.ai-points li::before { content: "•"; position: absolute; left: 15px; top: 9px; font-size: 22px; color: #a7a3ff; }
+.ai-line { margin: 20px 0 0; font-size: 16px; font-weight: 500; text-align: center; opacity: .95; }
+.msgr-smart { display: flex; gap: 8px; padding: 8px 12px; overflow-x: auto; border-top: 1px solid var(--color-rule); flex: none; }
+.msgr-smart button { flex: none; border: 0; border-radius: var(--radius-pill); padding: 8px 14px; font-size: 14px; background: var(--color-paper-3); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); cursor: pointer; white-space: nowrap; }
+.msgr-smart button:hover { background: color-mix(in oklab, var(--color-accent) 14%, var(--color-paper-3)); }
+
 /* Audio-reactive light show */
 .audioscene { position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; mix-blend-mode: screen; }
 .as-glow { --lvl: 0; --hue: 265; position: absolute; inset: -20%; background:
