@@ -348,6 +348,22 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-schedpop button { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 10px; background: none; color: var(--color-ink); font-size: 14px; cursor: pointer; white-space: nowrap; text-align: left; }
 .msgr-schedpop button:hover { background: var(--color-paper-3); }
 .msgr-schedpop .icon { font-size: 18px; color: var(--color-accent); }
+.msgr-attachpop { position: fixed; z-index: 10; display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 14px; background: var(--color-paper-2); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .45), inset 0 0 0 1px var(--color-rule); }
+.msgr-attachpop button { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; border-radius: 10px; background: none; color: var(--color-ink); font-size: 14px; cursor: pointer; white-space: nowrap; text-align: left; }
+.msgr-attachpop button:hover { background: var(--color-paper-3); }
+.msgr-attachpop .icon { font-size: 18px; color: var(--color-accent); }
+.msgr-vanish-btn.on { color: var(--color-accent); }
+.msgr-vanish-i { font-size: 12px !important; opacity: .7; vertical-align: -1px; margin-right: 2px; }
+.msgr-loc { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(0, 0, 0, .12); color: inherit; text-decoration: none; }
+.msgr-b.me .msgr-loc { background: rgba(255, 255, 255, .16); }
+.msgr-loc .icon { font-size: 26px; color: #ff3b30; }
+.msgr-loc b { display: block; font-size: 14px; }
+.msgr-loc small { font-size: 12px; opacity: .75; }
+.msgr-once { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 10px 14px; border-radius: 12px; border: 0; font-size: 14px; font-weight: 500; cursor: default; background: rgba(0, 0, 0, .14); color: inherit; }
+.msgr-b.me .msgr-once { background: rgba(255, 255, 255, .16); }
+.msgr-once.tap { cursor: pointer; }
+.msgr-once.viewed { opacity: .6; font-style: italic; }
+.msgr-once .icon { font-size: 18px; }
 .msgr-q { display: block; margin-bottom: 4px; padding: 5px 8px; border-left: 3px solid currentColor; border-radius: 6px; background: rgba(0, 0, 0, .12); font-size: 13px; opacity: .9; }
 .msgr-q b { display: block; font-size: 12px; }
 .msgr-b.me .msgr-q { background: rgba(255, 255, 255, .18); }

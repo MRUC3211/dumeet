@@ -18,11 +18,16 @@
 
   let msgs = [], el = null, pollT = 0, replying = null, starredOnly = false;
   const unfurls = new Map(); // url -> preview data (cache)
+  const VANISH_TTL = 24 * 3600 * 1000;
+  let vanish = false; try { vanish = localStorage.getItem("du-vanish") === "1"; } catch { /* private */ }
 
   async function fetchMsgs() {
     try {
       const { docs } = await (await fetch("/api/data?c=messages")).json();
-      msgs = (docs || []).map((d) => ({ id: d.id, ...d.data })).filter((m) => m && m.at).sort((a, b) => a.at - b.at);
+      const now = Date.now();
+      const list = (docs || []).map((d) => ({ id: d.id, ...d.data })).filter((m) => m && m.at);
+      for (const m of list) if (m.exp && m.exp < now) fetch(`/api/data?c=messages&id=${encodeURIComponent(m.id)}`, { method: "DELETE" }).catch(() => {});
+      msgs = list.filter((m) => !(m.exp && m.exp < now)).sort((a, b) => a.at - b.at);
       return true;
     } catch { return false; }
   }
@@ -36,6 +41,7 @@
     if (!text && !(media && media.length)) return;
     const doc = { from: from || prefs.name || "", text: text || "", media: media || [], at: Date.now() };
     if (reply && reply.text !== undefined) doc.reply = { from: reply.from || "", text: String(reply.text || "").slice(0, 80) };
+    if (vanish) doc.exp = Date.now() + VANISH_TTL;
     try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); } } catch { /* offline */ }
   }
 
@@ -59,6 +65,7 @@
         <header class="msgr-head">
           <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
           <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+          <button class="icon-btn msgr-vanish-btn" data-m="vanish" aria-label="Disappearing messages"><span class="icon">timer</span></button>
           <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
           <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
@@ -67,13 +74,20 @@
         <div class="msgr-stickers" id="msgr-stickers" hidden></div>
         <form class="msgr-form" id="msgr-form">
           <button type="button" class="icon-btn" data-m="stickers" title="Stickers" aria-label="Stickers"><span class="icon">mood</span></button>
-          <label class="icon-btn" title="Photo" aria-label="Send a photo"><span class="icon">add_photo_alternate</span><input type="file" accept="image/*" id="msgr-file" hidden></label>
+          <button type="button" class="icon-btn" data-m="attach" title="Attach" aria-label="Attach"><span class="icon">add_circle</span></button>
+          <input type="file" accept="image/*" id="msgr-file" hidden>
+          <input type="file" accept="image/*" id="msgr-file-once" hidden>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
           <button type="button" class="icon-btn" data-m="schedule" title="Send later" aria-label="Schedule"><span class="icon">schedule_send</span></button>
           <button class="icon-btn send" aria-label="Send"><span class="icon">arrow_upward</span></button>
         </form>
       </div>
-      <div class="msgr-reactpop" id="msgr-reactpop" hidden></div>`;
+      <div class="msgr-reactpop" id="msgr-reactpop" hidden></div>
+      <div class="msgr-attachpop" id="msgr-attachpop" hidden>
+        <button data-a="photo"><span class="icon">image</span>Photo</button>
+        <button data-a="once"><span class="icon">visibility</span>View-once photo</button>
+        <button data-a="location"><span class="icon">location_on</span>Location</button>
+      </div>`;
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add("open"));
     q("#msgr-name").textContent = partner();
@@ -82,7 +96,12 @@
     el.addEventListener("click", (e) => {
       if (!e.target.closest("#msgr-reactpop, [data-react]")) q("#msgr-reactpop").hidden = true;
       if (!e.target.closest("#msgr-schedpop, [data-m=schedule]")) { const sp = q("#msgr-schedpop"); if (sp) sp.hidden = true; }
+      if (!e.target.closest("#msgr-attachpop, [data-m=attach]")) { const ap = q("#msgr-attachpop"); if (ap) ap.hidden = true; }
       if (e.target.closest("[data-m=close]")) return close();
+      if (e.target.closest("[data-m=attach]")) return toggleAttach(e.target.closest("[data-m=attach]"));
+      if (e.target.closest("[data-m=vanish]")) return toggleVanish();
+      const ab = e.target.closest("[data-a]"); if (ab) { q("#msgr-attachpop").hidden = true; const a = ab.dataset.a; if (a === "photo") q("#msgr-file").click(); else if (a === "once") q("#msgr-file-once").click(); else if (a === "location") shareLocation(); return; }
+      const vo = e.target.closest("[data-once]"); if (vo) return revealOnce(+vo.dataset.once);
       if (e.target.closest("[data-m=gallery]")) return openGallery();
       if (e.target.closest("[data-m=cancel-reply]")) return cancelReply();
       if (e.target.closest("[data-m=stickers]")) return toggleStickers();
@@ -97,12 +116,15 @@
       const st = e.target.closest("[data-sticker]"); if (st) { sendSticker(st.dataset.sticker); toggleStickers(false); return; }
     });
     q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
-    q("#msgr-file").addEventListener("change", async (e) => {
-      const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const sendPhoto = async (f, once) => {
+      if (!f) return;
       if (f.size > 25 * 1024 * 1024) return toast("Photo 25MB se chhoti honi chahiye");
       toast("Sending…");
-      try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name }]); } catch { toast("Photo send nahi hui"); }
-    });
+      try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name, once: once || undefined }]); } catch { toast("Photo send nahi hui"); }
+    };
+    q("#msgr-file").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, false); });
+    q("#msgr-file-once").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, true); });
+    q(".msgr-vanish-btn")?.classList.toggle("on", vanish);
   }
 
   function dayLabel(d) {
@@ -134,15 +156,24 @@
       const acts = `<span class="msgr-acts">${a}</span>`;
       const reacts = (m.reactions && Object.keys(m.reactions).some((e) => m.reactions[e].length))
         ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, ar]) => ar.length).map(([e, ar]) => `<button class="msgr-rchip${ar.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${ar.length > 1 ? " " + ar.length : ""}</button>`).join("")}</span>` : "";
+      const vIcon = m.exp ? '<span class="icon msgr-vanish-i">timer</span>' : "";
       const meta = scheduled
         ? `<span class="msgr-time msgr-sched"><span class="icon">schedule</span>${d.toLocaleString([], { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}</span>`
-        : `<span class="msgr-time">${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}</span>`;
+        : `<span class="msgr-time">${vIcon}${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}</span>`;
       if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}">${acts}<span class="msgr-sticker">${esc(m.sticker)}</span>${meta}${reacts}</div>`; return; }
       const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
       html += `<div class="msgr-b ${mine ? "me" : "them"}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
       html += acts;
       if (m.reply) html += `<span class="msgr-q"><b>${esc(m.reply.from || "")}</b>${esc(m.reply.text || "")}</span>`;
-      if (Array.isArray(m.media)) html += m.media.filter((x) => x && typeof x.url === "string" && x.url.startsWith("/api/media/")).map((x) => `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`).join("");
+      if (m.loc && typeof m.loc.lat === "number") html += `<a class="msgr-loc" href="https://www.openstreetmap.org/?mlat=${m.loc.lat}&mlon=${m.loc.lon}#map=16/${m.loc.lat}/${m.loc.lon}" target="_blank" rel="noopener noreferrer"><span class="icon">location_on</span><span><b>Location</b><small>${m.loc.lat}, ${m.loc.lon} · Open in Maps</small></span></a>`;
+      if (Array.isArray(m.media)) for (const x of m.media) {
+        if (!x || typeof x.url !== "string" || !x.url.startsWith("/api/media/")) continue;
+        if (x.once) {
+          if (x.viewed) html += `<span class="msgr-once viewed"><span class="icon">visibility_off</span>Opened</span>`;
+          else if (mine) html += `<span class="msgr-once"><span class="icon">visibility</span>View-once photo</span>`;
+          else html += `<button class="msgr-once tap" data-once="${i}"><span class="icon">visibility</span>Tap to view once</button>`;
+        } else html += `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`;
+      }
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
       html += `${meta}${reacts}</div>`;
     });
@@ -216,6 +247,37 @@
     try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); } } catch { /* offline */ }
   }
 
+  // ---------- attach menu / location / view-once / disappearing ----------
+  function toggleAttach(anchor) {
+    const p = q("#msgr-attachpop"); if (!p) return;
+    if (!p.hidden) { p.hidden = true; return; }
+    p.hidden = false;
+    const r = anchor.getBoundingClientRect(), h = p.offsetHeight;
+    p.style.left = Math.max(8, r.left) + "px";
+    p.style.top = Math.max(8, r.top - h - 6) + "px";
+  }
+  function toggleVanish() {
+    vanish = !vanish;
+    try { localStorage.setItem("du-vanish", vanish ? "1" : "0"); } catch { /* private */ }
+    q(".msgr-vanish-btn")?.classList.toggle("on", vanish);
+    toast(vanish ? "Disappearing messages ON — naye message 24 ghante baad gayab" : "Disappearing messages OFF");
+  }
+  function shareLocation() {
+    if (!navigator.geolocation) return toast("Location available nahi hai");
+    toast("Location le rahe hain…");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const doc = { from: prefs.name || "", text: "", media: [], loc: { lat: +pos.coords.latitude.toFixed(5), lon: +pos.coords.longitude.toFixed(5) }, at: Date.now() };
+      if (vanish) doc.exp = Date.now() + VANISH_TTL;
+      store(doc).then((s) => { if (s) { msgs.push({ id: s.id, ...doc }); render(true); } });
+    }, () => toast("Location nahi mili — permission do"), { enableHighAccuracy: true, timeout: 10000 });
+  }
+  function revealOnce(i) {
+    const m = msgs[i]; const item = m && Array.isArray(m.media) ? m.media.find((x) => x && x.once && !x.viewed) : null;
+    if (!item) return;
+    if (window.DU?.lightbox) window.DU.lightbox(authUrl(item.url));
+    item.viewed = true; update(m); render();
+  }
+
   // ---------- star / delete / schedule ----------
   function toggleStar(i) { const m = msgs[i]; if (!m) return; m.star = !m.star; update(m); render(); }
   function deleteMsg(i) { const m = msgs[i]; if (!m) return; m.deleted = true; m.text = ""; m.media = []; m.sticker = ""; delete m.reactions; delete m.reply; update(m); render(); }
@@ -245,7 +307,7 @@
   // ---------- shared photo gallery ----------
   function openGallery() {
     const imgs = [];
-    for (const m of msgs) if (Array.isArray(m.media)) for (const x of m.media) if (x && typeof x.url === "string" && x.url.startsWith("/api/media/") && String(x.type || "").startsWith("image")) imgs.push(x.url);
+    for (const m of msgs) if (Array.isArray(m.media)) for (const x of m.media) if (x && !x.once && typeof x.url === "string" && x.url.startsWith("/api/media/") && String(x.type || "").startsWith("image")) imgs.push(x.url);
     const g = document.createElement("div");
     g.className = "msgr-gallery";
     g.innerHTML = `<header class="msgr-head"><button class="icon-btn" data-g="close" aria-label="Back"><span class="icon">arrow_back</span></button><b>Shared photos</b></header>`
