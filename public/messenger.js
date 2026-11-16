@@ -16,7 +16,8 @@
   let seen = 0; try { seen = +localStorage.getItem(SEEN_KEY) || 0; } catch { /* private */ }
   const setSeen = (t) => { seen = Math.max(seen, t || 0); try { localStorage.setItem(SEEN_KEY, seen); } catch { /* private */ } };
 
-  let msgs = [], el = null, pollT = 0;
+  let msgs = [], el = null, pollT = 0, replying = null;
+  const unfurls = new Map(); // url -> preview data (cache)
 
   async function fetchMsgs() {
     try {
@@ -31,9 +32,10 @@
   }
 
   // called by the in-call chat and by this sheet to save + show a message
-  async function persist(from, text, media) {
+  async function persist(from, text, media, reply) {
     if (!text && !(media && media.length)) return;
     const doc = { from: from || prefs.name || "", text: text || "", media: media || [], at: Date.now() };
+    if (reply && reply.text !== undefined) doc.reply = { from: reply.from || "", text: String(reply.text || "").slice(0, 80) };
     try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); } } catch { /* offline */ }
   }
 
@@ -57,8 +59,10 @@
         <header class="msgr-head">
           <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
           <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+          <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
         <div class="msgr-list" id="msgr-list"></div>
+        <div class="msgr-replybar" id="msgr-replybar" hidden><div class="msgr-rb-info"><b id="msgr-rb-name"></b><span id="msgr-rb-text"></span></div><button type="button" class="icon-btn" data-m="cancel-reply" aria-label="Cancel"><span class="icon">close</span></button></div>
         <form class="msgr-form" id="msgr-form">
           <label class="icon-btn" title="Photo" aria-label="Send a photo"><span class="icon">add_photo_alternate</span><input type="file" accept="image/*" id="msgr-file" hidden></label>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
@@ -70,8 +74,14 @@
     q("#msgr-name").textContent = partner();
     const av = q("#msgr-av"); const face = window.DU?.faceFor?.(partner());
     if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
-    el.addEventListener("click", (e) => { if (e.target.closest("[data-m=close]")) close(); });
-    q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; persist(prefs.name, t, []); });
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-m=close]")) return close();
+      if (e.target.closest("[data-m=gallery]")) return openGallery();
+      if (e.target.closest("[data-m=cancel-reply]")) return cancelReply();
+      const rb = e.target.closest("[data-reply]");
+      if (rb) return startReply(+rb.dataset.reply);
+    });
+    q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
     q("#msgr-file").addEventListener("change", async (e) => {
       const f = e.target.files[0]; e.target.value = ""; if (!f) return;
       if (f.size > 25 * 1024 * 1024) return toast("Photo 25MB se chhoti honi chahiye");
@@ -92,19 +102,67 @@
     const list = q("#msgr-list"); if (!list) return;
     if (!msgs.length) { list.innerHTML = `<div class="msgr-empty"><span class="icon">chat</span><p>Koi message nahi abhi — pehla bhejo 💬</p></div>`; return; }
     let html = "", lastDay = "";
-    for (const m of msgs) {
+    msgs.forEach((m, i) => {
       const d = new Date(m.at), day = d.toDateString();
       if (day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
       const mine = String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
       const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      html += `<div class="msgr-b ${mine ? "me" : "them"}">`;
+      const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
+      html += `<div class="msgr-b ${mine ? "me" : "them"}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
+      html += `<button class="msgr-reply-btn" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button>`;
+      if (m.reply) html += `<span class="msgr-q"><b>${esc(m.reply.from || "")}</b>${esc(m.reply.text || "")}</span>`;
       if (Array.isArray(m.media)) html += m.media.filter((x) => x && typeof x.url === "string" && x.url.startsWith("/api/media/")).map((x) => `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`).join("");
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
       html += `<span class="msgr-time">${time}</span></div>`;
-    }
+    });
     list.innerHTML = html;
     setSeen(msgs[msgs.length - 1].at);
     if (scroll) list.scrollTop = list.scrollHeight;
+    loadPreviews();
+  }
+
+  // ---------- link previews ----------
+  async function loadPreviews() {
+    for (const b of el.querySelectorAll(".msgr-b[data-url]")) {
+      if (b.dataset.done) continue;
+      b.dataset.done = "1";
+      const url = b.dataset.url;
+      try {
+        let p = unfurls.get(url);
+        if (!p) { p = await (await fetch(`/api/unfurl?url=${encodeURIComponent(url)}`)).json(); unfurls.set(url, p); }
+        if (!p || !p.title) continue;
+        const card = document.createElement("a");
+        card.className = "msgr-link"; card.href = url; card.target = "_blank"; card.rel = "noopener noreferrer";
+        card.innerHTML = (p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : "") + `<span class="msgr-link-x"><b>${esc(p.title)}</b>${p.desc ? `<small>${esc(p.desc)}</small>` : ""}<i>${esc(p.site || "")}</i></span>`;
+        b.querySelector(".msgr-t")?.before(card);
+      } catch { /* ignore */ }
+    }
+  }
+
+  // ---------- reply ----------
+  function startReply(i) {
+    const m = msgs[i]; if (!m) return;
+    replying = { from: String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase() ? "You" : (m.from || partner()), text: m.text || (m.media?.length ? "Photo" : "") };
+    q("#msgr-rb-name").textContent = replying.from;
+    q("#msgr-rb-text").textContent = replying.text;
+    q("#msgr-replybar").hidden = false;
+    q("#msgr-input").focus();
+  }
+  function cancelReply() { replying = null; const rb = q("#msgr-replybar"); if (rb) rb.hidden = true; }
+
+  // ---------- shared photo gallery ----------
+  function openGallery() {
+    const imgs = [];
+    for (const m of msgs) if (Array.isArray(m.media)) for (const x of m.media) if (x && typeof x.url === "string" && x.url.startsWith("/api/media/") && String(x.type || "").startsWith("image")) imgs.push(x.url);
+    const g = document.createElement("div");
+    g.className = "msgr-gallery";
+    g.innerHTML = `<header class="msgr-head"><button class="icon-btn" data-g="close" aria-label="Back"><span class="icon">arrow_back</span></button><b>Shared photos</b></header>`
+      + (imgs.length ? `<div class="msgr-grid">${imgs.map((u) => `<img src="${esc(authUrl(u))}" loading="lazy" alt="">`).join("")}</div>` : `<div class="msgr-empty"><span class="icon">image</span><p>Abhi koi photo share nahi hui</p></div>`);
+    el.append(g);
+    g.addEventListener("click", (e) => {
+      if (e.target.closest("[data-g=close]")) return g.remove();
+      const img = e.target.closest("img"); if (img && window.DU?.lightbox) window.DU.lightbox(img.src);
+    });
   }
 
   const unread = () => msgs.filter((m) => m.at > seen && String(m.from || "").toLowerCase() !== String(prefs.name || "").toLowerCase()).length;

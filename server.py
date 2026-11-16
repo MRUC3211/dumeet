@@ -37,6 +37,10 @@ import ssl
 import sys
 import threading
 import time
+import html
+import ipaddress
+import re
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -235,6 +239,88 @@ def touch_seen(name):
     name = (name or "").strip()[:40]
     if name:
         seen_at[name.lower()] = (name, time.time())
+
+
+# ---- link previews (unfurl), with SSRF protection ----
+UNFURL_CACHE = {}  # url -> (expires, data)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_UNFURL_OPENER = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=TLS))
+
+
+def _public_host(host):
+    """True only if every address the host resolves to is a public internet address."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False
+    return bool(infos)
+
+
+def _og(text, prop):
+    for attr in ("property", "name"):
+        m = re.search(r'<meta[^>]+' + attr + r'=["\']' + re.escape(prop) + r'["\'][^>]*?content=["\']([^"\']*)', text, re.I) \
+            or re.search(r'<meta[^>]+content=["\']([^"\']*)["\'][^>]*?' + attr + r'=["\']' + re.escape(prop) + r'["\']', text, re.I)
+        if m:
+            return html.unescape(m.group(1).strip())
+    return ""
+
+
+def _unfurl_fetch(url):
+    cur = url
+    for _ in range(4):
+        p = urlparse(cur)
+        if p.scheme not in ("http", "https") or not p.hostname or not _public_host(p.hostname):
+            return {}
+        req = urllib.request.Request(cur, headers={"User-Agent": "Mozilla/5.0 (compatible; DU Meet link preview)", "Accept": "text/html"})
+        try:
+            resp = _UNFURL_OPENER.open(req, timeout=5)
+        except urllib.error.HTTPError as error:
+            loc = error.headers.get("Location") if error.code in (301, 302, 303, 307, 308) else None
+            if not loc:
+                return {}
+            cur = urllib.parse.urljoin(cur, loc)
+            continue
+        except Exception:  # noqa: BLE001
+            return {}
+        try:
+            if "html" not in (resp.headers.get("Content-Type") or ""):
+                return {}
+            text = resp.read(300000).decode("utf-8", "ignore")
+        finally:
+            resp.close()
+        title = _og(text, "og:title")
+        if not title:
+            m = re.search(r"<title[^>]*>([^<]*)</title>", text, re.I)
+            title = html.unescape(m.group(1).strip()) if m else ""
+        image = _og(text, "og:image")
+        return {
+            "url": cur, "title": title[:200], "desc": _og(text, "og:description")[:300],
+            "image": urllib.parse.urljoin(cur, image)[:500] if image else "",
+            "site": (_og(text, "og:site_name") or p.hostname or "")[:80],
+        }
+    return {}
+
+
+def unfurl(url):
+    now = time.time()
+    hit = UNFURL_CACHE.get(url)
+    if hit and hit[0] > now:
+        return hit[1]
+    data = _unfurl_fetch(url)
+    if len(UNFURL_CACHE) > 500:
+        UNFURL_CACHE.clear()
+    UNFURL_CACHE[url] = (now + 3600, data)
+    return data
 
 
 COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings", "logins", "lovenotes", "messages"}
@@ -517,6 +603,9 @@ class Handler(BaseHTTPRequestHandler):
                 now = time.time()
                 presence = {disp: round(now - ts) for disp, ts in seen_at.values()}
                 self.send_json({"names": [peer.name for peer in members(params.get("room", ""))], "seen": presence})
+            elif path == "/api/unfurl":
+                target = params.get("url", "")[:2000]
+                self.send_json(unfurl(target) if target else {})
             elif path == "/api/wrapped":
                 month = params.get("m", "")
                 if len(month) != 7 or month[4] != "-" or not month.replace("-", "").isdigit():

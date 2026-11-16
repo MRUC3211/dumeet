@@ -314,6 +314,32 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-form #msgr-input { flex: 1; min-width: 0; height: 44px; border: 0; border-radius: var(--radius-pill); padding: 0 16px; background: var(--color-paper-3); color: var(--color-ink); font-size: 15px; outline: 0; }
 .msgr-form #msgr-input::placeholder { color: var(--color-muted); }
 .msgr-form .send { color: var(--color-accent); }
+.msgr-head b { flex: 1; }
+.msgr-gallery-btn { flex: none; color: var(--color-ink-2); }
+.msgr-b { position: relative; }
+.msgr-reply-btn { position: absolute; top: 50%; translate: 0 -50%; width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--color-paper-2); color: var(--color-muted); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out); box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.msgr-b.me .msgr-reply-btn { left: -32px; }
+.msgr-b.them .msgr-reply-btn { right: -32px; }
+.msgr-b:hover .msgr-reply-btn { opacity: 1; }
+.msgr-reply-btn .icon { font-size: 15px; }
+@media (hover: none) { .msgr-reply-btn { opacity: .55; } }
+.msgr-q { display: block; margin-bottom: 4px; padding: 5px 8px; border-left: 3px solid currentColor; border-radius: 6px; background: rgba(0, 0, 0, .12); font-size: 13px; opacity: .9; }
+.msgr-q b { display: block; font-size: 12px; }
+.msgr-b.me .msgr-q { background: rgba(255, 255, 255, .18); }
+.msgr-replybar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--color-rule); background: var(--color-paper-2); flex: none; }
+.msgr-rb-info { flex: 1; min-width: 0; border-left: 3px solid var(--color-accent); padding-left: 8px; }
+.msgr-rb-info b { display: block; font-size: 12px; color: var(--color-accent); }
+.msgr-rb-info span { display: block; font-size: 13px; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgr-link { display: block; margin-bottom: 4px; border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, .12); text-decoration: none; color: inherit; }
+.msgr-b.me .msgr-link { background: rgba(255, 255, 255, .16); }
+.msgr-link img { width: 100%; max-height: 160px; object-fit: cover; display: block; }
+.msgr-link-x { display: block; padding: 8px 10px; }
+.msgr-link-x b { display: block; font-size: 13px; line-height: 1.3; }
+.msgr-link-x small { display: block; font-size: 12px; opacity: .8; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.msgr-link-x i { display: block; font-size: 11px; opacity: .6; margin-top: 4px; font-style: normal; text-transform: uppercase; letter-spacing: .04em; }
+.msgr-gallery { position: absolute; inset: 0; background: var(--color-paper); display: flex; flex-direction: column; }
+.msgr-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; align-content: start; }
+.msgr-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer; border-radius: 4px; }
 .msgr-btn { position: relative; }
 .msgr-badge { position: absolute; top: 0; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: var(--radius-pill); background: #ff3b30; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--color-paper); }
 
