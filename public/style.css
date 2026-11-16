@@ -244,12 +244,13 @@ button:disabled { cursor: default; }
 .tile.hand::after { box-shadow: inset 0 0 0 3px var(--color-accent-2); opacity: 1; }
 .tile.hand.speaking::after { box-shadow: inset 0 0 0 3px var(--color-accent); }
 
-/* Status note on a tile */
+/* Status note on a tile — sits below the avatar (clear of the weather chip up top)
+   and reads large so it's easy to see when the camera is off. */
 .tile-note {
-  position: absolute; top: var(--space-sm); left: 50%; translate: -50% 0; z-index: 2;
-  max-width: calc(100% - 96px); padding: 5px 12px; border-radius: var(--radius-pill);
+  position: absolute; top: 64%; left: 50%; translate: -50% -50%; z-index: 3;
+  max-width: calc(100% - 40px); padding: 9px 18px; border-radius: var(--radius-pill); text-align: center;
   background: var(--glass); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-hi);
-  font-size: var(--text-sm); font-weight: 500; color: var(--color-ink);
+  font-size: clamp(15px, 2.6vw, 19px); font-weight: 600; color: var(--color-ink); line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   animation: toast-in var(--dur-short) var(--ease-out);
 }

@@ -584,61 +584,6 @@
     presenceTimer = setTimeout(refreshPresence, 8000);
   }
 
-  // ---------- love notes: leave one; it arrives the next time they open DU Meet ----------
-
-  const LOVE_CHIPS = ["Miss you 🥺", "Thinking of you 💭", "Call me when free 📞", "Good night 🌙", "You're the best 💖"];
-
-  function openLovenote() {
-    if (!prefs.name) return askWho(false);
-    q("#lovenote-text").value = "";
-    q("#lovenote-sub").textContent = `${PARTNER()} will see this the next time they open DU Meet.`;
-    const chips = q("#lovenote-chips");
-    chips.replaceChildren();
-    for (const text of LOVE_CHIPS) {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "note-chip";
-      chip.textContent = text;
-      chip.addEventListener("click", () => { q("#lovenote-text").value = text; q("#lovenote-text").focus(); });
-      chips.append(chip);
-    }
-    openModal(q("#m-lovenote"));
-  }
-
-  async function sendLovenote() {
-    const text = q("#lovenote-text").value.trim().slice(0, 300);
-    if (!text) return;
-    try {
-      await fetch("/api/data", { method: "POST", body: JSON.stringify({ c: "lovenotes", data: { to: PARTNER(), from: prefs.name, text, at: Date.now() } }) });
-      closeModal(q("#m-lovenote"));
-      toast(`Note left for ${PARTNER()} 💌`);
-    } catch { toast("Couldn't leave the note. Check the internet."); }
-  }
-
-  let lovenoteQueue = [];
-  async function deliverLovenotes() {
-    if (!prefs.name || document.body.dataset.view !== "home") return;
-    try {
-      const { docs } = await (await fetch("/api/data?c=lovenotes")).json();
-      lovenoteQueue = (docs || [])
-        .filter((d) => String(d.data?.to || "").toLowerCase() === prefs.name.toLowerCase() && d.data?.text)
-        .sort((a, b) => (a.data.at || 0) - (b.data.at || 0));
-      showNextLovenote();
-    } catch { /* offline */ }
-  }
-
-  function showNextLovenote() {
-    const card = q("#lovenote-card");
-    const note = lovenoteQueue.shift();
-    if (!note) { card.hidden = true; card.classList.remove("open"); return; }
-    q("#ln-from").textContent = `From ${note.data.from || PARTNER()}`;
-    q("#ln-body").textContent = note.data.text;
-    card.hidden = false;
-    requestAnimationFrame(() => card.classList.add("open"));
-    // Once it's been seen, it's delivered — remove it so it doesn't show again.
-    fetch(`/api/data?c=lovenotes&id=${encodeURIComponent(note.id)}`, { method: "DELETE" }).catch(() => {});
-  }
-
   // ---------- theme: Auto (device) → Light → Dark ----------
   const THEMES = { system: ["contrast", "Theme: follows your device", "Theme follows your device"], light: ["light_mode", "Theme: light", "Light theme"], dark: ["dark_mode", "Theme: dark", "Dark theme"] };
   function paintTheme() {
@@ -667,13 +612,7 @@
         who: () => askWho(false),
         other: () => openModal(q("#m-other")),
         theme: cycleTheme,
-        lovenote: openLovenote,
       })[button.dataset.home]?.();
-    }
-    const act = event.target.closest("[data-action]");
-    if (act) {
-      if (act.dataset.action === "lovenote-send") sendLovenote();
-      else if (act.dataset.action === "lovenote-next") showNextLovenote();
     }
     const who = event.target.closest("[data-who]");
     if (who) setWho(who.dataset.who);
@@ -684,7 +623,7 @@
 
   window.DU = Object.assign(window.DU || {}, {
     openModal, closeModal,
-    onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); setTimeout(deliverLovenotes, 600); },
+    onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); },
     faceFor(name) {
       const key = Object.keys(avatars).find((k) => k.toLowerCase() === String(name || "").trim().toLowerCase());
       return key && avatars[key] ? window.authUrl(avatars[key]) : "";
