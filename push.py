@@ -136,10 +136,17 @@ class Ringer:
 
     def ring(self, caller, contact):
         """Ring every device of everyone except the caller. Returns how many were sent."""
-        targets = [doc for doc in self.subscribers() if doc["data"].get("name", "").lower() != caller.lower()]
+        return self._notify(caller, contact, "ring")
+
+    def message(self, sender, contact):
+        """Nudge the other person's devices about a new chat message."""
+        return self._notify(sender, contact, "message")
+
+    def _notify(self, who, contact, kind):
+        targets = [doc for doc in self.subscribers() if doc["data"].get("name", "").lower() != who.lower()]
         for doc in targets:
             with self.lock:
-                self.rings[doc["id"]] = {"from": caller, "at": time.time()}
+                self.rings[doc["id"]] = {"from": who, "at": time.time(), "kind": kind}
             threading.Thread(target=self._send, args=(doc, contact), daemon=True).start()
         return len(targets)
 
@@ -168,5 +175,5 @@ class Ringer:
         with self.lock:
             ring = self.rings.get(sub_id(endpoint))
         if ring and time.time() - ring["at"] < 120:
-            return {"from": ring["from"], "at": ring["at"]}
+            return {"from": ring["from"], "at": ring["at"], "kind": ring.get("kind", "ring")}
         return {}

@@ -35,6 +35,8 @@
     const r = await fetch("/api/data", { method: "POST", body: JSON.stringify({ c: "messages", data: doc }) });
     return (await r.json().catch(() => ({}))).doc;
   }
+  // nudge the other person's phone (a push notification); rate-limited server-side
+  const notify = () => fetch("/api/push/message", { method: "POST", body: JSON.stringify({ from: prefs.name || "" }) }).catch(() => {});
 
   // called by the in-call chat and by this sheet to save + show a message
   async function persist(from, text, media, reply) {
@@ -42,7 +44,7 @@
     const doc = { from: from || prefs.name || "", text: text || "", media: media || [], at: Date.now() };
     if (reply && reply.text !== undefined) doc.reply = { from: reply.from || "", text: String(reply.text || "").slice(0, 80) };
     if (vanish) doc.exp = Date.now() + VANISH_TTL;
-    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); } } catch { /* offline */ }
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); if (!doc.sendAt) notify(); } } catch { /* offline */ }
   }
 
   const potdKey = () => new Date().toDateString();
@@ -287,7 +289,7 @@
   }
   async function sendSticker(emoji) {
     const doc = { from: prefs.name || "", text: "", media: [], sticker: emoji, at: Date.now() };
-    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); } } catch { /* offline */ }
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); notify(); } } catch { /* offline */ }
   }
 
   // ---------- attach menu / location / view-once / disappearing ----------
@@ -311,7 +313,7 @@
     navigator.geolocation.getCurrentPosition((pos) => {
       const doc = { from: prefs.name || "", text: "", media: [], loc: { lat: +pos.coords.latitude.toFixed(5), lon: +pos.coords.longitude.toFixed(5) }, at: Date.now() };
       if (vanish) doc.exp = Date.now() + VANISH_TTL;
-      store(doc).then((s) => { if (s) { msgs.push({ id: s.id, ...doc }); render(true); } });
+      store(doc).then((s) => { if (s) { msgs.push({ id: s.id, ...doc }); render(true); notify(); } });
     }, () => toast("Location nahi mili — permission do"), { enableHighAccuracy: true, timeout: 10000 });
   }
   function revealOnce(i) {
@@ -367,6 +369,10 @@
   async function refresh() { await fetchMsgs(); paintBadge(); }
 
   document.addEventListener("click", (e) => { if (e.target.closest("[data-home=messages]")) open(); });
+
+  // open the chat when a message notification is tapped, or on a /?chat=1 cold open
+  navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "msg-open") open(); });
+  if (/[?&]chat=1/.test(location.search)) setTimeout(open, 600);
 
   window.DU = window.DU || {};
   window.DU.messenger = { open, persist, refresh };

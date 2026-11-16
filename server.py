@@ -231,6 +231,7 @@ def apply_limits():
 
 apply_limits()
 last_ring = {}  # caller name -> time, so a ring can't be spammed
+last_msg_push = {}  # sender name -> time, so message pushes aren't spammed
 seen_at = {}    # lowercased name -> (display name, wall-clock time) for "online / last seen"
 
 
@@ -853,6 +854,15 @@ class Handler(BaseHTTPRequestHandler):
                 last_ring[caller.lower()] = time.time()
                 host = self.headers.get("Host", "du-meet.onrender.com")
                 return self.send_json({"sent": RINGER.ring(caller, f"https://{host}")})
+            if path == "/api/push/message":
+                sender = str(message.get("from", "")).strip()[:40]
+                if not sender:
+                    return self.send_error(400)
+                if time.time() - last_msg_push.get(sender.lower(), 0) < 20:   # one nudge per burst
+                    return self.send_json({"sent": 0, "wait": True})
+                last_msg_push[sender.lower()] = time.time()
+                host = self.headers.get("Host", "du-meet.onrender.com")
+                return self.send_json({"sent": RINGER.message(sender, f"https://{host}")})
         except Exception as error:  # noqa: BLE001
             print(f"Push error: {error}")
             return self.send_error(502)
