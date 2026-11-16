@@ -292,6 +292,18 @@ button:disabled { cursor: default; }
 body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
 
+/* Together mode scene picker */
+.tog-bar { position: fixed; left: 50%; bottom: calc(88px + var(--space-sm)); translate: -50% 0; z-index: var(--z-toast); display: flex; align-items: center; gap: var(--space-sm); max-width: calc(100vw - 24px); padding: 8px 10px; border-radius: 20px; background: rgba(38, 38, 42, .96); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 20px 50px -16px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(255, 255, 255, .1); animation: toast-in var(--dur-short) var(--ease-out); }
+.tog-scenes { display: flex; gap: 8px; overflow-x: auto; }
+.tog-scene { flex: none; border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; border-radius: 12px; }
+.tog-scene canvas { width: 64px; height: 42px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); display: block; }
+.tog-scene span { font-size: 11px; color: rgba(255, 255, 255, .7); }
+.tog-scene.on canvas { box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px var(--color-accent); }
+.tog-scene.on span { color: #fff; font-weight: 600; }
+.tog-off { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 40px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: rgba(255, 255, 255, .12); color: #fff; font: 600 14px/1 var(--font-body); cursor: pointer; }
+.tog-off:hover { background: rgba(255, 255, 255, .2); }
+.tog-off .icon { font-size: 18px; }
+
 /* Touch the glass */
 .tg-glass { position: fixed; inset: 0; z-index: 1650; touch-action: none; background: radial-gradient(130% 120% at 50% 50%, rgba(10, 132, 255, .06), rgba(255, 45, 120, .08) 70%, rgba(0, 0, 0, .35)); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: toast-in var(--dur-short) var(--ease-out); }
 .tg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
