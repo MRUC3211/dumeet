@@ -100,7 +100,90 @@
       },
       onMsg(d, api) { if (d.k === "laughed") api.done(true, "🏆 Unhe hasa diya — aap jeete!"); else if (d.k === "survived") api.done(false, "😐 Wo nahi hanse — aap haare"); },
     },
+    freeze: {
+      name: "Freeze dance", icon: "🕺", tag: "Music ruke to FREEZE — hile to out", detector: "motion",
+      play(api) {
+        api.state.out = false;
+        const dance = () => {
+          if (api.state.out) return;
+          api.top().innerHTML = `<div class="cg-hud">🕺 DANCE!</div>`;
+          api.center().innerHTML = `<div class="cg-go">Dance! 💃🕺</div>`;
+          api.track(setTimeout(freeze, 2500 + Math.random() * 2200));
+        };
+        const freeze = () => {
+          if (api.state.out) return;
+          api.top().innerHTML = `<div class="cg-hud cg-freeze">🧊 FREEZE!</div>`;
+          api.center().innerHTML = `<div class="cg-go freeze">FREEZE! 🧊</div>`;
+          let n = 0;
+          const t = api.track(setInterval(() => {
+            n += 1;
+            if (n < 4) return;
+            if (api.sig().motion > 0.14) { clearInterval(t); api.state.out = true; api.send({ k: "moved" }); api.done(false, "🫨 Aap hil gaye — out!"); }
+            else if (n > 18) { clearInterval(t); dance(); }
+          }, 100));
+        };
+        dance();
+      },
+      onMsg(d, api) { if (d.k === "moved") api.done(true, "🏆 Wo hil gaye — aap jeete!"); },
+    },
+    vibe: {
+      name: "Vibe meter", icon: "💞", tag: "Dono saath smile karo, meter full karo", detector: "face",
+      play(api) {
+        api.top().innerHTML = `<div class="cg-hud">💞 Dono saath smile karo!</div>`;
+        api.center().innerHTML = `<div class="cg-vibe"><div class="cg-vibe-fill"></div></div><div class="cg-score">0%</div>`;
+        const fill = api.center().querySelector(".cg-vibe-fill"), scoreEl = api.center().querySelector(".cg-score");
+        let vibe = 0;
+        api.track(setInterval(() => {
+          const mySmile = api.sig().smile > 0.3;
+          if (mySmile !== api.state.sent) { api.state.sent = mySmile; api.send({ k: "smile", v: mySmile }); }
+          vibe = Math.max(0, Math.min(100, vibe + (mySmile && api.state.theirSmile ? 2.6 : -1.2)));
+          fill.style.width = vibe + "%"; scoreEl.textContent = Math.round(vibe) + "%";
+          if (vibe >= 100) { api.send({ k: "full" }); api.done(true, "💖 100%! Perfect vibe 💞"); }
+        }, 100));
+      },
+      onMsg(d, api) { if (d.k === "smile") api.state.theirSmile = d.v; else if (d.k === "full") api.done(true, "💖 100%! Perfect vibe 💞"); },
+    },
+    copyface: {
+      name: "Copy my expression", icon: "😲", tag: "Ek face banaye, doosra copy kare", detector: "face",
+      play(api) {
+        if (api.isInviter) {
+          api.top().innerHTML = `<div class="cg-hud">😎 Koi ek expression banao…</div>`;
+          api.center().innerHTML = `<div class="cg-go">Hold it… <b id="cf-n">3</b></div>`;
+          let n = 3;
+          api.track(setInterval(() => {
+            n -= 1; const el = document.getElementById("cf-n"); if (el) el.textContent = Math.max(0, n);
+            if (n <= 0) { api.state.target = api.sig().vec; api.send({ k: "target", v: api.state.target }); api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} copy kar rahe hain…</div>`; api.center().innerHTML = `<div class="cg-wait"><span class="cg-spin"></span>Dekho…</div>`; }
+          }, 1000));
+        } else {
+          api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} face bana rahe hain…</div>`;
+          api.center().innerHTML = `<div class="cg-wait"><span class="cg-spin"></span>Ready ho jao…</div>`;
+        }
+      },
+      onMsg(d, api) {
+        if (d.k === "target" && !api.isInviter) copierMatch(api, d.v);
+        else if (d.k === "result") api.done((d.pct || 0) >= 70, `🎯 ${api.esc(api.other()?.name || "They")} ne ${d.pct}% match kiya`);
+      },
+    },
   };
+
+  function similarity(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return 0;
+    let s = 0; const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) s += ((a[i] || 0) - (b[i] || 0)) ** 2;
+    return Math.max(0, 1 - Math.sqrt(s) / 1.2);
+  }
+  function copierMatch(api, target) {
+    api.top().innerHTML = `<div class="cg-hud">😲 Yeh face copy karo!</div>`;
+    api.center().innerHTML = `<div class="cg-go">Copy! <b id="cf-n">3</b></div><div class="cg-score">0%</div>`;
+    const scoreEl = api.center().querySelector(".cg-score");
+    let best = 0, left = 30;
+    const loop = api.track(setInterval(() => {
+      best = Math.max(best, similarity(api.sig().vec, target));
+      scoreEl.textContent = Math.round(best * 100) + "%";
+      left -= 1; const nEl = document.getElementById("cf-n"); if (nEl) nEl.textContent = Math.ceil(left / 10);
+      if (left <= 0) { clearInterval(loop); const pct = Math.round(best * 100); api.send({ k: "result", pct }); api.done(pct >= 70, `🎯 Aapne ${pct}% match kiya!`); }
+    }, 100));
+  }
 
   // ---------- face detection ----------
   const F = { lm: null, loading: null, video: null, raf: 0, lastT: -1, sig: { smile: 0, jawOpen: 0, blink: 0, face: false } };
@@ -132,11 +215,12 @@
       const bs = res.faceBlendshapes?.[0]?.categories;
       if (!bs) { F.sig = { smile: 0, jawOpen: 0, blink: 0, face: false }; return; }
       const get = (name) => bs.find((c) => c.categoryName === name)?.score || 0;
+      const a2 = (x, y) => (get(x) + get(y)) / 2;
+      const smile = (get("mouthSmileLeft") + get("mouthSmileRight")) / 2;
       F.sig = {
-        smile: (get("mouthSmileLeft") + get("mouthSmileRight")) / 2,
-        jawOpen: get("jawOpen"),
-        blink: (get("eyeBlinkLeft") + get("eyeBlinkRight")) / 2,
-        face: true,
+        smile, jawOpen: get("jawOpen"), blink: (get("eyeBlinkLeft") + get("eyeBlinkRight")) / 2, face: true,
+        // a compact "expression" vector for the copy-the-face game
+        vec: [smile, get("jawOpen"), get("browInnerUp"), a2("browDownLeft", "browDownRight"), get("mouthPucker"), a2("cheekSquintLeft", "cheekSquintRight"), a2("eyeSquintLeft", "eyeSquintRight"), a2("mouthFrownLeft", "mouthFrownRight")],
       };
     };
     loop();
@@ -179,11 +263,39 @@
   }
   function stopHand() { cancelAnimationFrame(H.raf); if (H.video) H.video.srcObject = null; H.video = null; H.lastT = -1; }
 
+  // ---------- motion detection (for Freeze dance) — just a frame difference, no model ----------
+  const M = { video: null, canvas: null, ctx: null, prev: null, raf: 0, sig: { motion: 0 } };
+  function startMotion() {
+    const cam = cameraTrack();
+    if (!cam) return false;
+    M.video = Object.assign(document.createElement("video"), { muted: true, playsInline: true, autoplay: true });
+    M.video.srcObject = new MediaStream([cam]);
+    M.video.play().catch(() => {});
+    M.canvas = document.createElement("canvas"); M.canvas.width = 32; M.canvas.height = 24; M.ctx = M.canvas.getContext("2d", { willReadFrequently: true });
+    M.prev = null;
+    const loop = () => {
+      M.raf = requestAnimationFrame(loop);
+      const v = M.video;
+      if (!v || v.readyState < 2) return;
+      M.ctx.drawImage(v, 0, 0, 32, 24);
+      const cur = M.ctx.getImageData(0, 0, 32, 24).data;
+      if (M.prev) {
+        let diff = 0;
+        for (let i = 0; i < cur.length; i += 4) diff += Math.abs(cur[i] - M.prev[i]) + Math.abs(cur[i + 1] - M.prev[i + 1]) + Math.abs(cur[i + 2] - M.prev[i + 2]);
+        M.sig = { motion: Math.min(1, diff / (32 * 24 * 3 * 255) * 6) };
+      }
+      M.prev = cur;
+    };
+    loop();
+    return true;
+  }
+  function stopMotion() { cancelAnimationFrame(M.raf); if (M.video) M.video.srcObject = null; M.video = null; M.prev = null; }
+
   // ---------- generic detector + signal ----------
-  const loadDetector = (kind) => (kind === "hand" ? loadHand() : loadFace());
-  const startDetector = (kind) => (kind === "hand" ? startHand() : startFace());
-  const stopDetector = () => { stopFace(); stopHand(); };
-  const signal = () => (GAMES[R.id]?.detector === "hand" ? H.sig : F.sig);
+  const loadDetector = (kind) => (kind === "hand" ? loadHand() : kind === "motion" ? Promise.resolve() : loadFace());
+  const startDetector = (kind) => (kind === "hand" ? startHand() : kind === "motion" ? startMotion() : startFace());
+  const stopDetector = () => { stopFace(); stopHand(); stopMotion(); };
+  const signal = () => { const d = GAMES[R.id]?.detector; return d === "hand" ? H.sig : d === "motion" ? M.sig : F.sig; };
 
   // ---------- round state machine ----------
   const R = { id: null, phase: "idle", st: {}, loopT: 0, timer: 0, started: 0, myScore: 0, theirScore: null, inviter: false, tracked: [] };

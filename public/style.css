@@ -340,6 +340,13 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .cg-rps { display: flex; align-items: center; justify-content: center; gap: 16px; font-size: clamp(44px, 12vw, 82px); }
 .cg-rps span { font-size: .38em; color: rgba(255, 255, 255, .6); }
 .cg-rps-line { margin-top: 12px; font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 4px 16px rgba(0, 0, 0, .6); }
+/* Vibe meter */
+.cg-vibe { width: min(300px, 72vw); height: 26px; border-radius: var(--radius-pill); background: rgba(255, 255, 255, .15); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2); }
+.cg-vibe-fill { height: 100%; width: 0; border-radius: var(--radius-pill); background: linear-gradient(90deg, #ff9f0a, #ff2d78, #bf5af2); transition: width .1s linear; }
+/* Freeze dance */
+.cg-freeze { background: rgba(10, 132, 255, .62) !important; animation: cg-freeze-pulse .6s ease infinite alternate; }
+@keyframes cg-freeze-pulse { to { transform: scale(1.06); } }
+.cg-go.freeze { color: #9fd8ff; }
 
 /* Draw on the video */
 .vdraw-canvas { position: absolute; inset: 0; z-index: 5; pointer-events: none; touch-action: none; }
