@@ -27,6 +27,79 @@
       hud: "Don't blink 👁️", go: "Stare!",
       tick: (sig, st) => { if (sig.blink > 0.5) { st.hot = (st.hot || 0) + 1; if (st.hot >= 3) return { lost: true }; } else st.hot = 0; return null; },
     },
+    catchmouth: {
+      name: "Catch in your mouth", icon: "👄", tag: "Girti cheezein muh khol ke pakdo", detector: "face",
+      play(api) {
+        let score = 0;
+        api.top().innerHTML = `<div class="cg-hud">👄 Muh khol ke catch karo!</div>`;
+        api.center().innerHTML = `<div class="cm-zone"><div class="cm-mouth">😐</div></div><div class="cg-score">0</div>`;
+        const zone = api.center().querySelector(".cm-zone"), mouth = api.center().querySelector(".cm-mouth"), scoreEl = api.center().querySelector(".cg-score");
+        const FOODS = ["🍬", "🍔", "🍩", "🍎", "🍒", "🧁", "🍿"];
+        api.track(setInterval(() => {
+          const s = document.createElement("span"); s.className = "cm-food"; s.textContent = FOODS[Math.floor(Math.random() * FOODS.length)];
+          s.style.left = (12 + Math.random() * 76) + "%"; s.style.animationDuration = (1.9 + Math.random() * 0.9) + "s";
+          zone.append(s); s.addEventListener("animationend", () => s.remove());
+        }, 620));
+        api.track(setInterval(() => {
+          const open = api.sig().jawOpen > 0.4;
+          mouth.textContent = open ? "😮" : "😐";
+          if (!open) return;
+          const m = mouth.getBoundingClientRect();
+          for (const f of zone.querySelectorAll(".cm-food:not(.caught)")) {
+            const r = f.getBoundingClientRect();
+            if (Math.abs((r.top + r.height / 2) - (m.top + m.height / 2)) < 56 && Math.abs((r.left + r.width / 2) - (m.left + m.width / 2)) < 72) {
+              f.classList.add("caught"); f.textContent = "✨"; score += 1; scoreEl.textContent = score;
+            }
+          }
+        }, 70));
+        api.track(setTimeout(() => api.scoreDone(score), 15000));
+      },
+    },
+    rps: {
+      name: "Rock Paper Scissors", icon: "✊", tag: "✊ ✋ ✌️ — best of 3", detector: "hand",
+      play(api) {
+        const st = api.state;
+        Object.assign(st, { me: 0, they: 0, round: 0, myPick: null, theyPick: null });
+        const MAP = { Closed_Fist: "rock", Open_Palm: "paper", Victory: "scissors" };
+        const EMO = { rock: "✊", paper: "✋", scissors: "✌️" };
+        const BEATS = { rock: "scissors", paper: "rock", scissors: "paper" };
+        st.resolve = () => {
+          if (!st.myPick || !st.theyPick) return;
+          let line;
+          if (st.myPick === st.theyPick) line = "Draw! 🤝";
+          else if (BEATS[st.myPick] === st.theyPick) { st.me += 1; line = "You win the round! 🎉"; }
+          else { st.they += 1; line = `${api.esc(api.other()?.name || "They")} win`; }
+          api.center().innerHTML = `<div class="cg-rps">${EMO[st.myPick]} <span>vs</span> ${EMO[st.theyPick]}</div><div class="cg-rps-line">${line}</div>`;
+          st.myPick = st.theyPick = null;
+          if (st.me >= 2 || st.they >= 2) api.track(setTimeout(() => api.done(st.me > st.they, st.me > st.they ? `🏆 Aap jeet gaye! (${st.me}-${st.they})` : `😅 Aap haare (${st.they}-${st.me})`), 1500));
+          else api.track(setTimeout(roundStart, 1700));
+        };
+        function roundStart() {
+          st.round += 1;
+          api.top().innerHTML = `<div class="cg-hud">You ${st.me} — ${st.they} ${api.esc(api.other()?.name || "them")}</div>`;
+          const words = ["Rock…", "Paper…", "Scissors…", "SHOOT! ✊✋✌️"];
+          let i = 0;
+          const show = () => { api.center().innerHTML = `<div class="cg-go">${words[i]}</div>`; if (i < 3) { i += 1; api.track(setTimeout(show, 650)); } else { st.myPick = MAP[api.sig().gesture] || "rock"; api.send({ k: "pick", v: st.myPick }); st.resolve(); } };
+          show();
+        }
+        roundStart();
+      },
+      onMsg(d, api) { if (d.k === "pick") { api.state.theyPick = d.v; api.state.resolve && api.state.resolve(); } },
+    },
+    makemelaugh: {
+      name: "Make me laugh", icon: "🤪", tag: "Guard 30s na hanse to jeeta", detector: "face",
+      play(api) {
+        const guard = api.isInviter;
+        api.top().innerHTML = `<div class="cg-hud">${guard ? "😐 30s — hanso mat!" : "🤪 Unhe hasao!"}</div>`;
+        api.center().innerHTML = `<div class="cg-go">${guard ? "Keep a straight face!" : "Make faces 😜"}</div><div class="cg-score">30</div>`;
+        api.track(setTimeout(() => api.center().querySelector(".cg-go")?.classList.add("gone"), 1100));
+        const scoreEl = api.center().querySelector(".cg-score");
+        let left = 30, hot = 0;
+        api.track(setInterval(() => { left -= 1; if (scoreEl) scoreEl.textContent = Math.max(0, left); if (left <= 0 && guard) { api.send({ k: "survived" }); api.done(true, "🏆 Aap nahi hanse — jeet!"); } }, 1000));
+        if (guard) api.track(setInterval(() => { const s = api.sig(); if (s.smile > 0.42 || s.jawOpen > 0.5) { hot += 1; if (hot >= 4) { api.send({ k: "laughed" }); api.done(false, "😄 Aap hans gaye — haar!"); } } else hot = 0; }, 100));
+      },
+      onMsg(d, api) { if (d.k === "laughed") api.done(true, "🏆 Unhe hasa diya — aap jeete!"); else if (d.k === "survived") api.done(false, "😐 Wo nahi hanse — aap haare"); },
+    },
   };
 
   // ---------- face detection ----------
@@ -71,32 +144,75 @@
   }
   function stopFace() { cancelAnimationFrame(F.raf); if (F.video) F.video.srcObject = null; F.video = null; F.lastT = -1; }
 
+  // ---------- hand detection (for Rock Paper Scissors etc.) ----------
+  const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task";
+  const H = { rec: null, loading: null, video: null, raf: 0, lastT: -1, sig: { gesture: "", hand: false } };
+  async function loadHand() {
+    if (H.rec) return H.rec;
+    H.loading ||= (async () => {
+      const vision = await import(`${MP}/vision_bundle.mjs`);
+      const files = await vision.FilesetResolver.forVisionTasks(`${MP}/wasm`);
+      const make = (delegate) => vision.GestureRecognizer.createFromOptions(files, { baseOptions: { modelAssetPath: HAND_MODEL, delegate }, runningMode: "VIDEO", numHands: 1 });
+      try { H.rec = await make("GPU"); } catch { H.rec = await make("CPU"); }
+      return H.rec;
+    })();
+    return H.loading;
+  }
+  function startHand() {
+    const cam = cameraTrack();
+    if (!cam) return false;
+    H.video = Object.assign(document.createElement("video"), { muted: true, playsInline: true, autoplay: true });
+    H.video.srcObject = new MediaStream([cam]);
+    H.video.play().catch(() => {});
+    const loop = () => {
+      H.raf = requestAnimationFrame(loop);
+      const v = H.video;
+      if (!H.rec || !v || v.readyState < 2 || v.currentTime === H.lastT) return;
+      H.lastT = v.currentTime;
+      let res;
+      try { res = H.rec.recognizeForVideo(v, performance.now()); } catch { return; }
+      const g = res.gestures?.[0]?.[0];
+      H.sig = { gesture: g && g.score > 0.5 ? g.categoryName : "", hand: !!res.landmarks?.length };
+    };
+    loop();
+    return true;
+  }
+  function stopHand() { cancelAnimationFrame(H.raf); if (H.video) H.video.srcObject = null; H.video = null; H.lastT = -1; }
+
+  // ---------- generic detector + signal ----------
+  const loadDetector = (kind) => (kind === "hand" ? loadHand() : loadFace());
+  const startDetector = (kind) => (kind === "hand" ? startHand() : startFace());
+  const stopDetector = () => { stopFace(); stopHand(); };
+  const signal = () => (GAMES[R.id]?.detector === "hand" ? H.sig : F.sig);
+
   // ---------- round state machine ----------
-  const R = { id: null, phase: "idle", st: {}, loopT: 0, timer: 0, started: 0, myScore: 0, theirScore: null };
+  const R = { id: null, phase: "idle", st: {}, loopT: 0, timer: 0, started: 0, myScore: 0, theirScore: null, inviter: false, tracked: [] };
   const other = () => [...peers.values()][0];
+  const track = (id) => { R.tracked.push(id); return id; };
+  const clearTracked = () => { R.tracked.forEach((t) => { clearInterval(t); clearTimeout(t); }); R.tracked = []; };
 
   function reset() {
-    clearInterval(R.loopT); clearTimeout(R.timer);
+    clearInterval(R.loopT); clearTimeout(R.timer); clearTracked();
     R.phase = "idle"; R.id = null; R.st = {}; R.myScore = 0; R.theirScore = null;
-    stopFace();
+    stopDetector();
     hideOverlay();
   }
 
   async function invite(id) {
     if (!other()) return toast("Game ke liye doosre ka aana zaroori hai");
-    R.id = id; R.phase = "inviting";
+    R.id = id; R.phase = "inviting"; R.inviter = true;
     showOverlay();
     paintInvite(GAMES[id], true);
     send("cg", { t: "invite", g: id });
-    await loadFace().catch(() => {});
+    await loadDetector(GAMES[id].detector).catch(() => {});
   }
 
   function onInvited(id) {
     if (!GAMES[id]) return;
-    R.id = id; R.phase = "invited";
+    R.id = id; R.phase = "invited"; R.inviter = false;
     showOverlay();
     paintInvite(GAMES[id], false);
-    loadFace().catch(() => {});
+    loadDetector(GAMES[id].detector).catch(() => {});
   }
 
   function accept() {
@@ -108,7 +224,7 @@
 
   function beginCountdown() {
     R.phase = "count";
-    startFace();
+    startDetector(GAMES[R.id].detector);
     let n = 3;
     const tick = () => {
       if (n <= 0) return startRound();
@@ -122,10 +238,11 @@
   function startRound() {
     const game = GAMES[R.id];
     R.phase = "play"; R.st = {}; R.started = Date.now(); R.myScore = 0; R.theirScore = null;
+    if (game.play) { game.play(gameApi()); return; }   // custom game drives itself
     paintPlay(game);
     R.loopT = setInterval(() => {
       if (R.phase !== "play") return;
-      const out = game.tick(F.sig, R.st) || {};
+      const out = game.tick(signal(), R.st) || {};
       if (game.mode === "lose-first" && out.lost) { iLost(); return; }
       if (game.mode === "high-score") {
         R.myScore = R.st.score || 0;
@@ -133,6 +250,18 @@
         if (Date.now() - R.started >= (game.duration || 12000)) finishScore();
       }
     }, 90);
+  }
+
+  // what a custom game gets to drive its own round
+  function gameApi() {
+    return {
+      sig: signal, top, center, bottom, me, other, esc, state: R.st,
+      isInviter: R.inviter,
+      send: (o) => send("cg", { t: "g", ...o }),
+      track, play: paintPlay,
+      scoreDone: (my) => { R.myScore = my; R.phase = "wait-score"; clearTracked(); send("cg", { t: "score", v: my }); paintWaitScore(); maybeDecideScore(); },
+      done: (win, text) => { if (R.phase === "play") { R.phase = "done"; clearInterval(R.loopT); clearTracked(); result(win, text); } },
+    };
   }
 
   function iLost() {
@@ -240,9 +369,10 @@
       else if (d.t === "decline") { if (R.phase === "inviting") { toast(`${peer.name} abhi busy hai`); reset(); } }
       else if (d.t === "lost") theyLost();
       else if (d.t === "score") { R.theirScore = Number(d.v) || 0; maybeDecideScore(); }
+      else if (d.t === "g") GAMES[R.id]?.onMsg?.(d, gameApi());
     },
     onCoupleLeave(...a) { reset(); prev.leave?.(...a); },
   });
 
-  window.DU.camGame = { invite, result, GAMES }; // for quick checks
+  window.DU.camGame = { invite, result, GAMES, demo: (id) => { reset(); if (!GAMES[id]) return; showOverlay(); R.id = id; R.inviter = true; R.phase = "count"; startDetector(GAMES[id].detector); startRound(); } }; // demo starts a round's UI
 })();

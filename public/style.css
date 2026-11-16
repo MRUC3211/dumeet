@@ -329,6 +329,17 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .cg-confetti { position: absolute; top: -10px; font-size: 22px; pointer-events: none; animation: cg-fall 1.8s linear forwards; }
 @keyframes cg-fall { to { transform: translateY(55vh) rotate(380deg); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cg-count, .cg-go, .cg-confetti { animation-duration: .01ms; } }
+/* Catch in your mouth */
+.cm-zone { position: relative; width: min(320px, 78vw); height: min(440px, 48vh); margin: 0 auto; }
+.cm-mouth { position: absolute; bottom: 8px; left: 50%; translate: -50% 0; font-size: 58px; z-index: 2; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .5)); }
+.cm-food { position: absolute; top: 0; font-size: 34px; will-change: transform; animation: cm-fall linear forwards; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .35)); }
+@keyframes cm-fall { from { transform: translateY(-34px); } to { transform: translateY(min(440px, 48vh)); } }
+.cm-food.caught { animation: cm-caught .4s ease forwards; }
+@keyframes cm-caught { to { transform: scale(1.7); opacity: 0; } }
+/* Rock paper scissors reveal */
+.cg-rps { display: flex; align-items: center; justify-content: center; gap: 16px; font-size: clamp(44px, 12vw, 82px); }
+.cg-rps span { font-size: .38em; color: rgba(255, 255, 255, .6); }
+.cg-rps-line { margin-top: 12px; font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 4px 16px rgba(0, 0, 0, .6); }
 
 /* Draw on the video */
 .vdraw-canvas { position: absolute; inset: 0; z-index: 5; pointer-events: none; touch-action: none; }
