@@ -292,6 +292,14 @@ button:disabled { cursor: default; }
 body.controls-hidden .controls { opacity: 0; transform: translateY(16px); pointer-events: none; }
 body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; pointer-events: none; }
 
+/* Audio-reactive light show */
+.audioscene { position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; mix-blend-mode: screen; }
+.as-glow { --lvl: 0; --hue: 265; position: absolute; inset: -20%; background:
+  radial-gradient(60% 55% at 25% 30%, hsla(var(--hue), 90%, 60%, calc(0.1 + var(--lvl) * 0.5)), transparent 70%),
+  radial-gradient(60% 55% at 78% 72%, hsla(calc(var(--hue) + 80), 90%, 60%, calc(0.1 + var(--lvl) * 0.5)), transparent 70%),
+  radial-gradient(70% 60% at 55% 15%, hsla(calc(var(--hue) + 160), 90%, 60%, calc(0.08 + var(--lvl) * 0.4)), transparent 70%);
+  filter: blur(40px); transform: scale(calc(1 + var(--lvl) * 0.12)); transition: transform .08s linear; }
+
 /* Messenger */
 .msgr { position: fixed; inset: 0; z-index: 2000; background: var(--color-paper); opacity: 0; transition: opacity .25s var(--ease-out); }
 .msgr.open { opacity: 1; }
