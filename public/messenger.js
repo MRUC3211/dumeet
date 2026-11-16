@@ -16,7 +16,7 @@
   let seen = 0; try { seen = +localStorage.getItem(SEEN_KEY) || 0; } catch { /* private */ }
   const setSeen = (t) => { seen = Math.max(seen, t || 0); try { localStorage.setItem(SEEN_KEY, seen); } catch { /* private */ } };
 
-  let msgs = [], el = null, pollT = 0, replying = null;
+  let msgs = [], el = null, pollT = 0, replying = null, starredOnly = false;
   const unfurls = new Map(); // url -> preview data (cache)
 
   async function fetchMsgs() {
@@ -59,6 +59,7 @@
         <header class="msgr-head">
           <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
           <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+          <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
           <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
         <div class="msgr-list" id="msgr-list"></div>
@@ -68,6 +69,7 @@
           <button type="button" class="icon-btn" data-m="stickers" title="Stickers" aria-label="Stickers"><span class="icon">mood</span></button>
           <label class="icon-btn" title="Photo" aria-label="Send a photo"><span class="icon">add_photo_alternate</span><input type="file" accept="image/*" id="msgr-file" hidden></label>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
+          <button type="button" class="icon-btn" data-m="schedule" title="Send later" aria-label="Schedule"><span class="icon">schedule_send</span></button>
           <button class="icon-btn send" aria-label="Send"><span class="icon">arrow_upward</span></button>
         </form>
       </div>
@@ -79,13 +81,19 @@
     if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
     el.addEventListener("click", (e) => {
       if (!e.target.closest("#msgr-reactpop, [data-react]")) q("#msgr-reactpop").hidden = true;
+      if (!e.target.closest("#msgr-schedpop, [data-m=schedule]")) { const sp = q("#msgr-schedpop"); if (sp) sp.hidden = true; }
       if (e.target.closest("[data-m=close]")) return close();
       if (e.target.closest("[data-m=gallery]")) return openGallery();
       if (e.target.closest("[data-m=cancel-reply]")) return cancelReply();
       if (e.target.closest("[data-m=stickers]")) return toggleStickers();
+      if (e.target.closest("[data-m=starred]")) { starredOnly = !starredOnly; q(".msgr-star-btn")?.classList.toggle("on", starredOnly); return render(true); }
+      if (e.target.closest("[data-m=schedule]")) return openSchedule(e.target.closest("[data-m=schedule]"));
       const rb = e.target.closest("[data-reply]"); if (rb) return startReply(+rb.dataset.reply);
       const rc = e.target.closest("[data-react]"); if (rc) return openReactPop(+rc.dataset.react, rc);
       const rx = e.target.closest("[data-rx]"); if (rx) return toggleReact(+rx.dataset.rx, rx.dataset.e);
+      const sb = e.target.closest("[data-star]"); if (sb) return toggleStar(+sb.dataset.star);
+      const db = e.target.closest("[data-del]"); if (db) return deleteMsg(+db.dataset.del);
+      const sc = e.target.closest("[data-sched]"); if (sc) return scheduleSend(+sc.dataset.sched);
       const st = e.target.closest("[data-sticker]"); if (st) { sendSticker(st.dataset.sticker); toggleStickers(false); return; }
     });
     q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
@@ -109,25 +117,37 @@
     const list = q("#msgr-list"); if (!list) return;
     if (!msgs.length) { list.innerHTML = `<div class="msgr-empty"><span class="icon">chat</span><p>Koi message nahi abhi — pehla bhejo 💬</p></div>`; return; }
     let html = "", lastDay = "";
+    const now = Date.now();
+    let any = false;
     msgs.forEach((m, i) => {
-      const d = new Date(m.at), day = d.toDateString();
-      if (day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
       const mine = String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
+      const scheduled = m.sendAt && m.sendAt > now;
+      if (scheduled && !mine) return;               // not delivered to the other side yet
+      if (starredOnly && !m.star) return;
+      any = true;
+      const d = new Date(m.at), day = d.toDateString();
+      if (!starredOnly && day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
       const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const acts = `<span class="msgr-acts"><button class="msgr-act" data-react="${i}" aria-label="React"><span class="icon">add_reaction</span></button><button class="msgr-act" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button></span>`;
+      if (m.deleted) { html += `<div class="msgr-b deleted ${mine ? "me" : "them"}"><span class="msgr-t"><span class="icon">block</span>This message was deleted</span></div>`; return; }
+      let a = `<button class="msgr-act" data-react="${i}" aria-label="React"><span class="icon">add_reaction</span></button><button class="msgr-act" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button><button class="msgr-act" data-star="${i}" aria-label="Star"><span class="icon">${m.star ? "star" : "star_border"}</span></button>`;
+      if (mine) a += `<button class="msgr-act" data-del="${i}" aria-label="Delete"><span class="icon">delete</span></button>`;
+      const acts = `<span class="msgr-acts">${a}</span>`;
       const reacts = (m.reactions && Object.keys(m.reactions).some((e) => m.reactions[e].length))
-        ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, a]) => a.length).map(([e, a]) => `<button class="msgr-rchip${a.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${a.length > 1 ? " " + a.length : ""}</button>`).join("")}</span>` : "";
-      if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}">${acts}<span class="msgr-sticker">${esc(m.sticker)}</span><span class="msgr-time">${time}</span>${reacts}</div>`; return; }
+        ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, ar]) => ar.length).map(([e, ar]) => `<button class="msgr-rchip${ar.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${ar.length > 1 ? " " + ar.length : ""}</button>`).join("")}</span>` : "";
+      const meta = scheduled
+        ? `<span class="msgr-time msgr-sched"><span class="icon">schedule</span>${d.toLocaleString([], { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}</span>`
+        : `<span class="msgr-time">${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}</span>`;
+      if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}">${acts}<span class="msgr-sticker">${esc(m.sticker)}</span>${meta}${reacts}</div>`; return; }
       const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
       html += `<div class="msgr-b ${mine ? "me" : "them"}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
       html += acts;
       if (m.reply) html += `<span class="msgr-q"><b>${esc(m.reply.from || "")}</b>${esc(m.reply.text || "")}</span>`;
       if (Array.isArray(m.media)) html += m.media.filter((x) => x && typeof x.url === "string" && x.url.startsWith("/api/media/")).map((x) => `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`).join("");
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
-      html += `<span class="msgr-time">${time}</span>${reacts}</div>`;
+      html += `${meta}${reacts}</div>`;
     });
-    list.innerHTML = html;
-    setSeen(msgs[msgs.length - 1].at);
+    list.innerHTML = any ? html : `<div class="msgr-empty"><span class="icon">${starredOnly ? "star" : "chat"}</span><p>${starredOnly ? "Koi starred message nahi" : "Koi message nahi abhi — pehla bhejo 💬"}</p></div>`;
+    setSeen(now);
     if (scroll) list.scrollTop = list.scrollHeight;
     loadPreviews();
   }
@@ -194,6 +214,32 @@
   async function sendSticker(emoji) {
     const doc = { from: prefs.name || "", text: "", media: [], sticker: emoji, at: Date.now() };
     try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); } } catch { /* offline */ }
+  }
+
+  // ---------- star / delete / schedule ----------
+  function toggleStar(i) { const m = msgs[i]; if (!m) return; m.star = !m.star; update(m); render(); }
+  function deleteMsg(i) { const m = msgs[i]; if (!m) return; m.deleted = true; m.text = ""; m.media = []; m.sticker = ""; delete m.reactions; delete m.reply; update(m); render(); }
+
+  function presets() {
+    const t9 = new Date(); t9.setHours(21, 0, 0, 0); if (t9.getTime() <= Date.now()) t9.setDate(t9.getDate() + 1);
+    const tm9 = new Date(); tm9.setDate(tm9.getDate() + 1); tm9.setHours(9, 0, 0, 0);
+    return [["In 1 hour", Date.now() + 3600000], ["Tonight 9 PM", t9.getTime()], ["Tomorrow 9 AM", tm9.getTime()]];
+  }
+  function openSchedule(anchor) {
+    if (!q("#msgr-input").value.trim()) return toast("Pehle message likho");
+    let pop = q("#msgr-schedpop");
+    if (!pop) { pop = document.createElement("div"); pop.className = "msgr-schedpop"; pop.id = "msgr-schedpop"; el.append(pop); }
+    pop.innerHTML = presets().map(([label, ts]) => `<button data-sched="${ts}"><span class="icon">schedule</span>${label}</button>`).join("");
+    pop.hidden = false;
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+    pop.style.top = Math.max(8, r.top - h - 6) + "px";
+  }
+  async function scheduleSend(ts) {
+    const input = q("#msgr-input"), t = input.value.trim(); if (!t) return;
+    input.value = ""; const p = q("#msgr-schedpop"); if (p) p.hidden = true;
+    const doc = { from: prefs.name || "", text: t, media: [], at: ts, sendAt: ts };
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); toast("Message schedule ho gaya ⏰"); } } catch { toast("Schedule nahi hua"); }
   }
 
   // ---------- shared photo gallery ----------
