@@ -316,13 +316,28 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-form .send { color: var(--color-accent); }
 .msgr-head b { flex: 1; }
 .msgr-gallery-btn { flex: none; color: var(--color-ink-2); }
-.msgr-b { position: relative; }
-.msgr-reply-btn { position: absolute; top: 50%; translate: 0 -50%; width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--color-paper-2); color: var(--color-muted); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out); box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
-.msgr-b.me .msgr-reply-btn { left: -32px; }
-.msgr-b.them .msgr-reply-btn { right: -32px; }
-.msgr-b:hover .msgr-reply-btn { opacity: 1; }
-.msgr-reply-btn .icon { font-size: 15px; }
-@media (hover: none) { .msgr-reply-btn { opacity: .55; } }
+.msgr-b { position: relative; margin-bottom: 4px; }
+.msgr-acts { position: absolute; top: -15px; z-index: 3; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-pill); background: var(--color-paper-2); box-shadow: 0 4px 12px rgba(0, 0, 0, .28), inset 0 0 0 1px var(--color-rule); opacity: 0; transition: opacity .15s var(--ease-out); }
+.msgr-b.me .msgr-acts { right: 4px; }
+.msgr-b.them .msgr-acts { left: 4px; }
+.msgr-b:hover .msgr-acts, .msgr-b:focus-within .msgr-acts { opacity: 1; }
+@media (hover: none) { .msgr-acts { opacity: .5; } }
+.msgr-act { width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: var(--color-muted); display: grid; place-items: center; cursor: pointer; }
+.msgr-act:hover { background: var(--color-paper-3); color: var(--color-accent); }
+.msgr-act .icon { font-size: 15px; }
+.msgr-reacts { position: absolute; bottom: -9px; z-index: 2; display: flex; gap: 3px; }
+.msgr-b.me .msgr-reacts { right: 8px; }
+.msgr-b.them .msgr-reacts { left: 8px; }
+.msgr-rchip { border: 0; border-radius: var(--radius-pill); padding: 1px 7px; font-size: 12px; font-weight: 600; background: var(--color-paper-2); color: var(--color-ink); box-shadow: inset 0 0 0 1px var(--color-rule); cursor: pointer; }
+.msgr-rchip.mine { background: color-mix(in oklab, var(--color-accent) 22%, var(--color-paper-2)); box-shadow: inset 0 0 0 1px var(--color-accent); }
+.msgr-reactpop { position: fixed; z-index: 10; display: flex; gap: 2px; padding: 5px; border-radius: var(--radius-pill); background: var(--color-paper-2); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .45), inset 0 0 0 1px var(--color-rule); }
+.msgr-reactpop button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: none; font-size: 20px; cursor: pointer; transition: transform .12s var(--ease-out); }
+.msgr-reactpop button:hover { background: var(--color-paper-3); transform: scale(1.18); }
+.msgr-b.sticker { background: none !important; box-shadow: none; padding: 0; }
+.msgr-sticker { font-size: 64px; line-height: 1; }
+.msgr-stickers { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 4px; max-height: 180px; overflow-y: auto; padding: 10px 12px; border-top: 1px solid var(--color-rule); background: var(--color-paper-2); flex: none; }
+.msgr-stickers button { border: 0; background: none; font-size: 30px; aspect-ratio: 1; cursor: pointer; border-radius: 10px; }
+.msgr-stickers button:hover { background: var(--color-paper-3); }
 .msgr-q { display: block; margin-bottom: 4px; padding: 5px 8px; border-left: 3px solid currentColor; border-radius: 6px; background: rgba(0, 0, 0, .12); font-size: 13px; opacity: .9; }
 .msgr-q b { display: block; font-size: 12px; }
 .msgr-b.me .msgr-q { background: rgba(255, 255, 255, .18); }

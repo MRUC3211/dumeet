@@ -63,23 +63,30 @@
         </header>
         <div class="msgr-list" id="msgr-list"></div>
         <div class="msgr-replybar" id="msgr-replybar" hidden><div class="msgr-rb-info"><b id="msgr-rb-name"></b><span id="msgr-rb-text"></span></div><button type="button" class="icon-btn" data-m="cancel-reply" aria-label="Cancel"><span class="icon">close</span></button></div>
+        <div class="msgr-stickers" id="msgr-stickers" hidden></div>
         <form class="msgr-form" id="msgr-form">
+          <button type="button" class="icon-btn" data-m="stickers" title="Stickers" aria-label="Stickers"><span class="icon">mood</span></button>
           <label class="icon-btn" title="Photo" aria-label="Send a photo"><span class="icon">add_photo_alternate</span><input type="file" accept="image/*" id="msgr-file" hidden></label>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
           <button class="icon-btn send" aria-label="Send"><span class="icon">arrow_upward</span></button>
         </form>
-      </div>`;
+      </div>
+      <div class="msgr-reactpop" id="msgr-reactpop" hidden></div>`;
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add("open"));
     q("#msgr-name").textContent = partner();
     const av = q("#msgr-av"); const face = window.DU?.faceFor?.(partner());
     if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
     el.addEventListener("click", (e) => {
+      if (!e.target.closest("#msgr-reactpop, [data-react]")) q("#msgr-reactpop").hidden = true;
       if (e.target.closest("[data-m=close]")) return close();
       if (e.target.closest("[data-m=gallery]")) return openGallery();
       if (e.target.closest("[data-m=cancel-reply]")) return cancelReply();
-      const rb = e.target.closest("[data-reply]");
-      if (rb) return startReply(+rb.dataset.reply);
+      if (e.target.closest("[data-m=stickers]")) return toggleStickers();
+      const rb = e.target.closest("[data-reply]"); if (rb) return startReply(+rb.dataset.reply);
+      const rc = e.target.closest("[data-react]"); if (rc) return openReactPop(+rc.dataset.react, rc);
+      const rx = e.target.closest("[data-rx]"); if (rx) return toggleReact(+rx.dataset.rx, rx.dataset.e);
+      const st = e.target.closest("[data-sticker]"); if (st) { sendSticker(st.dataset.sticker); toggleStickers(false); return; }
     });
     q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
     q("#msgr-file").addEventListener("change", async (e) => {
@@ -107,13 +114,17 @@
       if (day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
       const mine = String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
       const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const acts = `<span class="msgr-acts"><button class="msgr-act" data-react="${i}" aria-label="React"><span class="icon">add_reaction</span></button><button class="msgr-act" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button></span>`;
+      const reacts = (m.reactions && Object.keys(m.reactions).some((e) => m.reactions[e].length))
+        ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, a]) => a.length).map(([e, a]) => `<button class="msgr-rchip${a.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${a.length > 1 ? " " + a.length : ""}</button>`).join("")}</span>` : "";
+      if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}">${acts}<span class="msgr-sticker">${esc(m.sticker)}</span><span class="msgr-time">${time}</span>${reacts}</div>`; return; }
       const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
       html += `<div class="msgr-b ${mine ? "me" : "them"}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
-      html += `<button class="msgr-reply-btn" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button>`;
+      html += acts;
       if (m.reply) html += `<span class="msgr-q"><b>${esc(m.reply.from || "")}</b>${esc(m.reply.text || "")}</span>`;
       if (Array.isArray(m.media)) html += m.media.filter((x) => x && typeof x.url === "string" && x.url.startsWith("/api/media/")).map((x) => `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`).join("");
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
-      html += `<span class="msgr-time">${time}</span></div>`;
+      html += `<span class="msgr-time">${time}</span>${reacts}</div>`;
     });
     list.innerHTML = html;
     setSeen(msgs[msgs.length - 1].at);
@@ -149,6 +160,41 @@
     q("#msgr-input").focus();
   }
   function cancelReply() { replying = null; const rb = q("#msgr-replybar"); if (rb) rb.hidden = true; }
+
+  // ---------- reactions + stickers ----------
+  const RX = ["❤️", "😂", "👍", "😮", "😢", "🔥", "🥰", "👏"];
+  const STICKERS = ["😘", "🥰", "😍", "🤗", "😂", "😜", "🥳", "😎", "😴", "🥺", "😭", "😡", "👍", "🙏", "💪", "🎉", "🌹", "💐", "🌙", "💯", "🫶", "💞", "💋", "✨", "🫂", "🙈"];
+
+  async function update(m) { const { id, ...data } = m; try { await fetch("/api/data", { method: "POST", body: JSON.stringify({ c: "messages", id, data }) }); } catch { /* offline */ } }
+
+  function openReactPop(i, anchor) {
+    const pop = q("#msgr-reactpop");
+    pop.innerHTML = RX.map((e) => `<button data-rx="${i}" data-e="${e}">${e}</button>`).join("");
+    pop.hidden = false;
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+    pop.style.top = Math.max(8, r.top - h - 6) + "px";
+  }
+  function toggleReact(i, emoji) {
+    const m = msgs[i]; if (!m) return;
+    m.reactions = m.reactions || {};
+    const arr = m.reactions[emoji] = m.reactions[emoji] || [];
+    const name = prefs.name || "", k = arr.indexOf(name);
+    if (k >= 0) arr.splice(k, 1); else arr.push(name);
+    if (!arr.length) delete m.reactions[emoji];
+    q("#msgr-reactpop").hidden = true;
+    update(m); render();
+  }
+  function toggleStickers(force) {
+    const p = q("#msgr-stickers"); if (!p) return;
+    const show = force === undefined ? p.hidden : force;
+    if (show && !p.dataset.built) { p.innerHTML = STICKERS.map((e) => `<button data-sticker="${e}">${e}</button>`).join(""); p.dataset.built = "1"; }
+    p.hidden = !show;
+  }
+  async function sendSticker(emoji) {
+    const doc = { from: prefs.name || "", text: "", media: [], sticker: emoji, at: Date.now() };
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); } } catch { /* offline */ }
+  }
 
   // ---------- shared photo gallery ----------
   function openGallery() {
