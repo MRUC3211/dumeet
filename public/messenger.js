@@ -45,8 +45,13 @@
     try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); if (el) render(true); } } catch { /* offline */ }
   }
 
+  const potdKey = () => new Date().toDateString();
+  const potdDue = () => { try { return localStorage.getItem("du-potd") !== potdKey(); } catch { return false; } };
+  const potdDone = () => { try { localStorage.setItem("du-potd", potdKey()); } catch { /* private */ } };
+
   async function open() {
     build();
+    if (potdDue()) q("#msgr-potd").hidden = false;
     await fetchMsgs();
     render(true);
     if (msgs.length) setSeen(msgs[msgs.length - 1].at);
@@ -69,6 +74,7 @@
           <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
           <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
+        <div class="msgr-potd" id="msgr-potd" hidden><span class="icon">photo_camera</span><div><b>Photo of the day</b><small>Aaj ki ek photo/selfie bhejo 📸</small></div><button type="button" class="btn primary small-btn" data-m="potd-send">Send</button><button type="button" class="icon-btn" data-m="potd-x" aria-label="Dismiss"><span class="icon">close</span></button></div>
         <div class="msgr-list" id="msgr-list"></div>
         <div class="msgr-replybar" id="msgr-replybar" hidden><div class="msgr-rb-info"><b id="msgr-rb-name"></b><span id="msgr-rb-text"></span></div><button type="button" class="icon-btn" data-m="cancel-reply" aria-label="Cancel"><span class="icon">close</span></button></div>
         <div class="msgr-stickers" id="msgr-stickers" hidden></div>
@@ -98,6 +104,8 @@
       if (!e.target.closest("#msgr-schedpop, [data-m=schedule]")) { const sp = q("#msgr-schedpop"); if (sp) sp.hidden = true; }
       if (!e.target.closest("#msgr-attachpop, [data-m=attach]")) { const ap = q("#msgr-attachpop"); if (ap) ap.hidden = true; }
       if (e.target.closest("[data-m=close]")) return close();
+      if (e.target.closest("[data-m=potd-send]")) { potdDone(); q("#msgr-potd").hidden = true; return q("#msgr-file").click(); }
+      if (e.target.closest("[data-m=potd-x]")) { potdDone(); return (q("#msgr-potd").hidden = true); }
       if (e.target.closest("[data-m=attach]")) return toggleAttach(e.target.closest("[data-m=attach]"));
       if (e.target.closest("[data-m=vanish]")) return toggleVanish();
       const ab = e.target.closest("[data-a]"); if (ab) { q("#msgr-attachpop").hidden = true; const a = ab.dataset.a; if (a === "photo") q("#msgr-file").click(); else if (a === "once") q("#msgr-file-once").click(); else if (a === "location") shareLocation(); return; }
