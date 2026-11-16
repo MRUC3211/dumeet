@@ -1314,6 +1314,7 @@ body.night-light video { filter: sepia(.35) brightness(.85); }
 .tg-ic.filt { background: linear-gradient(135deg, #ff6bd6, #bf5af2); }
 .tg-ic.gesic { background: linear-gradient(135deg, #5e5ce6, #ff2d78); }
 .tg-ic.futic { background: linear-gradient(135deg, #7a5cff, #ff7eb3); }
+.tg-ic.vdrawic { background: linear-gradient(135deg, #0a84ff, #30d158); }
 .tg-ic.kissic { background: linear-gradient(135deg, #ff2d78, #ff6aa6); }
 .tg-ic.vfx { background: linear-gradient(135deg, #5e5ce6, #0a84ff); }
 .tg-ic.throw { background: linear-gradient(135deg, #ff453a, #ff9f0a); }
