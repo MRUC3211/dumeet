@@ -404,6 +404,12 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-gallery { position: absolute; inset: 0; background: var(--color-paper); display: flex; flex-direction: column; }
 .msgr-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; align-content: start; }
 .msgr-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer; border-radius: 4px; }
+.msgr-reel { position: fixed; inset: 0; z-index: 3000; background: #000; }
+.reel-stage { position: absolute; inset: 0; overflow: hidden; }
+.reel-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1s ease; animation: reel-kb 6.5s ease forwards; }
+.reel-img.on { opacity: 1; }
+@keyframes reel-kb { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.16) translate(-2.5%, -2%); } }
+.reel-x { position: fixed; top: 16px; right: 16px; z-index: 1; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .msgr-potd { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 10px; border-radius: 14px; background: linear-gradient(135deg, color-mix(in oklab, var(--color-accent) 22%, var(--color-paper-2)), var(--color-paper-2)); box-shadow: inset 0 0 0 1px var(--color-rule); flex: none; }
 .msgr-potd > .icon { font-size: 26px; color: var(--color-accent); }
 .msgr-potd div { flex: 1; min-width: 0; }

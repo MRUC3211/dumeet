@@ -355,13 +355,35 @@
     for (const m of msgs) if (Array.isArray(m.media)) for (const x of m.media) if (x && !x.once && typeof x.url === "string" && x.url.startsWith("/api/media/") && String(x.type || "").startsWith("image")) imgs.push(x.url);
     const g = document.createElement("div");
     g.className = "msgr-gallery";
-    g.innerHTML = `<header class="msgr-head"><button class="icon-btn" data-g="close" aria-label="Back"><span class="icon">arrow_back</span></button><b>Shared photos</b></header>`
+    g.innerHTML = `<header class="msgr-head"><button class="icon-btn" data-g="close" aria-label="Back"><span class="icon">arrow_back</span></button><b>Shared photos</b>${imgs.length > 1 ? '<button class="icon-btn" data-g="reel" aria-label="Play highlight reel"><span class="icon">slideshow</span></button>' : ""}</header>`
       + (imgs.length ? `<div class="msgr-grid">${imgs.map((u) => `<img src="${esc(authUrl(u))}" loading="lazy" alt="">`).join("")}</div>` : `<div class="msgr-empty"><span class="icon">image</span><p>Abhi koi photo share nahi hui</p></div>`);
     el.append(g);
     g.addEventListener("click", (e) => {
       if (e.target.closest("[data-g=close]")) return g.remove();
+      if (e.target.closest("[data-g=reel]")) return playReel(imgs.map((u) => authUrl(u)));
       const img = e.target.closest("img"); if (img && window.DU?.lightbox) window.DU.lightbox(img.src);
     });
+  }
+
+  function playReel(srcs) {
+    if (!srcs.length) return;
+    const r = document.createElement("div");
+    r.className = "msgr-reel";
+    r.innerHTML = '<div class="reel-stage"></div><button class="reel-x" aria-label="Close"><span class="icon">close</span></button>';
+    document.body.append(r);
+    const stage = r.querySelector(".reel-stage");
+    let i = 0;
+    const show = () => {
+      const img = document.createElement("img");
+      img.className = "reel-img"; img.src = srcs[i % srcs.length];
+      stage.append(img);
+      requestAnimationFrame(() => img.classList.add("on"));
+      setTimeout(() => { const kids = [...stage.querySelectorAll(".reel-img")]; if (kids.length > 1) kids.slice(0, -1).forEach((k) => k.remove()); }, 1100);
+      i += 1;
+    };
+    show();
+    const t = setInterval(() => { if (!r.isConnected) return clearInterval(t); show(); }, 3200);
+    r.addEventListener("click", (e) => { if (e.target.closest(".reel-x") || e.target === r || e.target.closest(".reel-stage")) { clearInterval(t); r.remove(); } });
   }
 
   const unread = () => msgs.filter((m) => m.at > seen && String(m.from || "").toLowerCase() !== String(prefs.name || "").toLowerCase()).length;
