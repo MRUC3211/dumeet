@@ -523,15 +523,17 @@ body { -webkit-tap-highlight-color: transparent; }
 
 /* home */
 .nav-actions { display: flex; gap: 6px; align-items: center; }
+header.nav { z-index: 30; }   /* keep the ⋯ menu above the hero/pill */
+.nav-ico { padding-inline: 12px; }
 .nav-more { position: relative; }
-.nav-more-btn { padding-inline: 10px; }
-.nav-menu { position: absolute; right: 0; top: calc(100% + 10px); z-index: 40; min-width: 210px; display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 16px; background: var(--glass, rgba(255,255,255,0.72)); backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5); border: 1px solid var(--hairline, rgba(0,0,0,0.08)); box-shadow: 0 18px 50px -14px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.08); transform-origin: top right; animation: navMenuIn 0.16s cubic-bezier(0.22,1,0.36,1); }
+.nav-more-btn { padding-inline: 12px; }
+.nav-menu { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; min-width: 216px; display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 16px; background: var(--color-paper-2); box-shadow: 0 22px 60px -16px rgba(0, 0, 0, .34), 0 3px 10px rgba(0, 0, 0, .1), inset 0 0 0 1px var(--color-rule); transform-origin: top right; animation: navMenuIn .17s cubic-bezier(.22, 1, .36, 1); }
 .nav-menu[hidden] { display: none; }
-.nav-menu button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 11px; background: transparent; color: var(--color-ink); font: inherit; font-size: 15px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.14s ease; }
-.nav-menu button .icon { font-size: 20px; opacity: 0.75; }
+.nav-menu button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 0; padding: 11px 12px; border: 0; border-radius: 11px; background: transparent; color: var(--color-ink); font: 500 15px/1 var(--font-body); text-align: left; cursor: pointer; transition: background .14s ease; }
+.nav-menu button .icon { font-size: 20px; opacity: .72; }
 .nav-menu button:hover, .nav-menu button:focus-visible { background: color-mix(in srgb, var(--color-ink) 8%, transparent); }
-.nav-menu-sep { height: 1px; margin: 5px 8px; background: var(--hairline, rgba(0,0,0,0.08)); }
-@keyframes navMenuIn { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.nav-menu-sep { height: 1px; margin: 5px 10px; background: var(--color-rule); }
+@keyframes navMenuIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .sc-tile.a .sc-avatar, .sc-tile.b .sc-avatar { font-weight: 700; }
 .join-big { height: 64px; min-width: 220px; padding: 0 40px; border-radius: 999px; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; gap: 10px; }
 .join-big .icon { font-size: 26px; }
