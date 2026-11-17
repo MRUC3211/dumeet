@@ -28,14 +28,14 @@
     { id: "45", focus: 45, brk: 15, rounds: 2, label: "45 + 15", small: "2 rounds · 2 h" },
   ];
   const TAUNTS = [
-    "Phone ne phir se jeet liya? 😏",
-    "Reels baad mein, syllabus pehle!",
-    "Itni der? Chai bana rahe the ya Netflix?",
-    "Focus mode tha, Instagram mode nahi 😄",
-    "Wapas aa gaye, shabaash. Ab tikna!",
-    "Hey Lord ne dekh liya tha, bas bol nahi raha tha 👀",
+    "The phone won again? 😏",
+    "Reels later, syllabus first!",
+    "That long? Making chai or watching Netflix?",
+    "It was focus mode, not Instagram mode 😄",
+    "You're back, nice. Now stick with it!",
+    "Hey Lord saw it, just wasn't saying anything 👀",
   ];
-  const BREAK_LINES = ["Paani piyo, stretch karo 🧘", "Aankhen screen se hatao, 20 second door dekho 👀", "Ek glass paani, ek smile 🙂", "Uth ke thoda chal lo 🚶"];
+  const BREAK_LINES = ["Drink water, stretch 🧘", "Look away from the screen, 20 seconds into the distance 👀", "A glass of water, a smile 🙂", "Get up and walk a bit 🚶"];
 
   const st = {
     on: false, phase: "focus", ends: 0, paused: false, pausedLeft: 0,
@@ -280,7 +280,7 @@
     const total = qz.questions.length;
     if (qz.i >= total) {
       const r = qz.right;
-      const line = r === total ? "Full marks! Topper vibes 🏆" : r === 0 ? "Koi baat nahi, agle round mein pakka 💪" : r >= total / 2 ? "Achha hai! Thoda aur revise, phir full marks 😎" : "Hmm, yeh part dobara dekh lo 📖";
+      const line = r === total ? "Full marks! Topper vibes 🏆" : r === 0 ? "No worries, you'll nail it next round 💪" : r >= total / 2 ? "Nice! A little more revision, then full marks 😎" : "Hmm, go over this part again 📖";
       qbody.innerHTML = `<div class="qz-done"><div class="qz-score"><b>${r}</b><span>/ ${total}</span></div><p>${line}</p>
         <button class="btn primary sa-wide" data-modal-close>Back to the break</button></div>`;
       return;
@@ -376,7 +376,7 @@
 
   function showSummary(done, minutes) {
     const scores = Object.entries(st.scores).map(([n, s]) => `<span>${esc(n === myName() ? "You" : n)} <b>${s.right}/${s.total}</b></span>`).join("");
-    const line = done ? (mine.aways ? `Done! Bas ${mine.aways} baar phone pe gaye, next time zero 😄` : "Done, and not once on the phone. Legends 🏆") : "Good session. Every minute counts 📚";
+    const line = done ? (mine.aways ? `Done! Only hit the phone ${mine.aways}× — next time zero 😄` : "Done, and not once on the phone. Legends 🏆") : "Good session. Every minute counts 📚";
     qbody.innerHTML = `<div class="qz-done"><span class="icon st-trophy" aria-hidden="true">${done ? "emoji_events" : "menu_book"}</span>
       <div class="qz-score"><b>${minutes}</b><span>min focused</span></div>
       <p>${line}</p>${scores ? `<div class="st-scores">${scores}</div>` : ""}

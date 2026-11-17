@@ -98,7 +98,7 @@
   const prev = { click: window.DU.onCoupleClick, msg: window.DU.onCouple, leave: window.DU.onCoupleLeave };
   Object.assign(window.DU, {
     onCoupleClick(button) {
-      if (button.dataset.tg === "touchglass") { window.DU.kit.toggleTray(false); if (![...peers.values()][0]) return toast("Doosre ka call pe aana zaroori hai"); enable(!S.on); }
+      if (button.dataset.tg === "touchglass") { window.DU.kit.toggleTray(false); if (![...peers.values()][0]) return toast("You both need to be on the call first"); enable(!S.on); }
       else prev.click?.(button);
     },
     onCouple(message, peer) {
@@ -107,7 +107,7 @@
       if (d.t === "off") S.theirs = [];
       else if (d.t === "p" && Array.isArray(d.pts)) {
         S.theirs = d.pts.slice(0, 6).map((p) => [Number(p[0]) || 0, Number(p[1]) || 0]);
-        if (!S.on && S.theirs.length) { enable(true); toast(`${peer.name} aapko chhoo rahe hain 💞`); }
+        if (!S.on && S.theirs.length) { enable(true); toast(`${peer.name} is touching the glass 💞`); }
       }
     },
     onCoupleLeave(...a) { enable(false); prev.leave?.(...a); },

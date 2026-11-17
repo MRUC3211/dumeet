@@ -43,7 +43,7 @@
 
   function start() {
     const cam = cameraTrack();
-    if (!cam || !me.cam) { toast("Camera on karo together mode ke liye"); return false; }
+    if (!cam || !me.cam) { toast("Turn your camera on for Together mode"); return false; }
     stop(false);
     const set = cam.getSettings();
     const W = Math.min(set.width || 640, 720), H = Math.round(W * ((set.height || 480) / (set.width || 640)));
@@ -144,7 +144,7 @@
     if (on) {
       showBar();
       toast("Loading Together mode…");
-      loadSeg().then(() => { if (T.on) start(); }).catch(() => { toast("Together mode load nahi hua"); });
+      loadSeg().then(() => { if (T.on) start(); }).catch(() => { toast("Together mode failed to load"); });
       send("together", { t: "on", bg: T.bg });
     } else {
       stop(); hideBar();
@@ -156,7 +156,7 @@
   const prev = { click: window.DU.onCoupleClick, msg: window.DU.onCouple, leave: window.DU.onCoupleLeave };
   Object.assign(window.DU, {
     onCoupleClick(button) {
-      if (button.dataset.tg === "together") { window.DU.kit.toggleTray(false); if (![...peers.values()][0]) return toast("Doosre ka call pe aana zaroori hai"); enable(!T.on); }
+      if (button.dataset.tg === "together") { window.DU.kit.toggleTray(false); if (![...peers.values()][0]) return toast("You both need to be on the call first"); enable(!T.on); }
       else prev.click?.(button);
     },
     onCouple(message, peer) {

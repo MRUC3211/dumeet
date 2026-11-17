@@ -3030,15 +3030,15 @@ function openShortcuts() {
 async function aiSummary() {
   toggleMenu(false);
   const text = notes.filter((n) => n.kind === "chat" || n.kind === "caption").map((n) => `${n.name}: ${n.text}`).join("\n");
-  if (text.trim().length < 20) return toast("Abhi summarize karne ko kaafi baat nahi hui — captions (CC) on karo ya chat karo");
-  toast("Summary bana rahe hain…");
+  if (text.trim().length < 20) return toast("Not enough yet to summarise — turn captions (CC) on or chat a bit");
+  toast("Making a summary…");
   try {
     const res = await fetch("/api/ai/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, kind: "call" }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) throw new Error(data.error || "failed");
     showAiCard("Call summary", data.points, data.line);
   } catch (error) {
-    toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Hey Lord on karo (AI key server par)" : "Summary nahi bani, try again");
+    toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Turn Hey Lord on (AI key on the server)" : "Couldn't make a summary, try again");
   }
 }
 

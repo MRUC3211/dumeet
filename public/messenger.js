@@ -77,7 +77,7 @@
           <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
           <button class="icon-btn msgr-gallery-btn" data-m="gallery" aria-label="Shared photos"><span class="icon">photo_library</span></button>
         </header>
-        <div class="msgr-potd" id="msgr-potd" hidden><span class="icon">photo_camera</span><div><b>Photo of the day</b><small>Aaj ki ek photo/selfie bhejo 📸</small></div><button type="button" class="btn primary small-btn" data-m="potd-send">Send</button><button type="button" class="icon-btn" data-m="potd-x" aria-label="Dismiss"><span class="icon">close</span></button></div>
+        <div class="msgr-potd" id="msgr-potd" hidden><span class="icon">photo_camera</span><div><b>Photo of the day</b><small>Send one photo or selfie for today 📸</small></div><button type="button" class="btn primary small-btn" data-m="potd-send">Send</button><button type="button" class="icon-btn" data-m="potd-x" aria-label="Dismiss"><span class="icon">close</span></button></div>
         <div class="msgr-list" id="msgr-list"></div>
         <div class="msgr-smart" id="msgr-smart" hidden></div>
         <div class="msgr-replybar" id="msgr-replybar" hidden><div class="msgr-rb-info"><b id="msgr-rb-name"></b><span id="msgr-rb-text"></span></div><button type="button" class="icon-btn" data-m="cancel-reply" aria-label="Cancel"><span class="icon">close</span></button></div>
@@ -136,12 +136,13 @@
       const bubble = e.target.closest(".msgr-b[data-i]");
       if (bubble && !e.target.closest("a, img, button")) return openCtx(+bubble.dataset.i, bubble);
     });
+    enableSwipeReply();
     q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
     const sendPhoto = async (f, once) => {
       if (!f) return;
-      if (f.size > 25 * 1024 * 1024) return toast("Photo 25MB se chhoti honi chahiye");
+      if (f.size > 25 * 1024 * 1024) return toast("Photo must be under 25MB");
       toast("Sending…");
-      try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name, once: once || undefined }]); } catch { toast("Photo send nahi hui"); }
+      try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name, once: once || undefined }]); } catch { toast("Couldn't send the photo"); }
     };
     q("#msgr-file").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, false); });
     q("#msgr-file-once").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, true); });
@@ -158,7 +159,7 @@
 
   function render(scroll) {
     const list = q("#msgr-list"); if (!list) return;
-    if (!msgs.length) { list.innerHTML = `<div class="msgr-empty"><span class="icon">chat</span><p>Koi message nahi abhi — pehla bhejo 💬</p></div>`; return; }
+    if (!msgs.length) { list.innerHTML = `<div class="msgr-empty"><span class="icon">chat</span><p>No messages yet — send the first one 💬</p></div>`; return; }
     let html = "", lastDay = "";
     const now = Date.now();
     let any = false;
@@ -194,7 +195,7 @@
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
       html += `${meta}${reacts}</div>`;
     });
-    list.innerHTML = any ? html : `<div class="msgr-empty"><span class="icon">${starredOnly ? "star" : "chat"}</span><p>${starredOnly ? "Koi starred message nahi" : "Koi message nahi abhi — pehla bhejo 💬"}</p></div>`;
+    list.innerHTML = any ? html : `<div class="msgr-empty"><span class="icon">${starredOnly ? "star" : "chat"}</span><p>${starredOnly ? "No starred messages" : "No messages yet — send the first one 💬"}</p></div>`;
     setSeen(now);
     if (scroll) list.scrollTop = list.scrollHeight;
     loadPreviews();
@@ -221,14 +222,14 @@
     const now = Date.now();
     const recent = msgs.filter((m) => !(m.sendAt && m.sendAt > now) && !m.deleted && (m.text || m.sticker)).slice(-30)
       .map((m) => `${String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase() ? "You" : (m.from || "Them")}: ${m.text || m.sticker}`).join("\n");
-    if (recent.trim().length < 20) return toast("Abhi summarize karne ko kaafi messages nahi");
+    if (recent.trim().length < 20) return toast("Not enough messages to summarise yet");
     toast("Catching up…");
     try {
       const res = await fetch("/api/ai/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: recent }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) throw new Error(data.error || "failed");
       (window.DU.aiCard || (() => toast("Summary ready")))("Catch me up", data.points, data.line);
-    } catch (error) { toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Hey Lord on karo (AI key)" : "Summary nahi bani"); }
+    } catch (error) { toast(/switched on|GEMINI/i.test(String(error.message || error)) ? "Turn Hey Lord on (AI key)" : "Couldn't make a summary"); }
   }
 
   // ---------- link previews ----------
@@ -259,6 +260,56 @@
     q("#msgr-input").focus();
   }
   function cancelReply() { replying = null; const rb = q("#msgr-replybar"); if (rb) rb.hidden = true; }
+
+  // ---------- swipe-to-reply (WhatsApp / Telegram style) ----------
+  function enableSwipeReply() {
+    const list = q("#msgr-list"); if (!list || list.dataset.swipe) return;
+    list.dataset.swipe = "1";
+    const THRESH = 52, MAX = 80;
+    let bubble = null, sx = 0, sy = 0, mx = 0, active = false, decided = false, horiz = false;
+    const clear = (animate) => {
+      if (bubble) {
+        bubble.style.transition = animate ? "transform .2s cubic-bezier(.22,1,.36,1)" : "";
+        bubble.style.transform = ""; bubble.style.removeProperty("--swipe"); bubble.style.removeProperty("--swipe-x");
+        bubble.classList.remove("swiping");
+        if (animate) { const b = bubble; setTimeout(() => { b.style.transition = ""; }, 220); }
+      }
+      bubble = null; active = false; decided = false; horiz = false; mx = 0;
+    };
+    list.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse") return;            // reserve swipe for touch
+      const b = e.target.closest(".msgr-b[data-i]");
+      if (!b || b.classList.contains("deleted")) return;
+      bubble = b; sx = e.clientX; sy = e.clientY; active = true; decided = false; horiz = false;
+    });
+    list.addEventListener("pointermove", (e) => {
+      if (!active || !bubble) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!decided) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = true; horiz = Math.abs(dx) > Math.abs(dy) + 4;
+        if (horiz) bubble.classList.add("swiping");
+      }
+      if (!horiz) return;
+      const dir = bubble.classList.contains("me") ? -1 : 1;   // theirs → right, mine → left
+      mx = dx;
+      const shift = mx * dir > 0 ? Math.min(Math.abs(mx), MAX) * dir : 0;
+      bubble.style.transform = `translateX(${shift}px)`;
+      bubble.style.setProperty("--swipe-x", shift + "px");
+      bubble.style.setProperty("--swipe", String(Math.min(Math.abs(shift) / THRESH, 1)));
+    });
+    const finish = () => {
+      if (!active || !bubble) return clear(false);
+      const dir = bubble.classList.contains("me") ? -1 : 1;
+      const i = +bubble.dataset.i;
+      const reached = horiz && mx * dir >= THRESH;
+      clear(true);
+      if (reached) { navigator.vibrate?.(12); startReply(i); }
+    };
+    list.addEventListener("pointerup", finish);
+    list.addEventListener("pointercancel", () => clear(true));
+    list.addEventListener("pointerleave", () => { if (active) clear(true); });
+  }
 
   // ---------- reactions + stickers ----------
   const RX = ["❤️", "😂", "👍", "😮", "😢", "🔥", "🥰", "👏"];
@@ -331,16 +382,16 @@
     vanish = !vanish;
     try { localStorage.setItem("du-vanish", vanish ? "1" : "0"); } catch { /* private */ }
     q(".msgr-vanish-btn")?.classList.toggle("on", vanish);
-    toast(vanish ? "Disappearing messages ON — naye message 24 ghante baad gayab" : "Disappearing messages OFF");
+    toast(vanish ? "Disappearing messages ON — new messages vanish after 24 hours" : "Disappearing messages OFF");
   }
   function shareLocation() {
-    if (!navigator.geolocation) return toast("Location available nahi hai");
-    toast("Location le rahe hain…");
+    if (!navigator.geolocation) return toast("Location isn't available");
+    toast("Getting your location…");
     navigator.geolocation.getCurrentPosition((pos) => {
       const doc = { from: prefs.name || "", text: "", media: [], loc: { lat: +pos.coords.latitude.toFixed(5), lon: +pos.coords.longitude.toFixed(5) }, at: Date.now() };
       if (vanish) doc.exp = Date.now() + VANISH_TTL;
       store(doc).then((s) => { if (s) { msgs.push({ id: s.id, ...doc }); render(true); notify(); } });
-    }, () => toast("Location nahi mili — permission do"), { enableHighAccuracy: true, timeout: 10000 });
+    }, () => toast("Couldn't get location — allow permission"), { enableHighAccuracy: true, timeout: 10000 });
   }
   function revealOnce(i) {
     const m = msgs[i]; const item = m && Array.isArray(m.media) ? m.media.find((x) => x && x.once && !x.viewed) : null;
@@ -359,7 +410,7 @@
     return [["In 1 hour", Date.now() + 3600000], ["Tonight 9 PM", t9.getTime()], ["Tomorrow 9 AM", tm9.getTime()]];
   }
   function openSchedule(anchor) {
-    if (!q("#msgr-input").value.trim()) return toast("Pehle message likho");
+    if (!q("#msgr-input").value.trim()) return toast("Type a message first");
     let pop = q("#msgr-schedpop");
     if (!pop) { pop = document.createElement("div"); pop.className = "msgr-schedpop"; pop.id = "msgr-schedpop"; el.append(pop); }
     pop.innerHTML = presets().map(([label, ts]) => `<button data-sched="${ts}"><span class="icon">schedule</span>${label}</button>`).join("");
@@ -372,7 +423,7 @@
     const input = q("#msgr-input"), t = input.value.trim(); if (!t) return;
     input.value = ""; const p = q("#msgr-schedpop"); if (p) p.hidden = true;
     const doc = { from: prefs.name || "", text: t, media: [], at: ts, sendAt: ts };
-    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); toast("Message schedule ho gaya ⏰"); } } catch { toast("Schedule nahi hua"); }
+    try { const s = await store(doc); if (s) { msgs.push({ id: s.id, ...doc }); render(true); toast("Message scheduled ⏰"); } } catch { toast("Couldn't schedule"); }
   }
 
   // ---------- shared photo gallery ----------
@@ -382,7 +433,7 @@
     const g = document.createElement("div");
     g.className = "msgr-gallery";
     g.innerHTML = `<header class="msgr-head"><button class="icon-btn" data-g="close" aria-label="Back"><span class="icon">arrow_back</span></button><b>Shared photos</b>${imgs.length > 1 ? '<button class="icon-btn" data-g="reel" aria-label="Play highlight reel"><span class="icon">slideshow</span></button>' : ""}</header>`
-      + (imgs.length ? `<div class="msgr-grid">${imgs.map((u) => `<img src="${esc(authUrl(u))}" loading="lazy" alt="">`).join("")}</div>` : `<div class="msgr-empty"><span class="icon">image</span><p>Abhi koi photo share nahi hui</p></div>`);
+      + (imgs.length ? `<div class="msgr-grid">${imgs.map((u) => `<img src="${esc(authUrl(u))}" loading="lazy" alt="">`).join("")}</div>` : `<div class="msgr-empty"><span class="icon">image</span><p>No photos shared yet</p></div>`);
     el.append(g);
     g.addEventListener("click", (e) => {
       if (e.target.closest("[data-g=close]")) return g.remove();

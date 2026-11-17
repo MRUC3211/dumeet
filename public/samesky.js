@@ -35,7 +35,7 @@
     const el = document.createElement("div"); el.className = "samesky"; elx = el;
     el.innerHTML = '<button class="ss-x" aria-label="Close"><span class="icon">close</span></button>'
       + '<div class="ss-pair"><div class="ss-one" id="ss-me"></div><div class="ss-one" id="ss-them"></div></div>'
-      + '<p class="ss-line">Ek hi aasmaan ke neeche 💫</p>';
+      + '<p class="ss-line">Under the same sky 💫</p>';
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add("open"));
     el.addEventListener("click", (e) => { if (e.target.closest(".ss-x") || e.target === el) close(); });
@@ -56,7 +56,7 @@
 
   function renderOne(sel, name, data, me) {
     const box = document.querySelector(sel); if (!box) return;
-    if (!data) { box.className = "ss-one night"; box.innerHTML = `<div class="ss-sky"><span class="ss-orb">🌙</span></div><div class="ss-info"><div class="ss-name">${esc(name)}</div><div class="ss-wait">Abhi share nahi kiya</div></div>`; return; }
+    if (!data) { box.className = "ss-one night"; box.innerHTML = `<div class="ss-sky"><span class="ss-orb">🌙</span></div><div class="ss-info"><div class="ss-name">${esc(name)}</div><div class="ss-wait">Not shared yet</div></div>`; return; }
     const h = localHour(data.tz), sc = scene(h), day = data.d !== undefined ? data.d : (h >= 6 && h < 19 ? 1 : 0);
     box.className = "ss-one " + sc;
     const stars = sc === "night" ? '<i class="ss-star" style="left:20%;top:22%"></i><i class="ss-star" style="left:65%;top:30%"></i><i class="ss-star" style="left:40%;top:15%"></i><i class="ss-star" style="left:80%;top:18%"></i>' : "";

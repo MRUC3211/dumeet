@@ -578,9 +578,25 @@
   }
   paintTheme();
 
+  function closeNavMenu() {
+    const menu = q("#nav-menu");
+    const trigger = q("[data-nav=more]");
+    if (menu) menu.hidden = true;
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+  }
   document.addEventListener("click", (event) => {
+    const more = event.target.closest("[data-nav=more]");
+    const menu = q("#nav-menu");
+    if (more && menu) {
+      const open = menu.hidden;
+      menu.hidden = !open;
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+      return;
+    }
+    if (menu && !menu.hidden && !event.target.closest("#nav-menu")) closeNavMenu();
     const button = event.target.closest("[data-home]");
     if (button) {
+      if (button.closest("#nav-menu")) closeNavMenu();
       ({
         admin: openAdmin,
         install: installApp,

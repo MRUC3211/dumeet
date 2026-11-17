@@ -13,7 +13,7 @@
   // tick(sig, st) runs every frame for the local player. mode decides who wins.
   const GAMES = {
     dontlaugh: {
-      name: "Don't laugh", icon: "😐", tag: "Jo pehle hansa, wo haara", mode: "lose-first",
+      name: "Don't laugh", icon: "😐", tag: "First to laugh loses", mode: "lose-first",
       hud: "Keep a straight face 😐", go: "Don't laugh!",
       tick: (sig, st) => { if (sig.smile > 0.42 || sig.jawOpen > 0.5) { st.hot = (st.hot || 0) + 1; if (st.hot >= 4) return { lost: true }; } else st.hot = 0; return null; },
     },
@@ -23,15 +23,15 @@
       tick: (sig, st) => { if (sig.smile > 0.35) st.score = Math.round(((st.score || 0) + sig.smile) * 100) / 100; return null; },
     },
     stare: {
-      name: "Stare contest", icon: "👁️", tag: "Jo pehle palak jhapka, wo haara", mode: "lose-first",
+      name: "Stare contest", icon: "👁️", tag: "First to blink loses", mode: "lose-first",
       hud: "Don't blink 👁️", go: "Stare!",
       tick: (sig, st) => { if (sig.blink > 0.5) { st.hot = (st.hot || 0) + 1; if (st.hot >= 3) return { lost: true }; } else st.hot = 0; return null; },
     },
     catchmouth: {
-      name: "Catch in your mouth", icon: "👄", tag: "Girti cheezein muh khol ke pakdo", detector: "face",
+      name: "Catch in your mouth", icon: "👄", tag: "Open your mouth to catch the falling treats", detector: "face",
       play(api) {
         let score = 0;
-        api.top().innerHTML = `<div class="cg-hud">👄 Muh khol ke catch karo!</div>`;
+        api.top().innerHTML = `<div class="cg-hud">👄 Open your mouth to catch!</div>`;
         api.center().innerHTML = `<div class="cm-zone"><div class="cm-mouth">😐</div></div><div class="cg-score">0</div>`;
         const zone = api.center().querySelector(".cm-zone"), mouth = api.center().querySelector(".cm-mouth"), scoreEl = api.center().querySelector(".cg-score");
         const FOODS = ["🍬", "🍔", "🍩", "🍎", "🍒", "🧁", "🍿"];
@@ -71,7 +71,7 @@
           else { st.they += 1; line = `${api.esc(api.other()?.name || "They")} win`; }
           api.center().innerHTML = `<div class="cg-rps">${EMO[st.myPick]} <span>vs</span> ${EMO[st.theyPick]}</div><div class="cg-rps-line">${line}</div>`;
           st.myPick = st.theyPick = null;
-          if (st.me >= 2 || st.they >= 2) api.track(setTimeout(() => api.done(st.me > st.they, st.me > st.they ? `🏆 Aap jeet gaye! (${st.me}-${st.they})` : `😅 Aap haare (${st.they}-${st.me})`), 1500));
+          if (st.me >= 2 || st.they >= 2) api.track(setTimeout(() => api.done(st.me > st.they, st.me > st.they ? `🏆 You win! (${st.me}-${st.they})` : `😅 You lose (${st.they}-${st.me})`), 1500));
           else api.track(setTimeout(roundStart, 1700));
         };
         function captureShoot() {
@@ -96,7 +96,7 @@
           api.top().innerHTML = `<div class="cg-hud">You ${st.me} — ${st.they} ${api.esc(api.other()?.name || "them")}</div>`;
           const words = ["Rock…", "Paper…", "Scissors…", "SHOOT! ✊✋✌️"];
           let i = 0;
-          const show = () => { api.center().innerHTML = `<div class="cg-go">${words[i]}</div>`; if (i < 3) { i += 1; api.track(setTimeout(show, 650)); } else { api.center().innerHTML = `<div class="cg-go">SHOOT! ✊✋✌️</div><div class="cg-rps-line">Apna haath dikhao…</div>`; captureShoot(); } };
+          const show = () => { api.center().innerHTML = `<div class="cg-go">${words[i]}</div>`; if (i < 3) { i += 1; api.track(setTimeout(show, 650)); } else { api.center().innerHTML = `<div class="cg-go">SHOOT! ✊✋✌️</div><div class="cg-rps-line">Show your hand…</div>`; captureShoot(); } };
           show();
         }
         roundStart();
@@ -104,7 +104,7 @@
       onMsg(d, api) { if (d.k === "pick") { api.state.theyPick = d.v; api.state.resolve && api.state.resolve(); } },
     },
     makemelaugh: {
-      name: "Make me laugh", icon: "🤪", tag: "Guard 30s na hanse to jeeta", detector: "face",
+      name: "Make me laugh", icon: "🤪", tag: "Guard wins by not laughing for 30s", detector: "face",
       play(api) {
         const guard = api.isInviter;
         api.top().innerHTML = `<div class="cg-hud">${guard ? "😐 30s — hanso mat!" : "🤪 Unhe hasao!"}</div>`;
@@ -112,10 +112,10 @@
         api.track(setTimeout(() => api.center().querySelector(".cg-go")?.classList.add("gone"), 1100));
         const scoreEl = api.center().querySelector(".cg-score");
         let left = 30, hot = 0;
-        api.track(setInterval(() => { left -= 1; if (scoreEl) scoreEl.textContent = Math.max(0, left); if (left <= 0 && guard) { api.send({ k: "survived" }); api.done(true, "🏆 Aap nahi hanse — jeet!"); } }, 1000));
-        if (guard) api.track(setInterval(() => { const s = api.sig(); if (s.smile > 0.42 || s.jawOpen > 0.5) { hot += 1; if (hot >= 4) { api.send({ k: "laughed" }); api.done(false, "😄 Aap hans gaye — haar!"); } } else hot = 0; }, 100));
+        api.track(setInterval(() => { left -= 1; if (scoreEl) scoreEl.textContent = Math.max(0, left); if (left <= 0 && guard) { api.send({ k: "survived" }); api.done(true, "🏆 You didn't laugh — you win!"); } }, 1000));
+        if (guard) api.track(setInterval(() => { const s = api.sig(); if (s.smile > 0.42 || s.jawOpen > 0.5) { hot += 1; if (hot >= 4) { api.send({ k: "laughed" }); api.done(false, "😄 You laughed — you lose!"); } } else hot = 0; }, 100));
       },
-      onMsg(d, api) { if (d.k === "laughed") api.done(true, "🏆 Unhe hasa diya — aap jeete!"); else if (d.k === "survived") api.done(false, "😐 Wo nahi hanse — aap haare"); },
+      onMsg(d, api) { if (d.k === "laughed") api.done(true, "🏆 You made them laugh — you win!"); else if (d.k === "survived") api.done(false, "😐 They didn't laugh — you lose"); },
     },
     freeze: {
       name: "Freeze dance", icon: "🕺", tag: "Music ruke to FREEZE — hile to out", detector: "motion",
@@ -135,18 +135,18 @@
           const t = api.track(setInterval(() => {
             n += 1;
             if (n < 4) return;
-            if (api.sig().motion > 0.14) { clearInterval(t); api.state.out = true; api.send({ k: "moved" }); api.done(false, "🫨 Aap hil gaye — out!"); }
+            if (api.sig().motion > 0.14) { clearInterval(t); api.state.out = true; api.send({ k: "moved" }); api.done(false, "🫨 You moved — out!"); }
             else if (n > 18) { clearInterval(t); dance(); }
           }, 100));
         };
         dance();
       },
-      onMsg(d, api) { if (d.k === "moved") api.done(true, "🏆 Wo hil gaye — aap jeete!"); },
+      onMsg(d, api) { if (d.k === "moved") api.done(true, "🏆 They moved — you win!"); },
     },
     vibe: {
-      name: "Vibe meter", icon: "💞", tag: "Dono saath smile karo, meter full karo", detector: "face",
+      name: "Vibe meter", icon: "💞", tag: "Both smile together to fill the meter", detector: "face",
       play(api) {
-        api.top().innerHTML = `<div class="cg-hud">💞 Dono saath smile karo!</div>`;
+        api.top().innerHTML = `<div class="cg-hud">💞 Both smile together!</div>`;
         api.center().innerHTML = `<div class="cg-vibe"><div class="cg-vibe-fill"></div></div><div class="cg-score">0%</div>`;
         const fill = api.center().querySelector(".cg-vibe-fill"), scoreEl = api.center().querySelector(".cg-score");
         let vibe = 0;
@@ -164,15 +164,15 @@
       name: "Copy my expression", icon: "😲", tag: "Ek face banaye, doosra copy kare", detector: "face",
       play(api) {
         if (api.isInviter) {
-          api.top().innerHTML = `<div class="cg-hud">😎 Koi ek expression banao…</div>`;
+          api.top().innerHTML = `<div class="cg-hud">😎 Make any expression…</div>`;
           api.center().innerHTML = `<div class="cg-go">Hold it… <b id="cf-n">3</b></div>`;
           let n = 3;
           api.track(setInterval(() => {
             n -= 1; const el = document.getElementById("cf-n"); if (el) el.textContent = Math.max(0, n);
-            if (n <= 0) { api.state.target = api.sig().vec; api.send({ k: "target", v: api.state.target }); api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} copy kar rahe hain…</div>`; api.center().innerHTML = `<div class="cg-wait"><span class="cg-spin"></span>Dekho…</div>`; }
+            if (n <= 0) { api.state.target = api.sig().vec; api.send({ k: "target", v: api.state.target }); api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} is copying…</div>`; api.center().innerHTML = `<div class="cg-wait"><span class="cg-spin"></span>Watch…</div>`; }
           }, 1000));
         } else {
-          api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} face bana rahe hain…</div>`;
+          api.top().innerHTML = `<div class="cg-hud">⏳ ${api.esc(api.other()?.name || "They")} is making a face…</div>`;
           api.center().innerHTML = `<div class="cg-wait"><span class="cg-spin"></span>Ready ho jao…</div>`;
         }
       },
@@ -190,7 +190,7 @@
     return Math.max(0, 1 - Math.sqrt(s) / 1.2);
   }
   function copierMatch(api, target) {
-    api.top().innerHTML = `<div class="cg-hud">😲 Yeh face copy karo!</div>`;
+    api.top().innerHTML = `<div class="cg-hud">😲 Copy this face!</div>`;
     api.center().innerHTML = `<div class="cg-go">Copy! <b id="cf-n">3</b></div><div class="cg-score">0%</div>`;
     const scoreEl = api.center().querySelector(".cg-score");
     let best = 0, left = 30;
@@ -328,7 +328,7 @@
   }
 
   async function invite(id) {
-    if (!other()) return toast("Game ke liye doosre ka aana zaroori hai");
+    if (!other()) return toast("You both need to be on the call to play");
     R.id = id; R.phase = "inviting"; R.inviter = true;
     showOverlay();
     paintInvite(GAMES[id], true);
@@ -398,13 +398,13 @@
     R.phase = "done";
     clearInterval(R.loopT);
     send("cg", { t: "lost" });
-    result(false, "😄 Aap hans/jhapak gaye!");
+    result(false, "😄 You laughed/blinked!");
   }
   function theyLost() {
     if (R.phase !== "play" && R.phase !== "count") return;
     R.phase = "done";
     clearInterval(R.loopT);
-    result(true, "🎉 Aap jeet gaye!");
+    result(true, "🎉 You win!");
   }
   function finishScore() {
     if (R.phase !== "play") return;
@@ -418,7 +418,7 @@
     if (R.phase !== "wait-score" || R.theirScore == null) return;
     const win = R.myScore > R.theirScore, tie = R.myScore === R.theirScore;
     R.phase = "done";
-    result(win, tie ? `🤝 Tie! (${R.myScore} - ${R.theirScore})` : win ? `🎉 Aap jeet gaye! (${R.myScore} - ${R.theirScore})` : `😅 ${other()?.name || "Unhone"} jeet gaye (${R.theirScore} - ${R.myScore})`);
+    result(win, tie ? `🤝 Tie! (${R.myScore} - ${R.theirScore})` : win ? `🎉 You win! (${R.myScore} - ${R.theirScore})` : `😅 ${other()?.name || "They"} win (${R.theirScore} - ${R.myScore})`);
   }
 
   function rematch() { if (R.id) { const id = R.id; reset(); invite(id); } }
@@ -478,7 +478,7 @@
   // ---------- tray picker ----------
   function openPicker() {
     window.DU.kit.toggleTray(false);
-    if (!other()) return toast("Pehle doosre ka call pe aana zaroori hai");
+    if (!other()) return toast("You both need to be on the call first");
     showOverlay();
     top().innerHTML = `<div class="cg-title"><span class="cg-ic">🎮</span><b>Camera games</b></div><p>Live, face se khele jaate hain</p>`;
     center().innerHTML = `<div class="cg-list">${Object.entries(GAMES).map(([id, g]) => `<button class="cg-pick" data-pick="${id}"><span class="cg-ic">${g.icon}</span><span><b>${g.name}</b><small>${g.tag}</small></span></button>`).join("")}</div>`;
@@ -495,7 +495,7 @@
       const d = message.data || {};
       if (d.t === "invite") onInvited(String(d.g || ""));
       else if (d.t === "accept") { if (R.phase === "inviting") beginCountdown(); }
-      else if (d.t === "decline") { if (R.phase === "inviting") { toast(`${peer.name} abhi busy hai`); reset(); } }
+      else if (d.t === "decline") { if (R.phase === "inviting") { toast(`${peer.name} is busy right now`); reset(); } }
       else if (d.t === "lost") theyLost();
       else if (d.t === "score") { R.theirScore = Number(d.v) || 0; maybeDecideScore(); }
       else if (d.t === "g") GAMES[R.id]?.onMsg?.(d, gameApi());

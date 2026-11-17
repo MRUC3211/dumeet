@@ -62,10 +62,16 @@
       <div class="brand"><span class="logo-mark brandmark" aria-hidden="true"></span><span>DU Meet</span></div>
       <div class="nav-actions">
         <button class="btn ghost glass theme-btn" data-home="theme" title="Theme: follows your device" aria-label="Theme: follows your device"><span class="icon" aria-hidden="true">contrast</span></button>
-        <button class="btn ghost glass" data-home="samesky" title="Same sky" aria-label="Same sky"><span class="icon" aria-hidden="true">partly_cloudy_day</span><span class="hide-sm">Same sky</span></button>
-        <button class="btn ghost glass" data-home="wrapped" title="Your month" aria-label="Your month"><span class="icon" aria-hidden="true">auto_awesome</span><span class="hide-sm">Wrapped</span></button>
-        <button class="btn ghost glass" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span><span>Admin</span></button>
-        <button class="btn ghost glass" data-home="other" title="Other meeting" aria-label="Other meeting"><span class="icon" aria-hidden="true">add_link</span><span class="hide-sm">Other meeting</span></button>
+        <div class="nav-more">
+          <button class="btn ghost glass nav-more-btn" data-nav="more" aria-haspopup="true" aria-expanded="false" title="More" aria-label="More"><span class="icon" aria-hidden="true">more_horiz</span></button>
+          <div class="nav-menu" id="nav-menu" role="menu" hidden>
+            <button role="menuitem" data-home="samesky"><span class="icon" aria-hidden="true">partly_cloudy_day</span>Same sky</button>
+            <button role="menuitem" data-home="wrapped"><span class="icon" aria-hidden="true">auto_awesome</span>Your month</button>
+            <button role="menuitem" data-home="other"><span class="icon" aria-hidden="true">add_link</span>Other meeting</button>
+            <div class="nav-menu-sep" role="separator"></div>
+            <button role="menuitem" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span>Admin</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -244,22 +250,30 @@
             <button role="menuitem" data-tg="watch"><span class="tg-ic watch icon">movie</span><span><b>Watch</b><small>YouTube, in sync</small></span></button>
             <button role="menuitem" data-tg="listen"><span class="tg-ic listen icon">music_note</span><span><b>Listen</b><small>Our songs</small></span></button>
             <button role="menuitem" data-tg="view-games" class="tray-go"><span class="tg-ic game icon">sports_esports</span><span><b>Games</b><small>Play together</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
-            <button role="menuitem" data-tg="camgames"><span class="tg-ic camgic icon">sentiment_very_satisfied</span><span><b>Camera games</b><small>Don't laugh, stare contest… live 😄</small></span></button>
-            <button role="menuitem" data-tg="touchglass"><span class="tg-ic tglassic icon">touch_app</span><span><b>Touch the glass</b><small>Ek doosre ko screen se chhoo lo 💞</small></span></button>
-            <button role="menuitem" data-tg="together"><span class="tg-ic togic icon">looks</span><span><b>Together mode</b><small>Dono ek hi scene mein — same place 🌴</small></span></button>
-            <button role="menuitem" data-tg="audioscene"><span class="tg-ic asceneic icon">graphic_eq</span><span><b>Light show</b><small>Background awaaz ke saath glow kare 🌌</small></span></button>
+            <button role="menuitem" data-tg="view-camera" class="tray-go"><span class="tg-ic camgic icon">auto_awesome_motion</span><span><b>Camera fun</b><small>Games, touch, together, draw on video</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-party" class="tray-go"><span class="tg-ic partyic icon">nightlife</span><span><b>Party 🪩</b><small>Disco, lights, dance-off, hype</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-pranks" class="tray-go"><span class="tg-ic prankic icon">sentiment_very_satisfied</span><span><b>Pranks 😈</b><small>Crack, bug, quake, boo</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-fun" class="tray-go"><span class="tg-ic fun icon">celebration</span><span><b>Fun</b><small>Filters, throw, nudge</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="draw"><span class="tg-ic draw icon">draw</span><span><b>Draw</b><small>Shared whiteboard</small></span></button>
-            <button role="menuitem" data-tg="videodraw"><span class="tg-ic vdrawic icon">gesture</span><span><b>Draw on video</b><small>Scribble on either tile, live</small></span></button>
-            <button role="menuitem" data-tg="story"><span class="tg-ic storyic icon">auto_stories</span><span><b>Story time</b><small>Make a story with AI</small></span></button>
-            <button role="menuitem" data-tg="future"><span class="tg-ic futic icon">auto_awesome</span><span><b>Future us</b><small>Imagine our life, 10 years on</small></span></button>
+            <button role="menuitem" data-tg="view-creative" class="tray-go"><span class="tg-ic storyic icon">auto_stories</span><span><b>Story &amp; AI</b><small>Story time, Future us</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-notes" class="tray-go"><span class="tg-ic notesic icon">sticky_note_2</span><span><b>Notes</b><small>Uday · Diya · Common</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-focus" class="tray-go"><span class="tg-ic focusic icon">task_alt</span><span><b>Productivity</b><small>Tasks, habits, study</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-date" class="tray-go"><span class="tg-ic dateic icon">wine_bar</span><span><b>Date night</b><small>Deep &amp; spicy talks, candles</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-relax" class="tray-go"><span class="tg-ic relax icon">spa</span><span><b>Relax</b><small>Sounds, power nap, calm</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
             <button role="menuitem" data-tg="view-more" class="tray-go"><span class="tg-ic moretools icon">apps</span><span><b>More</b><small>Timer, polls, reminders</small></span><i class="icon go-arrow" aria-hidden="true">chevron_right</i></button>
+          </div>
+          <div class="tray-view tray-camera" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Camera fun</b><span></span></div>
+            <button role="menuitem" data-tg="camgames"><span class="tg-ic camgic icon">sentiment_very_satisfied</span><span><b>Camera games</b><small>Don't laugh, stare contest… live 😄</small></span></button>
+            <button role="menuitem" data-tg="touchglass"><span class="tg-ic tglassic icon">touch_app</span><span><b>Touch the glass</b><small>Touch each other through the screen 💞</small></span></button>
+            <button role="menuitem" data-tg="together"><span class="tg-ic togic icon">looks</span><span><b>Together mode</b><small>Both of you in one scene — same place 🌴</small></span></button>
+            <button role="menuitem" data-tg="audioscene"><span class="tg-ic asceneic icon">graphic_eq</span><span><b>Light show</b><small>Glows with the background sound 🌌</small></span></button>
+            <button role="menuitem" data-tg="videodraw"><span class="tg-ic vdrawic icon">gesture</span><span><b>Draw on video</b><small>Scribble on either tile, live</small></span></button>
+          </div>
+          <div class="tray-view tray-creative" hidden>
+            <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Story &amp; AI</b><span></span></div>
+            <button role="menuitem" data-tg="story"><span class="tg-ic storyic icon">auto_stories</span><span><b>Story time</b><small>Make a story with AI</small></span></button>
+            <button role="menuitem" data-tg="future"><span class="tg-ic futic icon">auto_awesome</span><span><b>Future us</b><small>Imagine our life, 10 years on</small></span></button>
           </div>
           <div class="tray-view tray-party" hidden>
             <div class="tray-head"><button class="tray-back" data-tg="tray-back" aria-label="Back"><span class="icon">arrow_back</span></button><b>Party 🪩</b><span></span></div>

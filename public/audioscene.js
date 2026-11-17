@@ -16,7 +16,7 @@
 
   function start() {
     const list = tracks();
-    if (!list.length) { toast("Audio scene ke liye mic ya awaaz chahiye"); return false; }
+    if (!list.length) { toast("Light show needs a mic or some sound"); return false; }
     try {
       S.ctx = window.audioContext || (window.audioContext = new (window.AudioContext || window.webkitAudioContext)());
       if (S.ctx.state === "suspended") S.ctx.resume();
@@ -24,7 +24,7 @@
       S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 256; S.analyser.smoothingTimeConstant = 0.8;
       S.src.connect(S.analyser); // read only — not connected to the speakers
       S.data = new Uint8Array(S.analyser.frequencyBinCount);
-    } catch { toast("Audio scene is browser pe nahi chala"); return false; }
+    } catch { toast("Light show isn't supported on this browser"); return false; }
     S.el = document.createElement("div");
     S.el.className = "audioscene";
     S.el.innerHTML = '<div class="as-glow"></div>';
