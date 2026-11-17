@@ -135,6 +135,49 @@
   }
   function close() { clearInterval(pollT); if (rec) stopRec(false); el?.remove(); el = null; paintBadge(); }
 
+  // ---------- movable window (only while on a call, like the old in-call chat) ----------
+  const WIN_KEY = "du-msgrwin";
+  const win = { box: null, sheet: null, mode: null, sx: 0, sy: 0, ox: 0, oy: 0, ow: 0, oh: 0 };
+  let winListeners = false;
+  function winApply() {
+    const b = win.box; if (!win.sheet || !b) return;
+    b.w = Math.round(Math.max(290, Math.min(b.w, innerWidth - 12)));
+    b.h = Math.round(Math.max(340, Math.min(b.h, innerHeight - 70)));
+    b.x = Math.round(Math.max(6, Math.min(b.x, innerWidth - b.w - 6)));
+    b.y = Math.round(Math.max(6, Math.min(b.y, innerHeight - 56)));
+    Object.assign(win.sheet.style, { position: "fixed", left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px", margin: "0", maxWidth: "none" });
+  }
+  function makeMovable() {
+    if (!el) return;
+    const windowed = document.body.dataset.view === "room";   // in a call
+    el.classList.toggle("windowed", windowed);
+    if (!windowed) { win.sheet = null; return; }
+    const sheet = el.querySelector(".msgr-sheet"), head = el.querySelector(".msgr-head");
+    win.sheet = sheet;
+    const narrow = innerWidth < 600;
+    let box; try { box = JSON.parse(localStorage.getItem(WIN_KEY)); } catch { /* private */ }
+    win.box = box && box.w ? box : { x: narrow ? 8 : innerWidth - 392, y: narrow ? 70 : 76, w: narrow ? innerWidth - 16 : 372, h: Math.min(innerHeight - 140, 560) };
+    let grip = sheet.querySelector(".msgr-grip");
+    if (!grip) { grip = document.createElement("div"); grip.className = "msgr-grip"; grip.innerHTML = '<span class="icon" aria-hidden="true">open_in_full</span>'; sheet.append(grip); }
+    winApply();
+    head.addEventListener("pointerdown", (e) => { if (e.target.closest("button, input")) return; winDown(e, "move"); });
+    grip.addEventListener("pointerdown", (e) => winDown(e, "resize"));
+    if (!winListeners) {
+      winListeners = true;
+      document.addEventListener("pointermove", winMove);
+      document.addEventListener("pointerup", winUp);
+      addEventListener("resize", () => { if (el && win.sheet) winApply(); });
+    }
+  }
+  function winDown(e, m) { win.mode = m; win.sx = e.clientX; win.sy = e.clientY; win.ox = win.box.x; win.oy = win.box.y; win.ow = win.box.w; win.oh = win.box.h; el?.classList.add("dragging"); e.preventDefault(); }
+  function winMove(e) {
+    if (!win.mode || !win.box) return;
+    const dx = e.clientX - win.sx, dy = e.clientY - win.sy;
+    if (win.mode === "move") { win.box.x = win.ox + dx; win.box.y = win.oy + dy; } else { win.box.w = win.ow + dx; win.box.h = win.oh + dy; }
+    winApply();
+  }
+  function winUp() { if (win.mode) { win.mode = null; el?.classList.remove("dragging"); try { localStorage.setItem(WIN_KEY, JSON.stringify(win.box)); } catch { /* private */ } } }
+
   // ---------- voice notes (record + send) ----------
   let rec = null, recTimer = 0;
   const fmtDur = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
@@ -279,6 +322,7 @@
       </div>`;
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add("open"));
+    makeMovable();   // float as a movable window when opened during a call
     q("#msgr-name").textContent = partner();
     const av = q("#msgr-av"); const face = window.DU?.faceFor?.(partner());
     if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
