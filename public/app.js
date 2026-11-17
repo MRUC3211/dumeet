@@ -1106,6 +1106,7 @@ function refreshLocal() {
   showTrack($("#preview"), cameraTrack());
   $("#preview-box").classList.toggle("video-off", !me.cam);
   $("#preview-box").classList.toggle("no-mirror", me.facing === "environment");
+  if (pip) updatePip();   // mirror every local state change into the PiP at once
 }
 
 function setToggle(action, on, onText, offText) {
@@ -1274,11 +1275,16 @@ async function openDocumentPip() {
     if (real) setTimeout(() => { real.click(); setTimeout(updatePip, 50); }, back ? 80 : 0);
   });
   win.addEventListener("pagehide", () => {
+    try { win.clearInterval(pip?.timer); } catch {}
     pip = null;
     refreshLocal();
   });
   pip = { win, video: doc.querySelector("video"), stage: doc.querySelector(".pip-stage"), avatar: doc.querySelector(".avatar span"), name: doc.querySelector(".name") };
   updatePip();
+  // The meeting tab gets throttled while it's in the background, so drive the
+  // refresh from the PiP window's own timer — that window stays in the
+  // foreground, so it keeps the PiP mirroring the main stage in real time.
+  pip.timer = win.setInterval(() => { try { updatePip(); } catch {} }, 400);
 }
 
 // the call bar's own buttons (chat, mic, camera, heart, tools, leave)
@@ -1300,8 +1306,8 @@ function updatePip() {
     mainCtrls().forEach((real, i) => {
       const twin = twins[i];
       if (!twin) return;
-      twin.className = real.className;
-      twin.innerHTML = real.innerHTML;
+      if (twin.className !== real.className) twin.className = real.className;
+      if (twin.innerHTML !== real.innerHTML) twin.innerHTML = real.innerHTML;   // only rewrite when it actually changed (the PiP refreshes ~2.5×/s)
       for (const a of ["aria-label", "aria-pressed", "title"]) real.hasAttribute(a) ? twin.setAttribute(a, real.getAttribute(a)) : twin.removeAttribute(a);
     });
   } else if (document.pictureInPictureElement === $("#pip-video")) {
