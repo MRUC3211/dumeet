@@ -545,8 +545,27 @@
 
   document.addEventListener("click", (e) => { if (e.target.closest("[data-home=messages]")) open(); });
 
-  // returning to the tab with the chat open marks the latest as read (blue ticks)
-  document.addEventListener("visibilitychange", () => { if (el && document.visibilityState === "visible") { markReadIfViewing(); paintStatus(); } });
+  // Presence heartbeat: while the app is open on ANY screen (not just the chat),
+  // keep my "last active" fresh and pull the partner's state. This is what makes
+  // delivered ticks + "online / last seen" work when the other person is around
+  // but not sitting inside the chat.
+  async function heartbeat() {
+    if (document.visibilityState !== "visible" || !prefs.name) return;
+    await pullReceipts();        // refresh partner state (repaints ticks/status in place if chat open)
+    pushReceipt(false);          // bump my `at` (throttled)
+    if (el) paintStatus();
+    paintBadge();
+  }
+  setInterval(heartbeat, 15000);
+  setTimeout(heartbeat, 1500);   // register presence shortly after load
+
+  // returning to the tab marks read (if chat open) and re-registers presence at once
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (el) { markReadIfViewing(); paintStatus(); }
+    pushReceipt(true);
+    pullReceipts();
+  });
 
   // open the chat when a message notification is tapped, or on a /?chat=1 cold open
   navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "msg-open") open(); });
