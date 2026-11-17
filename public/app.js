@@ -14,8 +14,8 @@
 //     hands, captions, polls and the whiteboard still go through the server
 //     as small messages.
 //
-// Every connection has three media slots ("transceivers"), always in this order:
-//   0 = microphone, 1 = camera, 2 = screen share.
+// Every connection has four media slots ("transceivers"), always in this order:
+//   0 = microphone, 1 = camera, 2 = screen share (video), 3 = screen audio.
 // Turning the camera off or starting a presentation only swaps the track in a
 // slot (replaceTrack), so the call never has to be renegotiated, and your
 // camera and your presentation show up as two separate tiles, like in Meet.
@@ -27,7 +27,7 @@ const VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 } };
 const REACTIONS = ["👍", "❤️", "🎉", "👏", "😂", "😮", "😢", "🙏"];
 // Avatar tones live in style.css (--avatar-1 … --avatar-6) so they follow the theme.
 const AVATAR_COLORS = [1, 2, 3, 4, 5, 6].map((n) => `var(--avatar-${n})`);
-const SLOT = { audio: 0, camera: 1, screen: 2 };
+const SLOT = { audio: 0, camera: 1, screen: 2, screenAudio: 3 };
 const SpeechRecognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
 const $ = (selector) => document.querySelector(selector);
@@ -38,6 +38,7 @@ const me = {
   name: "",
   stream: null,       // camera + microphone
   screenTrack: null,  // set while presenting
+  screenAudioTrack: null,  // tab/system audio captured with the screen share
   mic: true,
   cam: true,
   hand: false,
@@ -374,18 +375,25 @@ async function toggleScreenShare() {
     return window.DU?.phonePresent ? window.DU.phonePresent() : toast("Screen sharing is not supported in this browser");
   }
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 } });
+    // audio:true makes the browser's own picker show the "Share tab/system audio"
+    // checkbox (the Meet-style on/off); if it's ticked we get an audio track too.
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true });
     me.screenTrack = stream.getVideoTracks()[0];
+    me.screenAudioTrack = stream.getAudioTracks()[0] || null;
   } catch {
     return; // user cancelled the picker
   }
   me.screenTrack.contentHint = "detail"; // keep text sharp rather than smooth
   me.screenTrack.onended = stopScreenShare; // browser's own "Stop sharing" button
   setOutgoing(SLOT.screen, me.screenTrack);
+  if (me.screenAudioTrack) {
+    me.screenAudioTrack.onended = () => { me.screenAudioTrack = null; setOutgoing(SLOT.screenAudio, null); };
+    setOutgoing(SLOT.screenAudio, me.screenAudioTrack);
+  }
   stageAppeared(screenId(me.id));
   renderAll();
   sendState({ screen: true });
-  toast("You are presenting to everyone");
+  toast(me.screenAudioTrack ? "You are presenting with audio" : "You are presenting to everyone");
 }
 
 function stopScreenShare() {
@@ -393,6 +401,7 @@ function stopScreenShare() {
   me.screenTrack.stop();
   me.screenTrack = null;
   setOutgoing(SLOT.screen, null);
+  if (me.screenAudioTrack) { me.screenAudioTrack.stop(); me.screenAudioTrack = null; setOutgoing(SLOT.screenAudio, null); }
   renderAll();
   sendState({ screen: false });
 }
@@ -408,7 +417,7 @@ function localTrack(slot) {
   // face filters / voice changer can stand in for the raw camera or mic
   const fx = window.DU?.outTrack?.(slot);
   if (fx) return fx;
-  return [micTrack(), cameraTrack(), me.screenTrack][slot] ?? null;
+  return [micTrack(), cameraTrack(), me.screenTrack, me.screenAudioTrack][slot] ?? null;
 }
 
 // ---------- Joining and leaving ----------
@@ -711,7 +720,7 @@ function addPeer(info) {
   const peer = {
     hand: false, screen: false, rec: false, cc: false, handAt: 0, note: "",
     ...info, pc: new RTCPeerConnection({ iceServers }), pendingIce: [],
-    audio: document.createElement("audio"), camTrack: null, screenTrack: null,
+    audio: document.createElement("audio"), screenAudio: document.createElement("audio"), camTrack: null, screenTrack: null,
   };
   if (peer.hand) peer.handAt = Date.now();
   // A direct, low-latency channel for fast things (live games). Negotiated with a fixed id,
@@ -724,8 +733,9 @@ function addPeer(info) {
   // Remote voices play through their own <audio>, so tiles can be hidden,
   // moved or put in picture-in-picture without cutting anyone's sound.
   peer.audio.autoplay = true;
-  if (prefs.speakerId) peer.audio.setSinkId?.(prefs.speakerId).catch(() => {});
-  $("#audio-sinks").append(peer.audio);
+  peer.screenAudio.autoplay = true;
+  if (prefs.speakerId) { peer.audio.setSinkId?.(prefs.speakerId).catch(() => {}); peer.screenAudio.setSinkId?.(prefs.speakerId).catch(() => {}); }
+  $("#audio-sinks").append(peer.audio, peer.screenAudio);
 
   peer.pc.onicecandidate = ({ candidate }) => {
     if (candidate) send("ice", candidate, peer.id);
@@ -763,6 +773,11 @@ function addPeer(info) {
       peer.camTrack = track;
     } else if (slot === SLOT.screen) {
       peer.screenTrack = track;
+    } else if (slot === SLOT.screenAudio) {
+      // the presenter's shared tab/system audio — play it, don't tie it to the mic mute
+      peer.screenAudio.srcObject = new MediaStream([track]);
+      peer.screenAudio.muted = localMuted.has(peer.id);
+      peer.screenAudio.play().catch(() => {});
     }
     renderAll();
   };
@@ -777,6 +792,7 @@ function removePeer(id) {
   peer.pc.close();
   peer.audio.srcObject = null;
   peer.audio.remove();
+  if (peer.screenAudio) { peer.screenAudio.srcObject = null; peer.screenAudio.remove(); }
   peers.delete(id);
   meters.delete(id);
   if (typingPeers.has(id)) { clearTimeout(typingPeers.get(id).timer); typingPeers.delete(id); renderTyping(); }
@@ -796,6 +812,7 @@ async function callPeer(peer) {
   peer.pc.addTransceiver(localTrack(SLOT.audio) ?? "audio", { direction: "sendrecv" });
   peer.pc.addTransceiver(localTrack(SLOT.camera) ?? "video", { direction: "sendrecv" });
   peer.pc.addTransceiver(localTrack(SLOT.screen) ?? "video", { direction: "sendrecv" });
+  peer.pc.addTransceiver(localTrack(SLOT.screenAudio) ?? "audio", { direction: "sendrecv" });
   await peer.pc.setLocalDescription(await peer.pc.createOffer());
   send("offer", peer.pc.localDescription, peer.id);
 }
@@ -988,10 +1005,12 @@ function toggleLocalMute(id) {
   if (localMuted.has(id)) {
     localMuted.delete(id);
     peer.audio.muted = false;
+    if (peer.screenAudio) peer.screenAudio.muted = false;
     toast(`${peer.name} unmuted for you`);
   } else {
     localMuted.add(id);
     peer.audio.muted = true;
+    if (peer.screenAudio) peer.screenAudio.muted = true;
     toast(`${peer.name} muted — only for you. They don't know.`);
   }
   renderAll();
