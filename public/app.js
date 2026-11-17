@@ -2898,7 +2898,7 @@ function messagePopup(name, text, media = []) {
     card.classList.add("out");
     setTimeout(() => card.remove(), 320);
   };
-  card.addEventListener("click", () => { if (openPanel !== "chat") togglePanel("chat"); close(); });
+  card.addEventListener("click", () => { if (window.DU?.messenger?.open) window.DU.messenger.open(); else if (openPanel !== "chat") togglePanel("chat"); close(); });
 
   stack.prepend(card);
   while (stack.children.length > 3) stack.lastElementChild.remove();
@@ -3114,7 +3114,10 @@ const actions = {
   leave: leaveMeeting,
   info: () => toggleInfo(),
   people: () => togglePanel("people"),
-  chat: () => togglePanel("chat"),
+  // In-call chat uses the full WhatsApp-style Messenger (same unified thread,
+  // voice notes, media, reactions, swipe-to-reply, ticks). Falls back to the
+  // old in-call panel only if the Messenger module isn't loaded.
+  chat: () => (window.DU?.messenger?.open ? window.DU.messenger.open() : togglePanel("chat")),
   polls: () => togglePanel("polls"),
   "close-panel": () => togglePanel(openPanel),
   "compose-cancel": () => { cancelCompose(); $("#chat-input").value = ""; },

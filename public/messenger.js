@@ -133,7 +133,104 @@
       markReadIfViewing();
     }, 5000);
   }
-  function close() { clearInterval(pollT); el?.remove(); el = null; paintBadge(); }
+  function close() { clearInterval(pollT); if (rec) stopRec(false); el?.remove(); el = null; paintBadge(); }
+
+  // ---------- voice notes (record + send) ----------
+  let rec = null, recTimer = 0;
+  const fmtDur = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  function toggleSendMic() {
+    if (!el) return;
+    const has = (q("#msgr-input")?.value.trim().length || 0) > 0;
+    const mic = el.querySelector(".msgr-mic"), send = el.querySelector(".msgr-form .send");
+    if (mic) mic.hidden = has;
+    if (send) send.hidden = !has;
+  }
+  async function startRec() {
+    if (rec || !el) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Voice notes aren't supported on this browser");
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { return toast("Allow microphone access to record a voice note"); }
+    const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
+    let mr;
+    try { mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+    catch { stream.getTracks().forEach((t) => t.stop()); return toast("Couldn't start recording"); }
+    const chunks = [];
+    mr.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+    mr.onstop = () => finishRec(rec, chunks);
+    rec = { mr, stream, startedAt: Date.now(), send: false };
+    try { mr.start(); } catch { stream.getTracks().forEach((t) => t.stop()); rec = null; return toast("Couldn't start recording"); }
+    q("#msgr-recbar").hidden = false;
+    q("#msgr-form").hidden = true;
+    updateRecTime();
+    recTimer = setInterval(updateRecTime, 250);
+  }
+  function stopRec(send) {
+    if (!rec) return;
+    rec.send = send;
+    try { rec.mr.stop(); } catch { /* already stopped */ }
+  }
+  async function finishRec(r, chunks) {
+    clearInterval(recTimer);
+    r?.stream.getTracks().forEach((t) => t.stop());
+    if (el) { const rb = q("#msgr-recbar"), fm = q("#msgr-form"); if (rb) rb.hidden = true; if (fm) fm.hidden = false; toggleSendMic(); }
+    const dur = Math.max(1, Math.round((Date.now() - (r?.startedAt || Date.now())) / 1000));
+    rec = null;
+    if (!r?.send) return;
+    const blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) || r.mr.mimeType || "audio/webm" });
+    if (!blob.size) return;
+    toast("Sending…");
+    try {
+      const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": blob.type }, body: blob })).json();
+      persist(prefs.name, "", [{ url: up.url, type: up.type, voice: true, dur }]);
+    } catch { toast("Couldn't send the voice note"); }
+  }
+  function updateRecTime() {
+    const t = q("#msgr-rec-time"); if (!t || !rec) return;
+    t.textContent = fmtDur((Date.now() - rec.startedAt) / 1000);
+  }
+
+  // ---------- voice notes (playback) ----------
+  let voiceAudio = null, voiceBox = null;
+  function voiceBars(url) {
+    let h = 0; for (const c of String(url)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    let out = "";
+    for (let i = 0; i < 26; i++) { h = (h * 1103515245 + 12345) & 0x7fffffff; out += `<i style="height:${28 + (h % 68)}%"></i>`; }
+    return out;
+  }
+  const voiceHtml = (x) => `<div class="msgr-voice" data-url="${esc(x.url)}">
+    <button type="button" class="msgr-voice-play" aria-label="Play voice message"><span class="icon">play_arrow</span></button>
+    <div class="msgr-voice-wave">${voiceBars(x.url)}<span class="msgr-voice-knob"></span></div>
+    <span class="msgr-voice-dur">${fmtDur(x.dur || 0)}</span>
+  </div>`;
+  function resetVoiceUI(box) {
+    if (!box) return;
+    box.classList.remove("playing");
+    const ic = box.querySelector(".msgr-voice-play .icon"); if (ic) ic.textContent = "play_arrow";
+    const knob = box.querySelector(".msgr-voice-knob"); if (knob) knob.style.left = "0%";
+    const d = box.querySelector(".msgr-voice-dur"); if (d && box.dataset.dur) d.textContent = box.dataset.dur;
+  }
+  function toggleVoice(box) {
+    if (!box) return;
+    if (voiceBox === box && voiceAudio && !voiceAudio.paused) { voiceAudio.pause(); return; }
+    if (voiceAudio) { try { voiceAudio.pause(); } catch {} resetVoiceUI(voiceBox); }
+    voiceBox = box;
+    box.dataset.dur = box.querySelector(".msgr-voice-dur")?.textContent || "";
+    voiceAudio = new Audio(authUrl(box.dataset.url));
+    const ic = box.querySelector(".msgr-voice-play .icon");
+    const knob = box.querySelector(".msgr-voice-knob");
+    const dur = box.querySelector(".msgr-voice-dur");
+    box.classList.add("playing");
+    if (ic) ic.textContent = "pause";
+    voiceAudio.addEventListener("timeupdate", () => {
+      if (!voiceAudio?.duration) return;
+      const p = voiceAudio.currentTime / voiceAudio.duration;
+      if (knob) knob.style.left = (p * 100) + "%";
+      if (dur) dur.textContent = fmtDur(voiceAudio.currentTime);
+    });
+    voiceAudio.addEventListener("ended", () => resetVoiceUI(box));
+    voiceAudio.play().catch(() => { toast("Couldn't play the voice note"); resetVoiceUI(box); });
+  }
 
   function build() {
     if (el) return;
@@ -162,8 +259,16 @@
           <input type="file" accept="image/*" id="msgr-file-once" hidden>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
           <button type="button" class="icon-btn" data-m="schedule" title="Send later" aria-label="Schedule"><span class="icon">schedule_send</span></button>
-          <button class="icon-btn send" aria-label="Send"><span class="icon">arrow_upward</span></button>
+          <button type="button" class="icon-btn msgr-mic" data-m="mic" title="Record a voice message" aria-label="Record a voice message"><span class="icon">mic</span></button>
+          <button class="icon-btn send" aria-label="Send message"><span class="icon">arrow_upward</span></button>
         </form>
+        <div class="msgr-recbar" id="msgr-recbar" hidden>
+          <button type="button" class="icon-btn danger" data-m="rec-cancel" title="Cancel" aria-label="Cancel recording"><span class="icon">delete</span></button>
+          <span class="msgr-rec-dot" aria-hidden="true"></span>
+          <span class="msgr-rec-time" id="msgr-rec-time">0:00</span>
+          <span class="msgr-rec-hint">Recording… tap to send</span>
+          <button type="button" class="icon-btn send" data-m="rec-send" title="Send" aria-label="Send voice message"><span class="icon">arrow_upward</span></button>
+        </div>
       </div>
       <div class="msgr-reactpop" id="msgr-reactpop" hidden></div>
       <div class="msgr-ctx" id="msgr-ctx" hidden></div>
@@ -206,11 +311,18 @@
       const cr = e.target.closest(".ctx-r"); if (cr) { toggleReact(+cr.dataset.rx, cr.dataset.e); closeCtx(); return; }
       const ca = e.target.closest("[data-ctx]");
       if (ca) { const i = +ca.dataset.i, act = ca.dataset.ctx; closeCtx(); if (act === "reply") startReply(i); else if (act === "star") toggleStar(i); else if (act === "delete") deleteMsg(i); else if (act === "copy") { navigator.clipboard?.writeText(msgs[i]?.text || "").then(() => toast("Copied"), () => {}); } return; }
+      if (e.target.closest("[data-m=mic]")) return startRec();
+      if (e.target.closest("[data-m=rec-cancel]")) return stopRec(false);
+      if (e.target.closest("[data-m=rec-send]")) return stopRec(true);
+      const vp = e.target.closest(".msgr-voice-play"); if (vp) return toggleVoice(vp.closest(".msgr-voice"));
       const bubble = e.target.closest(".msgr-b[data-i]");
       if (bubble && !e.target.closest("a, img, button")) return openCtx(+bubble.dataset.i, bubble);
     });
+    const input = q("#msgr-input");
+    input.addEventListener("input", toggleSendMic);
+    toggleSendMic();
     enableSwipeReply();
-    q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
+    q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; toggleSendMic(); const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
     const sendPhoto = async (f, once) => {
       if (!f) return;
       if (f.size > 25 * 1024 * 1024) return toast("Photo must be under 25MB");
@@ -260,7 +372,8 @@
       if (m.loc && typeof m.loc.lat === "number") html += `<a class="msgr-loc" href="https://www.openstreetmap.org/?mlat=${m.loc.lat}&mlon=${m.loc.lon}#map=16/${m.loc.lat}/${m.loc.lon}" target="_blank" rel="noopener noreferrer"><span class="icon">location_on</span><span><b>Location</b><small>${m.loc.lat}, ${m.loc.lon} · Open in Maps</small></span></a>`;
       if (Array.isArray(m.media)) for (const x of m.media) {
         if (!x || typeof x.url !== "string" || !x.url.startsWith("/api/media/")) continue;
-        if (x.once) {
+        if (x.voice || (x.type || "").startsWith("audio/")) html += voiceHtml(x);
+        else if (x.once) {
           if (x.viewed) html += `<span class="msgr-once viewed"><span class="icon">visibility_off</span>Opened</span>`;
           else if (mine) html += `<span class="msgr-once"><span class="icon">visibility</span>View-once photo</span>`;
           else html += `<button class="msgr-once tap" data-once="${i}"><span class="icon">visibility</span>Tap to view once</button>`;
@@ -540,7 +653,11 @@
   }
 
   const unread = () => msgs.filter((m) => m.at > seen && String(m.from || "").toLowerCase() !== String(prefs.name || "").toLowerCase()).length;
-  function paintBadge() { const b = q("#msgr-badge"); if (!b) return; const n = unread(); b.textContent = n > 9 ? "9+" : String(n); b.hidden = !n; }
+  function paintBadge() {
+    const n = unread();
+    const b = q("#msgr-badge"); if (b) { b.textContent = n > 9 ? "9+" : String(n); b.hidden = !n; }
+    const dot = q("#chat-dot"); if (dot) dot.hidden = !n || Boolean(el);   // in-call chat button unread dot
+  }
   async function refresh() { await fetchMsgs(); paintBadge(); }
 
   document.addEventListener("click", (e) => { if (e.target.closest("[data-home=messages]")) open(); });
