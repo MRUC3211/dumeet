@@ -361,14 +361,17 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-head b { flex: 1; }
 .msgr-gallery-btn { flex: none; color: var(--color-ink-2); }
 .msgr-b { position: relative; margin-bottom: 4px; }
-.msgr-acts { position: absolute; top: -15px; z-index: 3; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-pill); background: var(--color-paper-2); box-shadow: 0 4px 12px rgba(0, 0, 0, .28), inset 0 0 0 1px var(--color-rule); opacity: 0; transition: opacity .15s var(--ease-out); }
-.msgr-b.me .msgr-acts { right: 4px; }
-.msgr-b.them .msgr-acts { left: 4px; }
-.msgr-b:hover .msgr-acts, .msgr-b:focus-within .msgr-acts { opacity: 1; }
-@media (hover: none) { .msgr-acts { opacity: .5; } }
-.msgr-act { width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: var(--color-muted); display: grid; place-items: center; cursor: pointer; }
-.msgr-act:hover { background: var(--color-paper-3); color: var(--color-accent); }
-.msgr-act .icon { font-size: 15px; }
+.msgr-b { cursor: pointer; }
+.msgr-b.ctx-on { filter: brightness(1.14); }
+.msgr-ctx { position: fixed; z-index: 12; display: flex; flex-direction: column; gap: 6px; animation: toast-in var(--dur-short) var(--ease-out); }
+.ctx-reacts { display: flex; gap: 2px; padding: 5px; border-radius: var(--radius-pill); background: var(--color-paper-2); box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .45), inset 0 0 0 1px var(--color-rule); }
+.ctx-r { width: 34px; height: 34px; border: 0; border-radius: 50%; background: none; font-size: 20px; cursor: pointer; transition: transform .12s var(--ease-out); }
+.ctx-r:hover { background: var(--color-paper-3); transform: scale(1.18); }
+.ctx-acts { display: flex; flex-direction: column; min-width: 164px; padding: 6px; border-radius: 14px; background: var(--color-paper-2); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .45), inset 0 0 0 1px var(--color-rule); }
+.ctx-a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 10px; background: none; color: var(--color-ink); font-size: 14px; cursor: pointer; text-align: left; }
+.ctx-a:hover { background: var(--color-paper-3); }
+.ctx-a .icon { font-size: 19px; color: var(--color-muted); }
+.ctx-a.danger, .ctx-a.danger .icon { color: #ff453a; }
 .msgr-reacts { position: absolute; bottom: -9px; z-index: 2; display: flex; gap: 3px; }
 .msgr-b.me .msgr-reacts { right: 8px; }
 .msgr-b.them .msgr-reacts { left: 8px; }
@@ -437,7 +440,12 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-potd b { display: block; font-size: 14px; }
 .msgr-potd small { font-size: 12px; color: var(--color-muted); }
 .msgr-btn { position: relative; }
-.msgr-badge { position: absolute; top: 0; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: var(--radius-pill); background: #ff3b30; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--color-paper); }
+.msgr-fab { display: none; position: fixed; right: 20px; bottom: 24px; z-index: 50; width: 58px; height: 58px; border: 0; border-radius: 50%; background: var(--color-accent); color: #fff; place-items: center; cursor: pointer; box-shadow: 0 14px 34px -8px color-mix(in oklab, var(--color-accent) 70%, transparent), 0 4px 12px rgba(0, 0, 0, .22); transition: transform .18s var(--ease-out); }
+body[data-view=home] .msgr-fab { display: grid; }
+.msgr-fab:hover { transform: translateY(-2px) scale(1.04); }
+.msgr-fab:active { transform: scale(.95); }
+.msgr-fab .icon { font-size: 26px; }
+.msgr-badge { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-pill); background: #ff3b30; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--color-paper); }
 
 /* Together mode scene picker */
 .tog-bar { position: fixed; left: 50%; bottom: calc(88px + var(--space-sm)); translate: -50% 0; z-index: var(--z-toast); display: flex; align-items: center; gap: var(--space-sm); max-width: calc(100vw - 24px); padding: 8px 10px; border-radius: 20px; background: rgba(38, 38, 42, .96); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 20px 50px -16px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(255, 255, 255, .1); animation: toast-in var(--dur-short) var(--ease-out); }
@@ -680,6 +688,13 @@ body.kisscam::before {
   display: flex; flex-direction: column; min-height: 0;
 }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-md) var(--space-sm) var(--space-2xs) var(--space-lg); }
+#panel.chatwin { box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .7), inset 0 0 0 1px var(--color-rule); overflow: hidden; transition: box-shadow .2s var(--ease-out); }
+#panel.chatwin.dragging { transition: none; user-select: none; }
+#panel.chatwin .panel-head { cursor: move; touch-action: none; }
+#panel.chatwin .panel-head::before { content: ""; position: absolute; top: 6px; left: 50%; width: 34px; height: 4px; margin-left: -17px; border-radius: 4px; background: var(--color-rule); }
+#panel.chatwin .panel-head { position: relative; padding-top: calc(var(--space-md) + 6px); }
+.chat-grip { position: absolute; right: 2px; bottom: 2px; z-index: 5; width: 26px; height: 26px; display: grid; place-items: center; color: var(--color-muted); cursor: nwse-resize; touch-action: none; transform: rotate(-45deg); }
+.chat-grip .icon { font-size: 18px; }
 .panel-head h3 { font-size: var(--text-lg); }
 .panel-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-xs) var(--space-lg) var(--space-lg); display: flex; flex-direction: column; }
 .panel-label { font-size: var(--text-sm); font-weight: 500; color: var(--color-muted); margin: var(--space-xs) 0; }
@@ -944,7 +959,7 @@ body.kisscam::before {
   .controls .center, .controls .right { justify-content: center; gap: var(--space-xs); }
   :root { --control-size: 44px; }
   .ctrl.leave { width: 60px; }
-  #panel { position: fixed; inset: 0; z-index: var(--z-modal); width: auto; border-radius: 0; }
+  /* #panel floats as a movable window (see .chatwin); no full-screen takeover */
   #reaction-picker { position: fixed; left: var(--space-xs); right: var(--space-xs); bottom: 128px; transform: none; flex-wrap: wrap; justify-content: center; gap: 0; }
   #toast { top: var(--space-md); bottom: auto; }
   #reaction-picker button { width: 40px; height: 40px; }

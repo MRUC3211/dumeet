@@ -544,41 +544,17 @@
     }
   }
 
-  // Presence on the home screen: who's in the room, online, or last seen when.
-  const PEOPLE = ["Uday", "Diya"];
-  const PARTNER = () => PEOPLE.find((p) => p.toLowerCase() !== String(prefs.name || "").toLowerCase());
-  function agoText(s) {
-    if (s < 60) return "just now";
-    const m = Math.round(s / 60);
-    if (m < 60) return `${m} min ago`;
-    const h = Math.round(m / 60);
-    if (h < 24) return `${h} hr ago`;
-    return `${Math.round(h / 24)} day${Math.round(h / 24) === 1 ? "" : "s"} ago`;
-  }
+  // Who is already in our room, shown on the home screen (no "last seen").
   let presenceTimer = 0;
   async function refreshPresence() {
     clearTimeout(presenceTimer);
     if (document.body.dataset.view !== "home") return;
     const pill = q("#home-status");
-    const label = q("span:last-child", pill);
     try {
-      const { names, seen } = await (await fetch(`/api/room?room=${OUR_ROOM}&me=${encodeURIComponent(prefs.name || "")}`)).json();
+      const { names } = await (await fetch(`/api/room?room=${OUR_ROOM}`)).json();
       const others = names.filter((n) => n !== prefs.name);
-      const partner = PARTNER();
-      const ago = seen && partner ? Object.entries(seen).find(([n]) => n.toLowerCase() === partner.toLowerCase())?.[1] : undefined;
-      if (others.length) {
-        pill.classList.add("waiting"); pill.classList.remove("away");
-        label.textContent = `${others.join(" & ")} ${others.length > 1 ? "are" : "is"} waiting for you`;
-      } else if (ago != null && ago < 50) {
-        pill.classList.add("waiting"); pill.classList.remove("away");
-        label.textContent = `${partner} is online`;
-      } else if (ago != null && partner) {
-        pill.classList.remove("waiting"); pill.classList.add("away");
-        label.textContent = `${partner} · last seen ${agoText(ago)}`;
-      } else {
-        pill.classList.remove("waiting", "away");
-        label.textContent = "Your private room";
-      }
+      pill.classList.toggle("waiting", others.length > 0);
+      q("span:last-child", pill).textContent = others.length ? `${others.join(" & ")} ${others.length > 1 ? "are" : "is"} waiting for you` : "Your private room";
       joinButton.classList.toggle("pulse", others.length > 0);
     } catch { /* offline: leave as is */ }
     presenceTimer = setTimeout(refreshPresence, 8000);

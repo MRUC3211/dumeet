@@ -74,12 +74,29 @@
           if (st.me >= 2 || st.they >= 2) api.track(setTimeout(() => api.done(st.me > st.they, st.me > st.they ? `🏆 Aap jeet gaye! (${st.me}-${st.they})` : `😅 Aap haare (${st.they}-${st.me})`), 1500));
           else api.track(setTimeout(roundStart, 1700));
         };
+        function captureShoot() {
+          // Sample the hand for ~1s and take the gesture seen most — far more reliable
+          // than reading a single frame (which used to just default to rock).
+          const counts = {}; let n = 0;
+          const sample = api.track(setInterval(() => {
+            n += 1;
+            const g = MAP[api.sig().gesture];
+            if (g) counts[g] = (counts[g] || 0) + 1;
+            if (n >= 11) {
+              clearInterval(sample);
+              const pick = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || "rock";
+              st.myPick = pick;
+              api.send({ k: "pick", v: st.myPick });
+              st.resolve();
+            }
+          }, 90));
+        }
         function roundStart() {
           st.round += 1;
           api.top().innerHTML = `<div class="cg-hud">You ${st.me} — ${st.they} ${api.esc(api.other()?.name || "them")}</div>`;
           const words = ["Rock…", "Paper…", "Scissors…", "SHOOT! ✊✋✌️"];
           let i = 0;
-          const show = () => { api.center().innerHTML = `<div class="cg-go">${words[i]}</div>`; if (i < 3) { i += 1; api.track(setTimeout(show, 650)); } else { st.myPick = MAP[api.sig().gesture] || "rock"; api.send({ k: "pick", v: st.myPick }); st.resolve(); } };
+          const show = () => { api.center().innerHTML = `<div class="cg-go">${words[i]}</div>`; if (i < 3) { i += 1; api.track(setTimeout(show, 650)); } else { api.center().innerHTML = `<div class="cg-go">SHOOT! ✊✋✌️</div><div class="cg-rps-line">Apna haath dikhao…</div>`; captureShoot(); } };
           show();
         }
         roundStart();

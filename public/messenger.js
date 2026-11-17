@@ -93,6 +93,7 @@
         </form>
       </div>
       <div class="msgr-reactpop" id="msgr-reactpop" hidden></div>
+      <div class="msgr-ctx" id="msgr-ctx" hidden></div>
       <div class="msgr-attachpop" id="msgr-attachpop" hidden>
         <button data-a="photo"><span class="icon">image</span>Photo</button>
         <button data-a="once"><span class="icon">visibility</span>View-once photo</button>
@@ -105,6 +106,7 @@
     if (face) { av.style.backgroundImage = `url("${authUrl(face)}")`; av.classList.add("photo"); } else av.textContent = (partner()[0] || "?").toUpperCase();
     el.addEventListener("click", (e) => {
       if (!e.target.closest("#msgr-reactpop, [data-react]")) q("#msgr-reactpop").hidden = true;
+      if (!e.target.closest("#msgr-ctx, .msgr-b")) closeCtx();
       if (!e.target.closest("#msgr-schedpop, [data-m=schedule]")) { const sp = q("#msgr-schedpop"); if (sp) sp.hidden = true; }
       if (!e.target.closest("#msgr-attachpop, [data-m=attach]")) { const ap = q("#msgr-attachpop"); if (ap) ap.hidden = true; }
       if (e.target.closest("[data-m=close]")) return close();
@@ -128,6 +130,11 @@
       const db = e.target.closest("[data-del]"); if (db) return deleteMsg(+db.dataset.del);
       const sc = e.target.closest("[data-sched]"); if (sc) return scheduleSend(+sc.dataset.sched);
       const st = e.target.closest("[data-sticker]"); if (st) { sendSticker(st.dataset.sticker); toggleStickers(false); return; }
+      const cr = e.target.closest(".ctx-r"); if (cr) { toggleReact(+cr.dataset.rx, cr.dataset.e); closeCtx(); return; }
+      const ca = e.target.closest("[data-ctx]");
+      if (ca) { const i = +ca.dataset.i, act = ca.dataset.ctx; closeCtx(); if (act === "reply") startReply(i); else if (act === "star") toggleStar(i); else if (act === "delete") deleteMsg(i); else if (act === "copy") { navigator.clipboard?.writeText(msgs[i]?.text || "").then(() => toast("Copied"), () => {}); } return; }
+      const bubble = e.target.closest(".msgr-b[data-i]");
+      if (bubble && !e.target.closest("a, img, button")) return openCtx(+bubble.dataset.i, bubble);
     });
     q("#msgr-form").addEventListener("submit", (e) => { e.preventDefault(); const i = q("#msgr-input"); const t = i.value.trim(); if (!t) return; i.value = ""; const r = replying; cancelReply(); persist(prefs.name, t, [], r); });
     const sendPhoto = async (f, once) => {
@@ -164,20 +171,16 @@
       const d = new Date(m.at), day = d.toDateString();
       if (!starredOnly && day !== lastDay) { lastDay = day; html += `<div class="msgr-day">${dayLabel(d)}</div>`; }
       const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      if (m.deleted) { html += `<div class="msgr-b deleted ${mine ? "me" : "them"}"><span class="msgr-t"><span class="icon">block</span>This message was deleted</span></div>`; return; }
-      let a = `<button class="msgr-act" data-react="${i}" aria-label="React"><span class="icon">add_reaction</span></button><button class="msgr-act" data-reply="${i}" aria-label="Reply"><span class="icon">reply</span></button><button class="msgr-act" data-star="${i}" aria-label="Star"><span class="icon">${m.star ? "star" : "star_border"}</span></button>`;
-      if (mine) a += `<button class="msgr-act" data-del="${i}" aria-label="Delete"><span class="icon">delete</span></button>`;
-      const acts = `<span class="msgr-acts">${a}</span>`;
+      if (m.deleted) { html += `<div class="msgr-b deleted ${mine ? "me" : "them"}" data-i="${i}"><span class="msgr-t"><span class="icon">block</span>This message was deleted</span></div>`; return; }
       const reacts = (m.reactions && Object.keys(m.reactions).some((e) => m.reactions[e].length))
         ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, ar]) => ar.length).map(([e, ar]) => `<button class="msgr-rchip${ar.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${ar.length > 1 ? " " + ar.length : ""}</button>`).join("")}</span>` : "";
       const vIcon = m.exp ? '<span class="icon msgr-vanish-i">timer</span>' : "";
       const meta = scheduled
         ? `<span class="msgr-time msgr-sched"><span class="icon">schedule</span>${d.toLocaleString([], { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}</span>`
         : `<span class="msgr-time">${vIcon}${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}</span>`;
-      if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}">${acts}<span class="msgr-sticker">${esc(m.sticker)}</span>${meta}${reacts}</div>`; return; }
+      if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}" data-i="${i}"><span class="msgr-sticker">${esc(m.sticker)}</span>${meta}${reacts}</div>`; return; }
       const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
-      html += `<div class="msgr-b ${mine ? "me" : "them"}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
-      html += acts;
+      html += `<div class="msgr-b ${mine ? "me" : "them"}" data-i="${i}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
       if (m.reply) html += `<span class="msgr-q"><b>${esc(m.reply.from || "")}</b>${esc(m.reply.text || "")}</span>`;
       if (m.loc && typeof m.loc.lat === "number") html += `<a class="msgr-loc" href="https://www.openstreetmap.org/?mlat=${m.loc.lat}&mlon=${m.loc.lon}#map=16/${m.loc.lat}/${m.loc.lon}" target="_blank" rel="noopener noreferrer"><span class="icon">location_on</span><span><b>Location</b><small>${m.loc.lat}, ${m.loc.lon} · Open in Maps</small></span></a>`;
       if (Array.isArray(m.media)) for (const x of m.media) {
@@ -271,6 +274,29 @@
     pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
     pop.style.top = Math.max(8, r.top - h - 6) + "px";
   }
+  // WhatsApp-style: tap a message to open a reaction row + actions
+  function openCtx(i, bubble) {
+    const m = msgs[i]; if (!m || m.deleted) return;
+    const mine = String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
+    const ctx = q("#msgr-ctx"); if (!ctx) return;
+    const reacts = RX.map((e) => `<button class="ctx-r" data-rx="${i}" data-e="${e}">${e}</button>`).join("");
+    let acts = `<button class="ctx-a" data-ctx="reply" data-i="${i}"><span class="icon">reply</span>Reply</button>`
+      + `<button class="ctx-a" data-ctx="star" data-i="${i}"><span class="icon">${m.star ? "star" : "star_border"}</span>${m.star ? "Unstar" : "Star"}</button>`;
+    if (m.text) acts += `<button class="ctx-a" data-ctx="copy" data-i="${i}"><span class="icon">content_copy</span>Copy</button>`;
+    if (mine) acts += `<button class="ctx-a danger" data-ctx="delete" data-i="${i}"><span class="icon">delete</span>Delete</button>`;
+    ctx.innerHTML = `<div class="ctx-reacts">${reacts}</div><div class="ctx-acts">${acts}</div>`;
+    ctx.hidden = false;
+    const r = bubble.getBoundingClientRect(), w = ctx.offsetWidth, h = ctx.offsetHeight;
+    let left = mine ? r.right - w : r.left;
+    left = Math.max(8, Math.min(innerWidth - w - 8, left));
+    let top = r.top - h - 8;
+    if (top < 8) top = Math.min(innerHeight - h - 8, r.bottom + 8);
+    ctx.style.left = left + "px"; ctx.style.top = top + "px";
+    el.querySelector(".ctx-on")?.classList.remove("ctx-on");
+    bubble.classList.add("ctx-on");
+  }
+  function closeCtx() { const c = q("#msgr-ctx"); if (c) c.hidden = true; el?.querySelector(".ctx-on")?.classList.remove("ctx-on"); }
+
   function toggleReact(i, emoji) {
     const m = msgs[i]; if (!m) return;
     m.reactions = m.reactions || {};

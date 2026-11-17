@@ -2275,10 +2275,43 @@ function applySync(data) {
 
 // ---------- Side panel: info, people, chat, polls ----------
 
+// The side panel (chat / people / polls) floats as a movable, resizable window
+// so it doesn't cover the whole call — drag the header, resize from the corner.
+let panelMoved = false;
+function makePanelMovable() {
+  if (panelMoved) return; panelMoved = true;
+  const el = $("#panel"), head = el.querySelector(".panel-head"), KEY = "du-chatwin";
+  const narrow = innerWidth < 600;
+  let box; try { box = JSON.parse(localStorage.getItem(KEY)); } catch { /* private */ }
+  box = box || { x: narrow ? 8 : innerWidth - 384, y: narrow ? 64 : 80, w: narrow ? innerWidth - 16 : 360, h: Math.min(innerHeight - 150, 480) };
+  const clamp = () => {
+    box.w = Math.round(Math.max(280, Math.min(box.w, innerWidth - 12)));
+    box.h = Math.round(Math.max(300, Math.min(box.h, innerHeight - 80)));
+    box.x = Math.round(Math.max(6, Math.min(box.x, innerWidth - box.w - 6)));
+    box.y = Math.round(Math.max(6, Math.min(box.y, innerHeight - 56)));
+  };
+  const apply = () => { clamp(); Object.assign(el.style, { position: "fixed", left: box.x + "px", top: box.y + "px", width: box.w + "px", height: box.h + "px", zIndex: "400" }); };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(box)); } catch { /* private */ } };
+  el.classList.add("chatwin");
+  let grip = el.querySelector(".chat-grip");
+  if (!grip) { grip = document.createElement("div"); grip.className = "chat-grip"; grip.innerHTML = '<span class="icon" aria-hidden="true">drag_handle</span>'; el.append(grip); }
+  apply();
+  let mode = null, sx, sy, ox, oy, ow, oh;
+  const down = (e, m) => { mode = m; sx = e.clientX; sy = e.clientY; ox = box.x; oy = box.y; ow = box.w; oh = box.h; el.classList.add("dragging"); e.preventDefault(); };
+  const move = (e) => { if (!mode) return; const dx = e.clientX - sx, dy = e.clientY - sy; if (mode === "move") { box.x = ox + dx; box.y = oy + dy; } else { box.w = ow + dx; box.h = oh + dy; } apply(); };
+  const up = () => { if (mode) { mode = null; el.classList.remove("dragging"); save(); } };
+  head.addEventListener("pointerdown", (e) => { if (e.target.closest("button, input")) return; down(e, "move"); });
+  grip.addEventListener("pointerdown", (e) => down(e, "resize"));
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+  addEventListener("resize", apply);
+}
+
 function togglePanel(name) {
   const closing = openPanel;
   openPanel = openPanel === name ? null : name;
   $("#panel").hidden = !openPanel;
+  if (openPanel) makePanelMovable();
   for (const section of document.querySelectorAll("[data-panel]")) section.hidden = section.dataset.panel !== openPanel;
   $("#panel-title").textContent = { info: "Meeting details", people: "People", chat: "In-call messages", polls: "Polls" }[openPanel] ?? "";
   for (const button of document.querySelectorAll(".ctrl[data-action=chat]")) {
