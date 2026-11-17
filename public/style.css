@@ -345,7 +345,10 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
   background: #efe7dd; color: #111b21; }
 .msgr.open { opacity: 1; }
 .msgr-sheet { display: flex; flex-direction: column; height: 100%; max-width: 640px; margin: 0 auto; }
-.msgr-head { display: flex; align-items: center; gap: 12px; padding: 12px 10px; border-bottom: 1px solid var(--color-rule); flex: none; }
+.msgr-head { display: flex; align-items: center; gap: 4px; padding: 8px 6px; border-bottom: 1px solid var(--color-rule); flex: none; }
+.msgr-head .icon-btn { width: 38px; height: 38px; }
+.msgr-head .icon-btn .icon { font-size: 22px; }
+.msgr-head > .msgr-av { margin-right: 6px; margin-left: 2px; }
 .msgr-head b { font-size: 16px; color: var(--color-ink); }
 .msgr-av { width: 38px; height: 38px; border-radius: 50%; background: var(--color-accent); color: #fff; display: grid; place-items: center; font-weight: 600; background-size: cover; background-position: center; flex: none; }
 .msgr-av.photo { color: transparent; }
@@ -369,7 +372,14 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-form #msgr-input { flex: 1; min-width: 0; height: 44px; border: 0; border-radius: var(--radius-pill); padding: 0 16px; background: var(--color-paper-3); color: var(--color-ink); font-size: 15px; outline: 0; }
 .msgr-form #msgr-input::placeholder { color: var(--color-muted); }
 .msgr-form .send { color: var(--color-accent); }
-.msgr-head b { flex: 1; }
+.msgr-head-id { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.18; }
+.msgr-head-id b { flex: initial; font-size: 16px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgr-status { font-size: 12px; font-weight: 400; color: #667781; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgr-status.online { color: #1da851; }
+.msgr-status:empty { display: none; }
+.msgr-tick { display: inline-flex; align-items: center; margin-left: 2px; }
+.msgr-tick .icon { font-size: 16px; line-height: 1; }
+.msgr-tick.read .icon { color: #53bdeb; }
 .msgr-gallery-btn { flex: none; color: var(--color-ink-2); }
 .msgr-b { position: relative; margin-bottom: 4px; }
 .msgr-b { cursor: pointer; touch-action: pan-y; }

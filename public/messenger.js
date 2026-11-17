@@ -21,6 +21,68 @@
   const VANISH_TTL = 24 * 3600 * 1000;
   let vanish = false; try { vanish = localStorage.getItem("du-vanish") === "1"; } catch { /* private */ }
 
+  // ---------- read receipts + last seen (WhatsApp-style) ----------
+  // Each person writes only their own small doc in "settings": { at, read }.
+  //   at   = last time their app was active (delivered cursor + last seen)
+  //   read = last time they had this chat open and visible (read cursor)
+  const kit = () => window.DU?.kit || {};
+  const recvId = (name) => "recv-" + String(name || "").toLowerCase();
+  const mineMsg = (m) => String(m.from || "").toLowerCase() === String(prefs.name || "").toLowerCase();
+  let theirRecv = { at: 0, read: 0 };
+  let myRead = 0, lastPush = 0;
+  async function pullReceipts() {
+    try {
+      const docs = await kit().getDocs?.("settings");
+      const t = docs?.find((d) => d.id === recvId(partner()))?.data;
+      const next = t ? { at: +t.at || 0, read: +t.read || 0 } : theirRecv;
+      const changed = next.at !== theirRecv.at || next.read !== theirRecv.read;
+      theirRecv = next;
+      if (changed && el) { paintStatus(); paintTicks(); }
+    } catch { /* offline */ }
+  }
+  function paintTicks() {                       // update the ticks in place, no full re-render
+    if (!el) return;
+    const now = Date.now();
+    for (const b of el.querySelectorAll(".msgr-b.me[data-i]")) {
+      const m = msgs[+b.dataset.i]; if (!m || (m.sendAt && m.sendAt > now)) continue;
+      const tick = b.querySelector(".msgr-time .msgr-tick"); if (!tick) continue;
+      const read = theirRecv.read >= m.at, delivered = read || theirRecv.at >= m.at;
+      tick.classList.toggle("read", read);
+      const ic = tick.querySelector(".icon"), want = delivered ? "done_all" : "done";
+      if (ic && ic.textContent !== want) ic.textContent = want;
+    }
+  }
+  async function pushReceipt(force) {
+    if (!prefs.name) return;
+    const now = Date.now();
+    if (!force && now - lastPush < 12000) return;
+    lastPush = now;
+    try { await kit().putDoc?.("settings", { who: prefs.name, at: now, read: myRead }, recvId(prefs.name)); } catch { /* offline */ }
+  }
+  function markReadIfViewing() {
+    if (!el || document.visibilityState === "hidden") return;
+    const theirLatest = msgs.filter((m) => !mineMsg(m) && !(m.sendAt && m.sendAt > Date.now())).at(-1)?.at || 0;
+    if (theirLatest > myRead) { myRead = Date.now(); pushReceipt(true); }
+  }
+  function tickFor(at) {                       // ✓ sent · ✓✓ delivered · blue ✓✓ read
+    const read = theirRecv.read >= at, delivered = read || theirRecv.at >= at;
+    return `<span class="msgr-tick${read ? " read" : ""}"><span class="icon">${delivered ? "done_all" : "done"}</span></span>`;
+  }
+  function lastSeenText(ts) {
+    const d = new Date(ts), now = new Date();
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === now.toDateString()) return time;                       // "last seen 4:06 PM"
+    if (new Date(now - 864e5).toDateString() === d.toDateString()) return "yesterday";
+    return d.toLocaleDateString([], { day: "numeric", month: "short" });
+  }
+  function paintStatus() {
+    const s = q("#msgr-status"); if (!s) return;
+    const now = Date.now();
+    const online = (theirRecv.read && now - theirRecv.read < 35000) || (theirRecv.at && now - theirRecv.at < 50000);
+    s.classList.toggle("online", Boolean(online));
+    s.textContent = online ? "online" : theirRecv.at ? "last seen " + lastSeenText(theirRecv.at) : "";
+  }
+
   async function fetchMsgs() {
     try {
       const { docs } = await (await fetch("/api/data?c=messages")).json();
@@ -28,6 +90,8 @@
       const list = (docs || []).map((d) => ({ id: d.id, ...d.data })).filter((m) => m && m.at);
       for (const m of list) if (m.exp && m.exp < now) fetch(`/api/data?c=messages&id=${encodeURIComponent(m.id)}`, { method: "DELETE" }).catch(() => {});
       msgs = list.filter((m) => !(m.exp && m.exp < now)).sort((a, b) => a.at - b.at);
+      await pullReceipts();
+      pushReceipt(false);
       return true;
     } catch { return false; }
   }
@@ -55,11 +119,19 @@
     build();
     if (potdDue()) q("#msgr-potd").hidden = false;
     await fetchMsgs();
+    myRead = Date.now();
     render(true);
     if (msgs.length) setSeen(msgs[msgs.length - 1].at);
     paintBadge();
+    pushReceipt(true);
     clearInterval(pollT);
-    pollT = setInterval(async () => { if (!el) return; const n = msgs.length, last = msgs[n - 1]?.at; await fetchMsgs(); if (msgs.length !== n || msgs[msgs.length - 1]?.at !== last) render(true); }, 5000);
+    pollT = setInterval(async () => {
+      if (!el) return;
+      const n = msgs.length, last = msgs[n - 1]?.at;
+      await fetchMsgs();   // pullReceipts (inside) refreshes status + ticks on its own
+      if (msgs.length !== n || msgs[msgs.length - 1]?.at !== last) render(true);
+      markReadIfViewing();
+    }, 5000);
   }
   function close() { clearInterval(pollT); el?.remove(); el = null; paintBadge(); }
 
@@ -71,7 +143,8 @@
       <div class="msgr-sheet">
         <header class="msgr-head">
           <button class="icon-btn" data-m="close" aria-label="Back"><span class="icon">arrow_back</span></button>
-          <span class="msgr-av" id="msgr-av"></span><b id="msgr-name"></b>
+          <span class="msgr-av" id="msgr-av"></span>
+          <span class="msgr-head-id"><b id="msgr-name"></b><small class="msgr-status" id="msgr-status"></small></span>
           <button class="icon-btn" data-m="catchup" title="Catch me up" aria-label="Catch me up"><span class="icon">auto_awesome</span></button>
           <button class="icon-btn msgr-vanish-btn" data-m="vanish" aria-label="Disappearing messages"><span class="icon">timer</span></button>
           <button class="icon-btn msgr-star-btn" data-m="starred" aria-label="Starred messages"><span class="icon">star</span></button>
@@ -176,9 +249,10 @@
       const reacts = (m.reactions && Object.keys(m.reactions).some((e) => m.reactions[e].length))
         ? `<span class="msgr-reacts">${Object.entries(m.reactions).filter(([, ar]) => ar.length).map(([e, ar]) => `<button class="msgr-rchip${ar.includes(prefs.name) ? " mine" : ""}" data-rx="${i}" data-e="${esc(e)}">${esc(e)}${ar.length > 1 ? " " + ar.length : ""}</button>`).join("")}</span>` : "";
       const vIcon = m.exp ? '<span class="icon msgr-vanish-i">timer</span>' : "";
+      const tick = (mine && !scheduled && !m.deleted) ? tickFor(m.at) : "";
       const meta = scheduled
         ? `<span class="msgr-time msgr-sched"><span class="icon">schedule</span>${d.toLocaleString([], { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}</span>`
-        : `<span class="msgr-time">${vIcon}${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}</span>`;
+        : `<span class="msgr-time">${vIcon}${m.star ? '<span class="icon msgr-star">star</span>' : ""}${time}${tick}</span>`;
       if (m.sticker) { html += `<div class="msgr-b sticker ${mine ? "me" : "them"}" data-i="${i}"><span class="msgr-sticker">${esc(m.sticker)}</span>${meta}${reacts}</div>`; return; }
       const firstUrl = (m.text || "").match(/https?:\/\/[^\s<]+/)?.[0];
       html += `<div class="msgr-b ${mine ? "me" : "them"}" data-i="${i}"${firstUrl ? ` data-url="${esc(firstUrl)}"` : ""}>`;
@@ -198,6 +272,8 @@
     list.innerHTML = any ? html : `<div class="msgr-empty"><span class="icon">${starredOnly ? "star" : "chat"}</span><p>${starredOnly ? "No starred messages" : "No messages yet — send the first one 💬"}</p></div>`;
     setSeen(now);
     if (scroll) list.scrollTop = list.scrollHeight;
+    paintStatus();
+    markReadIfViewing();
     loadPreviews();
     maybeSmart();
   }
@@ -468,6 +544,9 @@
   async function refresh() { await fetchMsgs(); paintBadge(); }
 
   document.addEventListener("click", (e) => { if (e.target.closest("[data-home=messages]")) open(); });
+
+  // returning to the tab with the chat open marks the latest as read (blue ticks)
+  document.addEventListener("visibilitychange", () => { if (el && document.visibilityState === "visible") { markReadIfViewing(); paintStatus(); } });
 
   // open the chat when a message notification is tapped, or on a /?chat=1 cold open
   navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "msg-open") open(); });
