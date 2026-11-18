@@ -407,6 +407,18 @@ body.controls-hidden .meet-chip, body.controls-hidden .snap-float { opacity: 0; 
 .msgr-voice.playing .msgr-voice-wave i { background: color-mix(in oklab, var(--color-accent) 40%, transparent); }
 .msgr-voice-dur { flex: none; font-size: 11.5px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
 .msgr-b.me .msgr-voice-dur { color: #4a7c59; }
+/* shared file / document bubble */
+.msgr-file { display: flex; align-items: center; gap: 10px; min-width: 200px; max-width: 262px; margin-bottom: 2px; padding: 8px; border-radius: 10px; background: rgba(0, 0, 0, .05); text-decoration: none; color: inherit; }
+.msgr-b.me .msgr-file { background: rgba(0, 0, 0, .06); }
+.msgr-file-ic { position: relative; flex: none; width: 40px; height: 46px; display: grid; place-items: center; border-radius: 8px; background: var(--color-accent); color: #fff; }
+.msgr-b.me .msgr-file-ic { background: #1a8f5c; }
+.msgr-file-ic .icon { font-size: 24px; }
+.msgr-file-ic em { position: absolute; bottom: 3px; font-size: 7.5px; font-style: normal; font-weight: 700; letter-spacing: .02em; }
+.msgr-file-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.msgr-file-meta b { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgr-file-meta small { font-size: 12px; color: var(--color-muted); }
+.msgr-b.me .msgr-file-meta small { color: #4a7c59; }
+.msgr-file-dl { flex: none; font-size: 20px; color: var(--color-muted); }
 .msgr-head-id { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.18; }
 .msgr-head-id b { flex: initial; font-size: 16px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msgr-status { font-size: 12px; font-weight: 400; color: #667781; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

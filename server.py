@@ -328,7 +328,18 @@ COLLECTIONS = {"calendar", "songs", "meetings", "snaps", "recordings", "settings
 MAX_DOC = 100 * 1024
 MAX_MEDIA = 25 * 1024 * 1024
 MAX_RECORDING = 80 * 1024 * 1024    # call recordings uploaded to the admin panel (bigger ones save to the device)
-MEDIA_TYPES = ("image/", "audio/", "video/", "application/pdf", "text/plain")
+# Pictures/clips the chat renders inline, plus documents and files people share.
+# Documents are served as downloads (never rendered inline) so they can't run.
+INLINE_TYPES = ("image/", "audio/", "video/", "application/pdf")
+DOC_TYPES = (
+    "application/pdf", "text/plain", "text/csv",
+    "application/msword", "application/rtf", "application/json",
+    "application/vnd.openxmlformats-officedocument", "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint", "application/vnd.oasis.opendocument",
+    "application/zip", "application/x-zip-compressed", "application/x-rar-compressed",
+    "application/x-7z-compressed", "application/gzip", "application/octet-stream",
+)
+MEDIA_TYPES = ("image/", "audio/", "video/") + DOC_TYPES
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
 
 # ---- Meeting history ("who joined when, for how long") ------------------------------
@@ -805,6 +816,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "private, max-age=31536000, immutable")
         self.send_header("X-Content-Type-Options", "nosniff")
+        # Anything that isn't a picture/clip/PDF is a shared file: force a download
+        # instead of rendering it in the app's own origin.
+        if not kind.startswith(INLINE_TYPES):
+            self.send_header("Content-Disposition", "attachment")
         self.end_headers()
         self.wfile.write(body)
 

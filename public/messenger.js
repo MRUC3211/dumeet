@@ -300,6 +300,7 @@
           <button type="button" class="icon-btn" data-m="attach" title="Attach" aria-label="Attach"><span class="icon">add_circle</span></button>
           <input type="file" accept="image/*" id="msgr-file" hidden>
           <input type="file" accept="image/*" id="msgr-file-once" hidden>
+          <input type="file" id="msgr-file-doc" hidden>
           <input id="msgr-input" placeholder="Message ${esc(partner())}…" maxlength="2000" autocomplete="off">
           <button type="button" class="icon-btn" data-m="schedule" title="Send later" aria-label="Schedule"><span class="icon">schedule_send</span></button>
           <button type="button" class="icon-btn msgr-mic" data-m="mic" title="Record a voice message" aria-label="Record a voice message"><span class="icon">mic</span></button>
@@ -318,6 +319,7 @@
       <div class="msgr-attachpop" id="msgr-attachpop" hidden>
         <button data-a="photo"><span class="icon">image</span>Photo</button>
         <button data-a="once"><span class="icon">visibility</span>View-once photo</button>
+        <button data-a="file"><span class="icon">description</span>Document</button>
         <button data-a="location"><span class="icon">location_on</span>Location</button>
       </div>`;
     document.body.append(el);
@@ -338,7 +340,7 @@
       if (e.target.closest("[data-m=vanish]")) return toggleVanish();
       if (e.target.closest("[data-m=catchup]")) return catchUp();
       const sm = e.target.closest("[data-smart]"); if (sm) { persist(prefs.name, sm.dataset.smart, []); q("#msgr-smart").hidden = true; smartFor = "sent"; return; }
-      const ab = e.target.closest("[data-a]"); if (ab) { q("#msgr-attachpop").hidden = true; const a = ab.dataset.a; if (a === "photo") q("#msgr-file").click(); else if (a === "once") q("#msgr-file-once").click(); else if (a === "location") shareLocation(); return; }
+      const ab = e.target.closest("[data-a]"); if (ab) { q("#msgr-attachpop").hidden = true; const a = ab.dataset.a; if (a === "photo") q("#msgr-file").click(); else if (a === "once") q("#msgr-file-once").click(); else if (a === "file") q("#msgr-file-doc").click(); else if (a === "location") shareLocation(); return; }
       const vo = e.target.closest("[data-once]"); if (vo) return revealOnce(+vo.dataset.once);
       if (e.target.closest("[data-m=gallery]")) return openGallery();
       if (e.target.closest("[data-m=cancel-reply]")) return cancelReply();
@@ -373,8 +375,19 @@
       toast("Sending…");
       try { const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "image/jpeg" }, body: f })).json(); persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name, once: once || undefined }]); } catch { toast("Couldn't send the photo"); }
     };
+    const sendFile = async (f) => {
+      if (!f) return;
+      if (f.size > 25 * 1024 * 1024) return toast("File must be under 25MB");
+      toast("Sending…");
+      try {
+        const up = await (await fetch("/api/media", { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f })).json();
+        if (up.error || !up.url) throw new Error(up.error || "failed");
+        persist(prefs.name, "", [{ url: up.url, type: up.type, name: f.name, size: f.size, file: true }]);
+      } catch { toast("Couldn't send that file type"); }
+    };
     q("#msgr-file").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, false); });
     q("#msgr-file-once").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendPhoto(f, true); });
+    q("#msgr-file-doc").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; sendFile(f); });
     q(".msgr-vanish-btn")?.classList.toggle("on", vanish);
   }
 
@@ -385,6 +398,24 @@
     return d.toLocaleDateString([], { day: "numeric", month: "short", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" });
   }
   const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  const humanSize = (b) => { b = +b || 0; if (b < 1024) return b + " B"; if (b < 1048576) return (b / 1024).toFixed(0) + " KB"; return (b / 1048576).toFixed(1) + " MB"; };
+  const fileIcon = (name, type) => {
+    const e = (name.split(".").pop() || "").toLowerCase(); type = type || "";
+    if (type === "application/pdf" || e === "pdf") return "picture_as_pdf";
+    if (/sheet|excel|csv/.test(type) || ["xls", "xlsx", "csv"].includes(e)) return "table_chart";
+    if (/presentation|powerpoint/.test(type) || ["ppt", "pptx"].includes(e)) return "slideshow";
+    if (/word|document/.test(type) || ["doc", "docx", "rtf", "txt"].includes(e)) return "article";
+    if (/zip|rar|compressed|7z|gzip/.test(type) || ["zip", "rar", "7z", "gz"].includes(e)) return "folder_zip";
+    return "description";
+  };
+  const fileHtml = (x) => {
+    const name = x.name || "File", ext = (name.split(".").pop() || "").toUpperCase().slice(0, 4);
+    return `<a class="msgr-file" href="${esc(authUrl(x.url))}" download="${esc(name)}" target="_blank" rel="noopener noreferrer">
+      <span class="msgr-file-ic"><span class="icon">${fileIcon(name, x.type)}</span>${ext ? `<em>${esc(ext)}</em>` : ""}</span>
+      <span class="msgr-file-meta"><b>${esc(name)}</b><small>${esc(humanSize(x.size))}</small></span>
+      <span class="icon msgr-file-dl">download</span>
+    </a>`;
+  };
 
   function render(scroll) {
     const list = q("#msgr-list"); if (!list) return;
@@ -421,7 +452,8 @@
           if (x.viewed) html += `<span class="msgr-once viewed"><span class="icon">visibility_off</span>Opened</span>`;
           else if (mine) html += `<span class="msgr-once"><span class="icon">visibility</span>View-once photo</span>`;
           else html += `<button class="msgr-once tap" data-once="${i}"><span class="icon">visibility</span>Tap to view once</button>`;
-        } else html += `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`;
+        } else if (x.file || !(x.type || "image/").startsWith("image/")) html += fileHtml(x);
+        else html += `<img class="msgr-img" loading="lazy" src="${esc(authUrl(x.url))}" alt="">`;
       }
       if (m.text) html += `<span class="msgr-t">${linkify(m.text)}</span>`;
       html += `${meta}${reacts}</div>`;
