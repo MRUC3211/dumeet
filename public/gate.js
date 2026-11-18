@@ -71,6 +71,8 @@
       required = info.required;
       length = info.len || 0;
       window.DU_adminLen = info.adminLen || 0;
+      window.DU_maintenance = Boolean(info.maintenance);
+      window.DU_maintenanceText = info.maintenanceText || "";
     } catch {
       $("#gate-sub").textContent = "Can't reach the server";
       showError("Check the internet and reload.");

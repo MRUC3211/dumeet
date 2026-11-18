@@ -602,7 +602,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/auth-info":
             # Lengths let the lock screens unlock as soon as the last character is typed.
             return self.send_json({"required": bool(PASSWORD), "admin": bool(ADMIN_PASSWORD),
-                                   "len": len(PASSWORD), "adminLen": len(ADMIN_PASSWORD)})
+                                   "len": len(PASSWORD), "adminLen": len(ADMIN_PASSWORD),
+                                   "maintenance": bool(ADMIN.config["maintenance"]),
+                                   "maintenanceText": ADMIN.config["maintenanceText"]})
         if not path.startswith("/api/"):
             return self.serve_file(unquote(path))  # the app's code is public; data is not
         if not self.logged_in():

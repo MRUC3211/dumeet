@@ -24,6 +24,11 @@
 
   async function saveConfig(changes, msg = "Saved") {
     try { D.config = (await post("/api/admin/config", { changes })).config; toast(msg); } catch (e) { toast(e.message); }
+    if ("maintenance" in changes || "maintenanceText" in changes) {
+      window.DU_maintenance = Boolean(D.config.maintenance);
+      window.DU_maintenanceText = D.config.maintenanceText || "";
+      window.DU.applyMaintenance?.(window.DU_maintenance, window.DU_maintenanceText);
+    }
     A().render();
   }
 

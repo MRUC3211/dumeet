@@ -613,8 +613,32 @@
   q("#who-form").addEventListener("submit", (event) => { event.preventDefault(); setWho(q("#who-name").value); });
   q("#join-form").addEventListener("submit", () => closeModal(q("#m-other")));
 
+  // ---------- Site offline / maintenance screen ----------
+  // Admin flips "Maintenance mode" in the panel; everyone else sees this full
+  // cover. The Admin button stays, so you can turn the site back on from here.
+  function applyMaintenance(on, text) {
+    let o = q("#offline-screen");
+    if (!on) { o?.remove(); return; }
+    if (!o) { o = document.createElement("div"); o.id = "offline-screen"; o.className = "offline-screen"; document.body.append(o); }
+    o.innerHTML = `<div class="offline-card">
+        <span class="icon">cloud_off</span>
+        <h2>DU Meet is offline</h2>
+        <p class="offline-msg"></p>
+        <button class="btn ghost glass" data-home="admin"><span class="icon" aria-hidden="true">admin_panel_settings</span>Admin</button>
+      </div>`;
+    o.querySelector(".offline-msg").textContent = text || "We'll be back soon 💛";
+  }
+  async function recheckMaintenance() {
+    try {
+      const info = await (await fetch("/api/auth-info")).json();
+      window.DU_maintenance = Boolean(info.maintenance);
+      window.DU_maintenanceText = info.maintenanceText || "";
+      applyMaintenance(window.DU_maintenance, window.DU_maintenanceText);
+    } catch { /* offline: leave as is */ }
+  }
+
   window.DU = Object.assign(window.DU || {}, {
-    openModal, closeModal,
+    openModal, closeModal, applyMaintenance, recheckMaintenance,
     onHome() { paintAs(); refreshPresence(); paintInstall(); loadAvatars(); },
     faceFor(name) {
       const key = Object.keys(avatars).find((k) => k.toLowerCase() === String(name || "").trim().toLowerCase());
@@ -625,6 +649,8 @@
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   // Scripts load after the page, so show the right screen now.
   loadAvatars();
+  applyMaintenance(window.DU_maintenance, window.DU_maintenanceText);   // reflect the current state at once
+  setInterval(() => { if (document.visibilityState === "visible") recheckMaintenance(); }, 12000);
   if (document.body.dataset.view === "home") window.DU.onHome();
   else if (typeof route === "function" && document.body.dataset.view === "gate") route();
 })();
